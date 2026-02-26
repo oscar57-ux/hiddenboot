@@ -178,6 +178,67 @@ def bootstrap_joueurs():
     conn.close()
     print(f"✅ {total} joueurs offensifs insérés")
 
+def bootstrap_classements():
+    conn = sqlite3.connect("botfoot.db")
+    c = conn.cursor()
+    
+    c.execute('''CREATE TABLE IF NOT EXISTS classements (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        equipe_id INTEGER,
+        ligue_id INTEGER,
+        rang INTEGER,
+        points INTEGER,
+        victoires INTEGER,
+        nuls INTEGER,
+        defaites INTEGER,
+        buts_pour INTEGER,
+        buts_contre INTEGER,
+        diff_buts INTEGER,
+        forme TEXT,
+        date_maj TEXT
+    )''')
+    
+    c.execute("DELETE FROM classements")  # Reset avant de remplir
+    conn.commit()
+    
+    total = 0
+    for nom_ligue, ligue_id in LIGUES_CIBLES.items():
+        print(f"  Classement {nom_ligue}...")
+        data = api_get("standings", {"league": ligue_id, "season": SAISON})
+        
+        try:
+            standings = data["response"][0]["league"]["standings"][0]
+            for team in standings:
+                # Chercher l'équipe dans notre BDD
+                c.execute("SELECT id FROM api_equipes WHERE id = ?", (team["team"]["id"],))
+                equipe = c.fetchone()
+                if not equipe:
+                    continue
+                    
+                forme = team.get("form", "")
+                
+                c.execute('''INSERT INTO classements 
+                    (equipe_id, ligue_id, rang, points, victoires, nuls, defaites,
+                     buts_pour, buts_contre, diff_buts, forme, date_maj)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                    (team["team"]["id"], ligue_id, team["rank"], team["points"],
+                     team["all"]["win"], team["all"]["draw"], team["all"]["lose"],
+                     team["all"]["goals"]["for"], team["all"]["goals"]["against"],
+                     team["goalsDiff"], forme,
+                     datetime.now().strftime("%Y-%m-%d %H:%M")))
+                total += 1
+        except:
+            pass
+        
+        conn.commit()
+    
+    conn.close()
+    print(f"✅ {total} classements insérés")
+
+# Ajoute ça à la fin du bootstrap
+print("\n🏆 Étape 4/4 - Classements...")
+bootstrap_classements()
+
 # LANCEMENT
 print("🚀 Démarrage du bootstrap...")
 print("="*50)
