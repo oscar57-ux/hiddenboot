@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HiddenBoot</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/lipis/flag-icons@7.0.0/css/flag-icons.min.css"/>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            background: #080C14;
+            color: #fff;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* SIDEBAR */
+        .sidebar {
+            width: 240px;
+            min-height: 100vh;
+            background: #0D1321;
+            border-right: 1px solid #1a2540;
+            padding: 30px 0;
+            position: fixed;
+            left: 0;
+            top: 0;
+        }
+
+        .logo {
+            padding: 0 25px 30px;
+            border-bottom: 1px solid #1a2540;
+            margin-bottom: 20px;
+        }
+
+        .logo h1 {
+            font-size: 22px;
+            font-weight: 800;
+            letter-spacing: 1px;
+        }
+
+        .logo h1 span { color: #00D4FF; }
+
+        .logo p {
+            color: #4a6080;
+            font-size: 11px;
+            margin-top: 4px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 13px 25px;
+            color: #4a6080;
+            text-decoration: none;
+            font-size: 14px;
+            transition: all 0.2s;
+            border-left: 3px solid transparent;
+        }
+
+        .nav-item:hover, .nav-item.active {
+            color: #00D4FF;
+            background: rgba(0, 212, 255, 0.05);
+            border-left: 3px solid #00D4FF;
+        }
+
+        .nav-item .icon { font-size: 18px; }
+
+        .nav-section {
+            padding: 20px 25px 8px;
+            color: #2a3a50;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        /* MAIN */
+        .main {
+            margin-left: 240px;
+            padding: 30px;
+            flex: 1;
+        }
+
+        .page-header {
+            margin-bottom: 30px;
+        }
+
+        .page-header h2 {
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .page-header p {
+            color: #4a6080;
+            font-size: 13px;
+            margin-top: 5px;
+        }
+
+        /* STATS CARDS */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: #0D1321;
+            border: 1px solid #1a2540;
+            border-radius: 12px;
+            padding: 20px;
+        }
+
+        .stat-card .label {
+            color: #4a6080;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .stat-card .value {
+            font-size: 28px;
+            font-weight: 700;
+            color: #00D4FF;
+            margin-top: 8px;
+        }
+
+        /* LIGUE BLOCKS */
+        .ligue-block {
+            background: #0D1321;
+            border: 1px solid #1a2540;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+
+        .ligue-header {
+            padding: 15px 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 1px solid #1a2540;
+            background: rgba(0, 212, 255, 0.03);
+        }
+
+        .ligue-header h3 {
+            font-size: 15px;
+            font-weight: 600;
+            color: #00D4FF;
+        }
+
+        table { width: 100%; border-collapse: collapse; }
+
+        th {
+            padding: 10px 20px;
+            text-align: left;
+            color: #2a3a50;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-bottom: 1px solid #1a2540;
+        }
+
+        td { padding: 12px 20px; border-bottom: 1px solid #0a1020; font-size: 14px; }
+        tr:last-child td { border-bottom: none; }
+        tr:hover td { background: rgba(0, 212, 255, 0.03); }
+
+        .rang {
+            color: #2a3a50;
+            font-size: 13px;
+            width: 30px;
+        }
+
+        .rang-1 { color: #FFD700; font-weight: 700; }
+        .rang-2 { color: #C0C0C0; font-weight: 700; }
+        .rang-3 { color: #CD7F32; font-weight: 700; }
+
+        .score-pos { color: #00D4FF; font-weight: 600; }
+        .score-neg { color: #ff4444; font-weight: 600; }
+
+        .badge-1 { color: #FFD700; }
+        .badge-2 { color: #C0C0C0; }
+        .badge-3 { color: #CD7F32; }
+    </style>
+</head>
+<body>
+
+<div class="sidebar">
+    <div class="logo">
+        <h1>HIDDEN<span>BOOT</span></h1>
+        <p>Football Analytics</p>
+    </div>
+
+    <div class="nav-section">Menu</div>
+    <a href="/" class="nav-item active">
+        <span class="icon">🏠</span> Dashboard
+    </a>
+    <a href="/pepites" class="nav-item">
+        <span class="icon">⚽</span> Pépites
+    </a>
+    <a href="/matchs" class="nav-item">
+        <span class="icon">🎯</span> Matchs du jour
+    </a>
+    <a href="/analyse" class="nav-item">
+        <span class="icon">📊</span> Analyse
+    </a>
+</div>
+
+<div class="main">
+    <div class="page-header">
+        <h2>Dashboard</h2>
+        <p>Classement des équipes par score de forme</p>
+    </div>
+
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="label">Ligues suivies</div>
+            <div class="value">{{ ligues|length }}</div>
+        </div>
+        <div class="stat-card">
+            <div class="label">Équipes analysées</div>
+            <div class="value">582</div>
+        </div>
+        <div class="stat-card">
+            <div class="label">Joueurs trackés</div>
+            <div class="value">12 290</div>
+        </div>
+        <div class="stat-card">
+            <div class="label">Mise à jour</div>
+            <div class="value" style="font-size:16px; margin-top:12px;">Aujourd'hui</div>
+        </div>
+    </div>
+
+    {% for ligue, equipes in ligues.items() %}
+    <div class="ligue-block">
+        <div class="ligue-header">
+            <h3>🏆 {{ ligue }}</h3>
+        </div>
+        <table>
+            <tr>
+                <th>#</th>
+                <th>Équipe</th>
+                <th>Score de forme</th>
+            </tr>
+            {% for eq in equipes %}
+            <tr>
+                <td class="rang {% if loop.index == 1 %}rang-1{% elif loop.index == 2 %}rang-2{% elif loop.index == 3 %}rang-3{% endif %}">
+                    {% if loop.index == 1 %}🥇
+                    {% elif loop.index == 2 %}🥈
+                    {% elif loop.index == 3 %}🥉
+                    {% else %}{{ loop.index }}{% endif %}
+                </td>
+                <td>{{ eq.nom }}</td>
+                <td class="{{ 'score-pos' if eq.score_total > 0 else 'score-neg' }}">
+                    {{ eq.score_total }} pts
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+    {% endfor %}
+</div>
+
+</body>
+</html>

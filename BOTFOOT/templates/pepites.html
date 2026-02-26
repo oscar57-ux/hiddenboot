@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Pépites - HiddenBoot</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/lipis/flag-icons@7.0.0/css/flag-icons.min.css"/>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #080C14; color: #fff; font-family: 'Segoe UI', Arial, sans-serif; display: flex; min-height: 100vh; }
+
+        .sidebar {
+            width: 240px; min-height: 100vh; background: #0D1321;
+            border-right: 1px solid #1a2540; padding: 30px 0; position: fixed;
+        }
+        .logo { padding: 0 25px 30px; border-bottom: 1px solid #1a2540; margin-bottom: 20px; }
+        .logo h1 { font-size: 22px; font-weight: 800; letter-spacing: 1px; }
+        .logo h1 span { color: #00D4FF; }
+        .logo p { color: #4a6080; font-size: 11px; margin-top: 4px; text-transform: uppercase; letter-spacing: 2px; }
+        .nav-item { display: flex; align-items: center; gap: 12px; padding: 13px 25px; color: #4a6080; text-decoration: none; font-size: 14px; transition: all 0.2s; border-left: 3px solid transparent; }
+        .nav-item:hover, .nav-item.active { color: #00D4FF; background: rgba(0, 212, 255, 0.05); border-left: 3px solid #00D4FF; }
+        .nav-section { padding: 20px 25px 8px; color: #2a3a50; font-size: 10px; text-transform: uppercase; letter-spacing: 2px; }
+
+        .main { margin-left: 240px; padding: 30px; flex: 1; }
+        .page-header { margin-bottom: 30px; }
+        .page-header h2 { font-size: 24px; font-weight: 700; }
+        .page-header p { color: #4a6080; font-size: 13px; margin-top: 5px; }
+
+        /* FILTRES */
+        .filtres {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+        }
+        .filtre-btn {
+            padding: 8px 16px;
+            border-radius: 20px;
+            border: 1px solid #1a2540;
+            background: #0D1321;
+            color: #4a6080;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+        .filtre-btn:hover, .filtre-btn.active {
+            border-color: #00D4FF;
+            color: #00D4FF;
+            background: rgba(0, 212, 255, 0.05);
+        }
+
+        /* TABLE JOUEURS */
+        .table-block {
+            background: #0D1321;
+            border: 1px solid #1a2540;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        table { width: 100%; border-collapse: collapse; }
+        th { padding: 12px 20px; text-align: left; color: #2a3a50; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #1a2540; }
+        td { padding: 12px 20px; border-bottom: 1px solid #0a1020; font-size: 14px; }
+        tr:last-child td { border-bottom: none; }
+        tr:hover td { background: rgba(0, 212, 255, 0.03); }
+
+        .joueur-info { display: flex; align-items: center; gap: 12px; }
+        .joueur-photo {
+            width: 36px; height: 36px; border-radius: 50%;
+            background: #1a2540;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+        .joueur-photo img { width: 100%; height: 100%; object-fit: cover; }
+        .joueur-nom { font-weight: 600; font-size: 14px; }
+        .joueur-poste { color: #4a6080; font-size: 12px; }
+
+        .ligue-badge {
+            background: #1a2540;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            color: #4a6080;
+        }
+
+        .score { color: #00D4FF; font-weight: 700; font-size: 16px; }
+        .buts { color: #fff; font-weight: 600; }
+
+        .rang-1 { color: #FFD700; font-weight: 700; }
+        .rang-2 { color: #C0C0C0; font-weight: 700; }
+        .rang-3 { color: #CD7F32; font-weight: 700; }
+        .rang { color: #2a3a50; }
+
+        .stat-mini { color: #4a6080; font-size: 13px; }
+        .stat-mini span { color: #fff; }
+    </style>
+</head>
+<body>
+
+<div class="sidebar">
+    <div class="logo">
+        <h1>HIDDEN<span>BOOT</span></h1>
+        <p>Football Analytics</p>
+    </div>
+    <div class="nav-section">Menu</div>
+    <a href="/" class="nav-item"><span>🏠</span> Dashboard</a>
+    <a href="/pepites" class="nav-item active"><span>⚽</span> Pépites</a>
+    <a href="/matchs" class="nav-item"><span>🎯</span> Matchs du jour</a>
+    <a href="/analyse" class="nav-item"><span>📊</span> Analyse</a>
+</div>
+
+<div class="main">
+    <div class="page-header">
+        <h2>⚽ Pépites</h2>
+        <p>Les meilleurs joueurs offensifs par score de performance</p>
+    </div>
+
+    <div class="filtres">
+        <button class="filtre-btn active">Tous</button>
+        <button class="filtre-btn">Attaquants</button>
+        <button class="filtre-btn">Milieux</button>
+        <button class="filtre-btn">Petites ligues</button>
+    </div>
+
+    <div class="table-block">
+        <table>
+            <tr>
+                <th>#</th>
+                <th>Joueur</th>
+                <th>Équipe</th>
+                <th>Ligue</th>
+                <th>Matchs</th>
+                <th>Buts</th>
+                <th>Passes</th>
+                <th>Note</th>
+                <th>Score</th>
+            </tr>
+            {% for j in joueurs %}
+            <tr>
+                <td class="{% if loop.index == 1 %}rang-1{% elif loop.index == 2 %}rang-2{% elif loop.index == 3 %}rang-3{% else %}rang{% endif %}">
+                    {% if loop.index == 1 %}🥇
+                    {% elif loop.index == 2 %}🥈
+                    {% elif loop.index == 3 %}🥉
+                    {% else %}{{ loop.index }}{% endif %}
+                </td>
+                <td>
+                    <div class="joueur-info">
+                        <div class="joueur-photo">
+                            <img src="https://media.api-sports.io/football/players/{{ j.joueur_id }}.png" 
+                                 onerror="this.src='https://via.placeholder.com/36x36/1a2540/4a6080?text=?'"
+                                 alt="{{ j.nom }}">
+                        </div>
+                        <div>
+                            <div class="joueur-nom">{{ j.nom }}</div>
+                            <div class="joueur-poste">
+                                {% if j.nationalite %}
+                                <span class="fi fi-{{ j.nationalite | lower | replace(' ', '-') }}"></span>
+                                {% endif %}
+                                {{ j.poste }}
+                            </div>
+                        </div>
+                    </div>
+                </td>
+                <td>{{ j.equipe }}</td>
+                <td><span class="ligue-badge">{{ j.ligue }}</span></td>
+                <td class="stat-mini"><span>{{ j.matchs }}</span></td>
+                <td class="buts">⚽ {{ j.buts }}</td>
+                <td class="stat-mini"><span>{{ j.passes }}</span></td>
+                <td class="stat-mini"><span>{{ j.note }}</span></td>
+                <td class="score">{{ j.score }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+</div>
+
+</body>
+</html>
