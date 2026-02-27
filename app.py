@@ -1,4 +1,4 @@
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify, request, redirect, url_for
 from datetime import date
 import os
 from datetime import date, datetime
@@ -181,7 +181,12 @@ def calculer_score_joueur(buts, passes, note, matchs, joueur_id=None):
 
 
 @app.route("/")
-def dashboard():
+def index():
+    return redirect(url_for("matchs"))
+
+
+def _build_classements_data():
+    """Construit les données ligues pour la page Classements."""
     conn = get_db()
     c = conn.cursor()
     ligues_data = {}
@@ -212,7 +217,12 @@ def dashboard():
         forme_list.sort(key=lambda x: x["score"], reverse=True)
         ligues_data[ligue_nom] = {"classement": classement, "forme": forme_list, "drapeau": DRAPEAUX_LIGUES.get(ligue_id, "")}
     conn.close()
-    return render_template("dashboard.html", ligues=ligues_data)
+    return ligues_data
+
+
+@app.route("/classements")
+def classements():
+    return render_template("classements.html", ligues=_build_classements_data())
 
 @app.route("/pepites")
 def pepites():
@@ -357,84 +367,197 @@ def api_matchs_jour():
     conn.close()
     return jsonify({"ligues": ligues, "date": today})
 
-@app.route("/analyse")
-def analyse():
-    import json
+@app.route("/alertes")
+def alertes():
     conn = get_db()
     c = conn.cursor()
 
-    # Top équipes forme positive
-    c.execute("""
-        SELECT ae.nom, cl.points as score_total, cl.ligue_id
-        FROM classements cl
-        JOIN api_equipes ae ON cl.equipe_id = ae.id
-        ORDER BY cl.points DESC
-        LIMIT 50
-    """)
-    equipes = c.fetchall()
-
-    # Pires formes — scores négatifs FlashScore
-    c.execute("""
-        SELECT e.nom, s.score_total, eq.ligue_id
-        FROM scores s
-        JOIN equipes e ON s.equipe_id = e.id
-        JOIN api_equipes eq ON eq.nom = e.nom
-        WHERE s.score_total < 0
-        ORDER BY s.score_total ASC
-        LIMIT 5
-    """)
-    equipes_pires = c.fetchall()
-
-    # Si pas assez de données FlashScore fallback
-    if not equipes_pires:
+    # ─── 1. Joueurs en feu ──────────────────────────────────────────
+    joueurs_en_feu = []
+    try:
         c.execute("""
-            SELECT ae.nom, cl.points as score_total, cl.ligue_id
+            WITH derniers AS (
+                SELECT joueur_id, buts, passes, note,
+                       ROW_NUMBER() OVER (PARTITION BY joueur_id ORDER BY date DESC) AS rn
+                FROM joueurs_forme
+            )
+            SELECT d.joueur_id,
+                   SUM(d.buts)  AS buts_recents,
+                   SUM(d.passes) AS passes_recentes,
+                   ROUND(AVG(d.note), 1) AS note_moy,
+                   j.nom, j.buts AS buts_saison,
+                   e.nom AS equipe, l.nom AS ligue, l.id AS ligue_id
+            FROM derniers d
+            JOIN api_joueurs j ON d.joueur_id = j.id
+            JOIN api_equipes e ON j.equipe_id = e.id
+            JOIN api_ligues  l ON j.ligue_id  = l.id
+            WHERE d.rn <= 5
+            GROUP BY d.joueur_id
+            HAVING buts_recents > 0
+            ORDER BY buts_recents DESC, note_moy DESC
+            LIMIT 10
+        """)
+        for row in c.fetchall():
+            c2 = conn.cursor()
+            c2.execute("""
+                SELECT buts, passes FROM joueurs_forme
+                WHERE joueur_id = ? ORDER BY date DESC LIMIT 5
+            """, (row["joueur_id"],))
+            forme = [{"buts": r["buts"] or 0, "passes": r["passes"] or 0} for r in c2.fetchall()]
+            joueurs_en_feu.append({
+                "joueur_id": row["joueur_id"],
+                "buts_recents": row["buts_recents"],
+                "passes_recentes": row["passes_recentes"] or 0,
+                "note_moy": row["note_moy"],
+                "nom": row["nom"],
+                "buts_saison": row["buts_saison"] or 0,
+                "equipe": row["equipe"],
+                "ligue": row["ligue"],
+                "drapeau": DRAPEAUX_LIGUES.get(row["ligue_id"], ""),
+                "forme": forme,
+            })
+    except Exception:
+        pass
+
+    # ─── 2. Équipes en série ─────────────────────────────────────────
+    equipes_serie = []
+    try:
+        c.execute("""
+            SELECT ae.nom, cl.forme, cl.rang, cl.ligue_id, al.nom AS ligue_nom
             FROM classements cl
             JOIN api_equipes ae ON cl.equipe_id = ae.id
-            ORDER BY cl.points ASC
-            LIMIT 5
+            JOIN api_ligues  al ON cl.ligue_id  = al.id
+            WHERE cl.forme IS NOT NULL AND cl.forme != ''
         """)
-        equipes_pires = c.fetchall()
+        for row in c.fetchall():
+            forme_str = row["forme"] or ""
+            wins = 0
+            for ch in reversed(forme_str):
+                if ch == "W":
+                    wins += 1
+                else:
+                    break
+            if wins >= 2:
+                equipes_serie.append({
+                    "nom": row["nom"],
+                    "wins_consecutifs": wins,
+                    "rang": row["rang"],
+                    "ligue_nom": row["ligue_nom"],
+                    "drapeau": DRAPEAUX_LIGUES.get(row["ligue_id"], ""),
+                    "forme_dots": list(forme_str[-5:]),
+                })
+        equipes_serie.sort(key=lambda x: x["wins_consecutifs"], reverse=True)
+        equipes_serie = equipes_serie[:10]
+    except Exception:
+        pass
 
-    # Top buteurs
-    c.execute("""
-        SELECT j.id as joueur_id, j.nom, e.nom as equipe, j.buts, j.matchs, j.passes, j.note
-        FROM api_joueurs j
-        JOIN api_equipes e ON j.equipe_id = e.id
-        WHERE j.buts > 0
-        ORDER BY j.buts DESC
-        LIMIT 5
-    """)
-    buteurs_rows = c.fetchall()
-    buteurs = []
-    for b in buteurs_rows:
-        score = calculer_score_joueur(b["buts"], b["passes"] or 0, b["note"] or 0, b["matchs"] or 1, b["joueur_id"])
-        buteurs.append({"nom": b["nom"], "equipe": b["equipe"], "buts": b["buts"], "score": score})
+    # ─── 3. Pépites émergentes ───────────────────────────────────────
+    pepites_emergentes = []
+    try:
+        c.execute("""
+            WITH derniers AS (
+                SELECT joueur_id, buts, passes, note,
+                       ROW_NUMBER() OVER (PARTITION BY joueur_id ORDER BY date DESC) AS rn
+                FROM joueurs_forme
+            )
+            SELECT d.joueur_id,
+                   SUM(d.buts)   AS buts_5,
+                   SUM(d.passes) AS passes_5,
+                   ROUND(AVG(d.note), 1) AS note_5,
+                   ROUND(SUM(d.buts) * 3.0 + SUM(d.passes) * 1.0 + AVG(d.note), 2) AS score_forme,
+                   j.nom, j.buts AS buts_saison, j.passes AS passes_saison, j.matchs,
+                   e.nom AS equipe, l.nom AS ligue, l.id AS ligue_id
+            FROM derniers d
+            JOIN api_joueurs j ON d.joueur_id = j.id
+            JOIN api_equipes e ON j.equipe_id = e.id
+            JOIN api_ligues  l ON j.ligue_id  = l.id
+            WHERE d.rn <= 5 AND j.buts < 8
+            GROUP BY d.joueur_id
+            HAVING buts_5 > 0
+            ORDER BY score_forme DESC
+            LIMIT 10
+        """)
+        for row in c.fetchall():
+            c2 = conn.cursor()
+            c2.execute("""
+                SELECT buts, passes FROM joueurs_forme
+                WHERE joueur_id = ? ORDER BY date DESC LIMIT 5
+            """, (row["joueur_id"],))
+            forme = [{"buts": r["buts"] or 0, "passes": r["passes"] or 0} for r in c2.fetchall()]
+            pepites_emergentes.append({
+                "joueur_id": row["joueur_id"],
+                "buts_5": row["buts_5"],
+                "passes_5": row["passes_5"] or 0,
+                "note_5": row["note_5"],
+                "score_forme": row["score_forme"],
+                "nom": row["nom"],
+                "buts_saison": row["buts_saison"] or 0,
+                "passes_saison": row["passes_saison"] or 0,
+                "matchs": row["matchs"] or 0,
+                "equipe": row["equipe"],
+                "ligue": row["ligue"],
+                "drapeau": DRAPEAUX_LIGUES.get(row["ligue_id"], ""),
+                "forme": forme,
+            })
+    except Exception:
+        pass
 
-    # Buts par ligue
-    c.execute("""
-        SELECT l.nom as ligue, l.id as ligue_id, SUM(j.buts) as total_buts
-        FROM api_joueurs j
-        JOIN api_ligues l ON j.ligue_id = l.id
-        GROUP BY l.nom
-        ORDER BY total_buts DESC
-    """)
-    ligues_buts = c.fetchall()
+    # ─── 4. Joueurs à éviter ─────────────────────────────────────────
+    joueurs_a_eviter = []
+    try:
+        c.execute("""
+            WITH derniers AS (
+                SELECT joueur_id, buts, passes, note,
+                       ROW_NUMBER() OVER (PARTITION BY joueur_id ORDER BY date DESC) AS rn
+                FROM joueurs_forme
+            )
+            SELECT d.joueur_id,
+                   SUM(d.buts) AS buts_5,
+                   j.nom, j.buts AS buts_saison,
+                   e.nom AS equipe, l.nom AS ligue, l.id AS ligue_id
+            FROM derniers d
+            JOIN api_joueurs j ON d.joueur_id = j.id
+            JOIN api_equipes e ON j.equipe_id = e.id
+            JOIN api_ligues  l ON j.ligue_id  = l.id
+            WHERE d.rn <= 5 AND j.buts > 5
+            GROUP BY d.joueur_id
+            HAVING buts_5 = 0
+            ORDER BY j.buts DESC
+            LIMIT 10
+        """)
+        for row in c.fetchall():
+            c2 = conn.cursor()
+            c2.execute("""
+                SELECT buts, passes FROM joueurs_forme
+                WHERE joueur_id = ? ORDER BY date DESC LIMIT 5
+            """, (row["joueur_id"],))
+            forme = [{"buts": r["buts"] or 0, "passes": r["passes"] or 0} for r in c2.fetchall()]
+            joueurs_a_eviter.append({
+                "joueur_id": row["joueur_id"],
+                "buts_saison": row["buts_saison"] or 0,
+                "nom": row["nom"],
+                "equipe": row["equipe"],
+                "ligue": row["ligue"],
+                "drapeau": DRAPEAUX_LIGUES.get(row["ligue_id"], ""),
+                "forme": forme,
+            })
+    except Exception:
+        pass
 
     conn.close()
-    return render_template("analyse.html",
-    equipes=equipes,
-    equipes_pires=equipes_pires,
-    buteurs=buteurs,  # Direct, pas JSON
-    equipes_json=json.dumps([{"nom": e["nom"], "score_total": e["score_total"]} for e in equipes]),
-    buteurs_json=json.dumps(buteurs),
-    ligues_json=json.dumps([{"ligue": l["ligue"], "total_buts": l["total_buts"], "drapeau": DRAPEAUX_LIGUES.get(l["ligue_id"], "")} for l in ligues_buts])
-)
+    return render_template("alertes.html",
+        joueurs_en_feu=joueurs_en_feu,
+        equipes_serie=equipes_serie,
+        pepites_emergentes=pepites_emergentes,
+        joueurs_a_eviter=joueurs_a_eviter,
+    )
 
 @app.route("/api/equipe/<int:equipe_id>/buteurs")
 def api_buteurs_equipe(equipe_id):
     adversaire_id = request.args.get("adversaire_id", type=int)
-    est_domicile = request.args.get("domicile", "1") == "1"
+    # Accepte is_home (nouveau) ou domicile (compatibilité)
+    is_home_raw = request.args.get("is_home", request.args.get("domicile", "1"))
+    est_domicile = is_home_raw == "1"
 
     conn = get_db()
     c = conn.cursor()
@@ -461,47 +584,61 @@ def api_buteurs_equipe(equipe_id):
 
     # Buts totaux de l'équipe (pour calculer la part par joueur)
     c.execute("""
-        SELECT buts_pour, victoires, nuls, defaites
-        FROM classements WHERE equipe_id = ?
+        SELECT buts_pour FROM classements WHERE equipe_id = ?
     """, (equipe_id,))
     eq_row = c.fetchone()
-    total_buts_equipe = 1
-    if eq_row:
-        total_buts_equipe = max(1, eq_row["buts_pour"] or 1)
+    total_buts_equipe = max(1, eq_row["buts_pour"] or 1) if eq_row else 1
 
+    # Tous les joueurs de l'équipe (pas seulement ceux avec des buts)
     c.execute("""
         SELECT j.id as joueur_id, j.nom, j.poste, j.matchs,
                j.buts, j.passes, j.note, j.ratio
         FROM api_joueurs j
-        WHERE j.equipe_id = ? AND j.buts > 0
+        WHERE j.equipe_id = ?
         ORDER BY j.buts DESC
-        LIMIT 10
     """, (equipe_id,))
     joueurs = c.fetchall()
 
     result = []
     for j in joueurs:
-        score = calculer_score_joueur(j["buts"], j["passes"] or 0, j["note"] or 0, j["matchs"] or 1, j["joueur_id"])
-        ratio = j["buts"] / max(1, j["matchs"])
+        buts = j["buts"] or 0
+        passes = j["passes"] or 0
+        matchs_j = max(1, j["matchs"] or 1)
+        ratio = float(j["ratio"]) if j["ratio"] else (buts / matchs_j)
 
         # Part des buts de l'équipe scorés par ce joueur
-        part = min(0.85, j["buts"] / total_buts_equipe)
+        # Minimum 3% pour les joueurs sans buts (permet la différenciation par forme)
+        part = min(0.85, buts / total_buts_equipe) if buts > 0 else 0.03
 
-        # Forme du buteur depuis joueurs_forme (W si buts > 0, sinon L)
+        # 5 derniers matchs depuis joueurs_forme : forme string + données pour les dots
         forme_str = ""
+        forme_recente = []
         try:
             c.execute("""
-                SELECT buts FROM joueurs_forme
-                WHERE joueur_id = ? ORDER BY date DESC LIMIT 10
+                SELECT buts, passes, note, date
+                FROM joueurs_forme
+                WHERE joueur_id = ? ORDER BY date DESC LIMIT 5
             """, (j["joueur_id"],))
             forme_rows = c.fetchall()
+            for r in forme_rows:
+                b = r["buts"] or 0
+                p = r["passes"] or 0
+                forme_recente.append({
+                    "buts": b,
+                    "passes": p,
+                    "note": round(float(r["note"] or 0), 1),
+                })
             if forme_rows:
-                forme_str = "".join("W" if r["buts"] > 0 else "L" for r in forme_rows)
+                forme_str = "".join(
+                    "W" if (r["buts"] or 0) > 0 else
+                    ("D" if (r["passes"] or 0) > 0 else "L")
+                    for r in forme_rows
+                )
         except Exception:
             pass
 
         pct_but, ci_bas, ci_haut = calculer_proba_buteur_mc(
-            ratio_buts=ratio,
+            ratio_buts=max(0.01, ratio),
             buts_encaisses_adv=be_adv,
             forme_str=forme_str,
             est_domicile=est_domicile,
@@ -509,21 +646,26 @@ def api_buteurs_equipe(equipe_id):
             moy_ligue=moy_ligue,
         )
 
+        score = calculer_score_joueur(buts, passes, j["note"] or 0, matchs_j, j["joueur_id"])
         result.append({
             "joueur_id": j["joueur_id"],
             "nom": j["nom"],
             "poste": j["poste"],
             "matchs": j["matchs"],
-            "buts": j["buts"],
-            "passes": j["passes"] or 0,
+            "buts": buts,
+            "passes": passes,
             "note": round(float(j["note"]), 2) if j["note"] else 0,
             "score": score,
             "pct_but": pct_but,
             "ci_bas": ci_bas,
             "ci_haut": ci_haut,
+            "forme_recente": forme_recente,
         })
+
+    # Trier par probabilité de marquer — retourner le top 3
+    result.sort(key=lambda x: x["pct_but"], reverse=True)
     conn.close()
-    return jsonify({"joueurs": result, "equipe_id": equipe_id})
+    return jsonify({"joueurs": result[:3], "equipe_id": equipe_id})
 
 @app.route("/resultats")
 def resultats():
