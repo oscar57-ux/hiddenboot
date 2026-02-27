@@ -14,7 +14,6 @@ response = requests.get(
 data = response.json()
 
 for match in data["response"]:
-    if "Racing" in match["teams"]["home"]["name"] or "Racing" in match["teams"]["away"]["name"]:
+    if "Santos" in match["teams"]["home"]["name"] or "Vasco" in match["teams"]["home"]["name"]:
         print(f"Home: {match['teams']['home']['name']} ID:{match['teams']['home']['id']}")
         print(f"Away: {match['teams']['away']['name']} ID:{match['teams']['away']['id']}")
-        print()

@@ -2,13 +2,14 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pépites - HiddenBoot</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/lipis/flag-icons@7.0.0/css/flag-icons.min.css"/>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { background: #080C14; color: #fff; font-family: 'Segoe UI', Arial, sans-serif; display: flex; min-height: 100vh; }
 
-        .sidebar { width: 240px; min-height: 100vh; background: #0D1321; border-right: 1px solid #1a2540; padding: 30px 0; position: fixed; }
+        .sidebar { width: 240px; min-height: 100vh; background: #0D1321; border-right: 1px solid #1a2540; padding: 30px 0; position: fixed; left: 0; top: 0; z-index: 100; transition: transform 0.3s; }
         .logo { padding: 0 25px 30px; border-bottom: 1px solid #1a2540; margin-bottom: 20px; }
         .logo h1 { font-size: 22px; font-weight: 800; letter-spacing: 1px; }
         .logo h1 span { color: #00D4FF; }
@@ -17,73 +18,62 @@
         .nav-item:hover, .nav-item.active { color: #00D4FF; background: rgba(0, 212, 255, 0.05); border-left: 3px solid #00D4FF; }
         .nav-section { padding: 20px 25px 8px; color: #2a3a50; font-size: 10px; text-transform: uppercase; letter-spacing: 2px; }
 
+        .burger { display: none; position: fixed; top: 15px; left: 15px; z-index: 200; background: #0D1321; border: 1px solid #1a2540; border-radius: 8px; padding: 8px 12px; cursor: pointer; color: #00D4FF; font-size: 20px; }
+        .sidebar-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 99; }
+
         .main { margin-left: 240px; padding: 30px; flex: 1; }
         .page-header { margin-bottom: 25px; }
         .page-header h2 { font-size: 24px; font-weight: 700; }
         .page-header p { color: #4a6080; font-size: 13px; margin-top: 5px; }
 
-        /* ONGLETS REGIONS */
-        .regions-tabs {
-            display: flex;
-            gap: 8px;
-            margin-bottom: 25px;
-            border-bottom: 1px solid #1a2540;
-            padding-bottom: 0;
-        }
+        .formule-box { background: rgba(0,212,255,0.05); border: 1px solid #1a2540; border-radius: 8px; padding: 12px 16px; margin-bottom: 20px; font-size: 12px; color: #4a6080; }
+        .formule-box span { color: #00D4FF; }
 
-        .region-tab {
-            padding: 10px 20px;
-            cursor: pointer;
-            font-size: 14px;
-            color: #4a6080;
-            border-bottom: 2px solid transparent;
-            transition: all 0.2s;
-            margin-bottom: -1px;
-        }
-
+        .regions-tabs { display: flex; gap: 0; margin-bottom: 25px; border-bottom: 1px solid #1a2540; overflow-x: auto; }
+        .region-tab { padding: 10px 18px; cursor: pointer; font-size: 13px; color: #4a6080; border-bottom: 2px solid transparent; transition: all 0.2s; margin-bottom: -1px; white-space: nowrap; }
         .region-tab:hover { color: #fff; }
         .region-tab.active { color: #00D4FF; border-bottom: 2px solid #00D4FF; }
 
-        /* CONTENU REGION */
         .region-content { display: none; }
         .region-content.active { display: block; }
 
-        /* TABLE */
-        .table-block {
-            background: #0D1321;
-            border: 1px solid #1a2540;
-            border-radius: 12px;
-            overflow: hidden;
-        }
-
-        table { width: 100%; border-collapse: collapse; }
-        th { padding: 12px 20px; text-align: left; color: #2a3a50; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #1a2540; }
-        td { padding: 11px 20px; border-bottom: 1px solid #0a1020; font-size: 13px; }
+        .table-block { background: #0D1321; border: 1px solid #1a2540; border-radius: 12px; overflow: hidden; overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; min-width: 600px; }
+        th { padding: 12px 15px; text-align: left; color: #2a3a50; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #1a2540; }
+        td { padding: 10px 15px; border-bottom: 1px solid #0a1020; font-size: 13px; }
         tr:last-child td { border-bottom: none; }
         tr:hover td { background: rgba(0, 212, 255, 0.03); }
 
-        .joueur-info { display: flex; align-items: center; gap: 12px; }
-        .joueur-photo { width: 34px; height: 34px; border-radius: 50%; background: #1a2540; overflow: hidden; flex-shrink: 0; }
-        .joueur-photo img { width: 100%; height: 100%; object-fit: cover; }
+        .joueur-info { display: flex; align-items: center; gap: 10px; }
+        .joueur-photo { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; background: #1a2540; flex-shrink: 0; }
         .joueur-nom { font-weight: 600; font-size: 13px; }
         .joueur-poste { color: #4a6080; font-size: 11px; }
 
-        .ligue-badge { background: #1a2540; padding: 3px 8px; border-radius: 4px; font-size: 11px; color: #4a6080; }
+        .ligue-badge { display: inline-flex; align-items: center; gap: 4px; background: #1a2540; padding: 3px 8px; border-radius: 4px; font-size: 11px; color: #4a6080; }
         .score { color: #00D4FF; font-weight: 700; font-size: 15px; }
         .buts { color: #fff; font-weight: 600; }
-
         .rang-1 { color: #FFD700; font-weight: 700; }
         .rang-2 { color: #C0C0C0; font-weight: 700; }
         .rang-3 { color: #CD7F32; font-weight: 700; }
         .rang { color: #2a3a50; }
+        .stat-mini { color: #aaa; font-size: 12px; }
 
-        .stat-mini { color: #4a6080; font-size: 12px; }
-        .stat-mini span { color: #aaa; }
+        @media (max-width: 768px) {
+            .sidebar { transform: translateX(-100%); }
+            .sidebar.open { transform: translateX(0); }
+            .sidebar-overlay.open { display: block; }
+            .burger { display: block; }
+            .main { margin-left: 0; padding: 20px 15px; padding-top: 60px; }
+            .region-tab { font-size: 12px; padding: 8px 12px; }
+        }
     </style>
 </head>
 <body>
 
-<div class="sidebar">
+<button class="burger" onclick="toggleSidebar()">☰</button>
+<div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+<div class="sidebar" id="sidebar">
     <div class="logo">
         <h1>HIDDEN<span>BOOT</span></h1>
         <p>Football Analytics</p>
@@ -101,17 +91,18 @@
         <p>Les meilleurs joueurs offensifs par région</p>
     </div>
 
-    <!-- ONGLETS -->
+    <div class="formule-box">
+        Score = <span>Buts x2</span> + <span>Passes x1</span> + <span>Note x5</span> + <span>Ratio but/match x8</span> + <span>Bonus titulaire régulier +3</span>
+    </div>
+
     <div class="regions-tabs">
         {% for region in regions.keys() %}
-        <div class="region-tab {% if loop.first %}active{% endif %}"
-             onclick="showRegion('{{ loop.index }}')">
+        <div class="region-tab {% if loop.first %}active{% endif %}" onclick="showRegion('{{ loop.index }}')">
             {{ region }}
         </div>
         {% endfor %}
     </div>
 
-    <!-- CONTENU PAR REGION -->
     {% for region, joueurs in regions.items() %}
     <div class="region-content {% if loop.first %}active{% endif %}" id="region-{{ loop.index }}">
         <div class="table-block">
@@ -121,7 +112,7 @@
                     <th>Joueur</th>
                     <th>Équipe</th>
                     <th>Ligue</th>
-                    <th>Matchs</th>
+                    <th>J</th>
                     <th>Buts</th>
                     <th>Passes</th>
                     <th>Note</th>
@@ -130,18 +121,13 @@
                 {% for j in joueurs %}
                 <tr>
                     <td class="{% if loop.index == 1 %}rang-1{% elif loop.index == 2 %}rang-2{% elif loop.index == 3 %}rang-3{% else %}rang{% endif %}">
-                        {% if loop.index == 1 %}🥇
-                        {% elif loop.index == 2 %}🥈
-                        {% elif loop.index == 3 %}🥉
-                        {% else %}{{ loop.index }}{% endif %}
+                        {% if loop.index == 1 %}🥇{% elif loop.index == 2 %}🥈{% elif loop.index == 3 %}🥉{% else %}{{ loop.index }}{% endif %}
                     </td>
                     <td>
                         <div class="joueur-info">
-                            <div class="joueur-photo">
-                                <img src="https://media.api-sports.io/football/players/{{ j.joueur_id }}.png"
-                                     onerror="this.src='https://via.placeholder.com/34x34/1a2540/4a6080?text=?'"
-                                     alt="{{ j.nom }}">
-                            </div>
+                            <img class="joueur-photo"
+                                 src="https://media.api-sports.io/football/players/{{ j.joueur_id }}.png"
+                                 onerror="this.src='https://via.placeholder.com/32/1a2540/4a6080?text=?'">
                             <div>
                                 <div class="joueur-nom">{{ j.nom }}</div>
                                 <div class="joueur-poste">{{ j.poste }}</div>
@@ -149,11 +135,16 @@
                         </div>
                     </td>
                     <td>{{ j.equipe }}</td>
-                    <td><span class="ligue-badge">{{ j.ligue }}</span></td>
-                    <td class="stat-mini"><span>{{ j.matchs }}</span></td>
+                    <td>
+                        <span class="ligue-badge">
+                            {% if j.drapeau %}<span class="fi fi-{{ j.drapeau }}"></span>{% endif %}
+                            {{ j.ligue }}
+                        </span>
+                    </td>
+                    <td class="stat-mini">{{ j.matchs }}</td>
                     <td class="buts">⚽ {{ j.buts }}</td>
-                    <td class="stat-mini"><span>{{ j.passes }}</span></td>
-                    <td class="stat-mini"><span>{{ j.note }}</span></td>
+                    <td class="stat-mini">{{ j.passes }}</td>
+                    <td class="stat-mini">{{ j.note }}</td>
                     <td class="score">{{ j.score }}</td>
                 </tr>
                 {% endfor %}
@@ -164,6 +155,11 @@
 </div>
 
 <script>
+function toggleSidebar() {
+    document.getElementById('sidebar').classList.toggle('open');
+    document.getElementById('sidebar-overlay').classList.toggle('open');
+}
+
 function showRegion(index) {
     document.querySelectorAll('.region-content').forEach(el => el.classList.remove('active'));
     document.querySelectorAll('.region-tab').forEach(el => el.classList.remove('active'));

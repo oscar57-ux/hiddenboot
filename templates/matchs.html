@@ -2,12 +2,15 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Matchs du jour - HiddenBoot</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/lipis/flag-icons@7.0.0/css/flag-icons.min.css"/>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { background: #080C14; color: #fff; font-family: 'Segoe UI', Arial, sans-serif; display: flex; min-height: 100vh; }
 
-        .sidebar { width: 240px; min-height: 100vh; background: #0D1321; border-right: 1px solid #1a2540; padding: 30px 0; position: fixed; }
+        /* SIDEBAR */
+        .sidebar { width: 240px; min-height: 100vh; background: #0D1321; border-right: 1px solid #1a2540; padding: 30px 0; position: fixed; left: 0; top: 0; z-index: 100; transition: transform 0.3s; }
         .logo { padding: 0 25px 30px; border-bottom: 1px solid #1a2540; margin-bottom: 20px; }
         .logo h1 { font-size: 22px; font-weight: 800; letter-spacing: 1px; }
         .logo h1 span { color: #00D4FF; }
@@ -16,54 +19,51 @@
         .nav-item:hover, .nav-item.active { color: #00D4FF; background: rgba(0, 212, 255, 0.05); border-left: 3px solid #00D4FF; }
         .nav-section { padding: 20px 25px 8px; color: #2a3a50; font-size: 10px; text-transform: uppercase; letter-spacing: 2px; }
 
+        /* MOBILE BURGER */
+        .burger { display: none; position: fixed; top: 15px; left: 15px; z-index: 200; background: #0D1321; border: 1px solid #1a2540; border-radius: 8px; padding: 8px 12px; cursor: pointer; color: #00D4FF; font-size: 20px; }
+        .sidebar-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 99; }
+
+        /* MAIN */
         .main { margin-left: 240px; padding: 30px; flex: 1; }
-        .page-header { margin-bottom: 25px; display: flex; align-items: center; justify-content: space-between; }
+        .page-header { margin-bottom: 25px; }
         .page-header h2 { font-size: 24px; font-weight: 700; }
         .page-header p { color: #4a6080; font-size: 13px; margin-top: 5px; }
 
+        /* FILTRES */
+        .filtres { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; align-items: center; }
+        .filtre-btn { padding: 8px 16px; border-radius: 20px; border: 1px solid #1a2540; background: #0D1321; color: #4a6080; cursor: pointer; font-size: 13px; transition: all 0.2s; }
+        .filtre-btn:hover, .filtre-btn.active { border-color: #00D4FF; color: #00D4FF; background: rgba(0, 212, 255, 0.05); }
+        .filtre-label { color: #4a6080; font-size: 12px; }
+
+        /* LOADING */
         .loading { text-align: center; padding: 60px; color: #4a6080; }
         .spinner { width: 40px; height: 40px; border: 3px solid #1a2540; border-top: 3px solid #00D4FF; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 20px; }
         @keyframes spin { to { transform: rotate(360deg); } }
 
+        /* LIGUE BLOCK */
         .ligue-block { background: #0D1321; border: 1px solid #1a2540; border-radius: 12px; margin-bottom: 15px; overflow: hidden; }
-        .ligue-header { padding: 12px 20px; border-bottom: 1px solid #1a2540; background: rgba(0, 212, 255, 0.03); }
+        .ligue-header { padding: 12px 20px; border-bottom: 1px solid #1a2540; background: rgba(0, 212, 255, 0.03); display: flex; align-items: center; gap: 10px; }
         .ligue-header h3 { color: #00D4FF; font-size: 13px; font-weight: 600; }
 
-        .match-card {
-            padding: 15px 20px;
-            border-bottom: 1px solid #0a1020;
-            transition: background 0.15s;
-        }
+        /* MATCH CARD */
+        .match-card { padding: 15px 20px; border-bottom: 1px solid #0a1020; transition: background 0.15s; }
         .match-card:last-child { border-bottom: none; }
         .match-card:hover { background: rgba(0, 212, 255, 0.02); }
 
-        .match-top {
-            display: grid;
-            grid-template-columns: 100px 1fr auto 1fr 100px;
-            align-items: center;
-            gap: 15px;
-            margin-bottom: 10px;
-        }
+        .match-top { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 15px; margin-bottom: 10px; }
 
-        .match-heure { color: #00D4FF; font-weight: 600; font-size: 13px; }
-        .match-live { color: #ff4444; font-weight: 700; font-size: 12px; animation: pulse 1s infinite; }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-
-        .team-home { text-align: right; }
-        .team-away { text-align: left; }
-        .team-nom { font-weight: 600; font-size: 14px; }
+        .team-home { text-align: right; cursor: pointer; }
+        .team-away { text-align: left; cursor: pointer; }
+        .team-nom { font-weight: 600; font-size: 14px; color: #00D4FF; transition: opacity 0.2s; }
+        .team-nom:hover { opacity: 0.8; }
         .team-rang { color: #4a6080; font-size: 11px; margin-top: 2px; }
 
-        .score-box {
-            background: #1a2540;
-            border-radius: 8px;
-            padding: 8px 16px;
-            text-align: center;
-            min-width: 70px;
-        }
-        .score-chiffre { font-weight: 700; font-size: 18px; }
+        .score-box { background: #1a2540; border-radius: 8px; padding: 8px 14px; text-align: center; min-width: 65px; }
+        .score-chiffre { font-weight: 700; font-size: 17px; }
         .score-upcoming { color: #4a6080; font-size: 13px; }
         .score-live { border: 1px solid #ff4444; }
+        .match-live { color: #ff4444; font-weight: 700; font-size: 11px; animation: pulse 1s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 
         .forme-mini { display: flex; gap: 2px; margin-top: 4px; }
         .forme-mini.right { justify-content: flex-end; }
@@ -74,43 +74,60 @@
         .f-x { background: #1a2540; }
 
         /* BARRE POURCENTAGE */
-        .pct-bar-container { margin-top: 10px; }
-        .pct-labels {
-            display: flex;
-            justify-content: space-between;
-            font-size: 12px;
-            margin-bottom: 4px;
-        }
+        .pct-bar-container { margin-top: 8px; }
+        .pct-labels { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px; align-items: center; }
         .pct-home-label { color: #00D4FF; font-weight: 700; }
-        .pct-away-label { color: #fff; font-weight: 700; }
+        .pct-away-label { color: #ff6644; font-weight: 700; }
         .pct-center-label { color: #4a6080; font-size: 11px; }
-
-        .pct-bar {
-            height: 6px;
-            background: #1a2540;
-            border-radius: 3px;
-            overflow: hidden;
-            display: flex;
-        }
-        .pct-bar-home {
-            height: 100%;
-            background: linear-gradient(90deg, #00D4FF, #0099bb);
-            border-radius: 3px 0 0 3px;
-            transition: width 0.5s ease;
-        }
-        .pct-bar-away {
-            height: 100%;
-            background: linear-gradient(90deg, #ff6644, #ff4444);
-            border-radius: 0 3px 3px 0;
-            flex: 1;
-        }
-
+        .pct-bar { height: 6px; background: #1a2540; border-radius: 3px; overflow: hidden; display: flex; }
+        .pct-bar-home { height: 100%; background: linear-gradient(90deg, #00D4FF, #0099bb); border-radius: 3px 0 0 3px; }
+        .pct-bar-away { height: 100%; background: linear-gradient(90deg, #ff6644, #ff4444); border-radius: 0 3px 3px 0; flex: 1; }
         .pct-high { color: #00ff87 !important; }
+
+        /* BADGE FORT */
+        .badge-fort { display: inline-block; background: rgba(0,255,135,0.15); border: 1px solid #00ff87; color: #00ff87; font-size: 10px; padding: 2px 6px; border-radius: 10px; margin-left: 8px; }
+
+        /* PANEL BUTEURS */
+        .panel { display: none; position: fixed; right: 0; top: 0; width: 360px; height: 100vh; background: #0D1321; border-left: 1px solid #1a2540; z-index: 1000; overflow-y: auto; padding: 25px; }
+        .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .panel-titre { color: #00D4FF; font-size: 16px; font-weight: 600; }
+        .panel-close { background: none; border: 1px solid #1a2540; color: #4a6080; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+        .panel-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 999; }
+
+        .joueur-card { background: #080C14; border: 1px solid #1a2540; border-radius: 10px; padding: 14px; margin-bottom: 10px; display: flex; gap: 12px; align-items: center; }
+        .joueur-photo { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; flex-shrink: 0; background: #1a2540; }
+        .joueur-info { flex: 1; }
+        .joueur-nom { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
+        .joueur-stats { display: flex; gap: 10px; font-size: 12px; color: #4a6080; margin-bottom: 6px; }
+        .pct-mini-bar { background: #1a2540; border-radius: 3px; height: 4px; overflow: hidden; margin-bottom: 3px; }
+        .pct-mini-fill { height: 100%; background: linear-gradient(90deg, #00D4FF, #00ff87); border-radius: 3px; }
+        .pct-mini-label { display: flex; justify-content: space-between; font-size: 11px; }
+
+        /* FORMULE INFO */
+        .formule-box { background: rgba(0,212,255,0.05); border: 1px solid #1a2540; border-radius: 8px; padding: 12px 16px; margin-bottom: 20px; font-size: 12px; color: #4a6080; }
+        .formule-box span { color: #00D4FF; }
+
+        /* MOBILE */
+        @media (max-width: 768px) {
+            .sidebar { transform: translateX(-100%); }
+            .sidebar.open { transform: translateX(0); }
+            .sidebar-overlay.open { display: block; }
+            .burger { display: block; }
+            .main { margin-left: 0; padding: 20px 15px; padding-top: 60px; }
+            .match-top { grid-template-columns: 1fr auto 1fr; gap: 8px; }
+            .team-nom { font-size: 12px; }
+            .panel { width: 100%; }
+            .filtres { gap: 6px; }
+            .filtre-btn { font-size: 11px; padding: 6px 12px; }
+        }
     </style>
 </head>
 <body>
 
-<div class="sidebar">
+<button class="burger" onclick="toggleSidebar()">☰</button>
+<div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+<div class="sidebar" id="sidebar">
     <div class="logo">
         <h1>HIDDEN<span>BOOT</span></h1>
         <p>Football Analytics</p>
@@ -124,77 +141,187 @@
 
 <div class="main">
     <div class="page-header">
-        <div>
-            <h2>🎯 Matchs du jour</h2>
-            <p id="date-today"></p>
-        </div>
+        <h2>🎯 Matchs du jour</h2>
+        <p id="date-today"></p>
+    </div>
+
+    <div class="formule-box">
+        Probabilité = <span>Forme 5 matchs 50%</span> + <span>Classement 35%</span> + <span>Diff buts 15%</span> + <span>Avantage domicile +8%</span>
+    </div>
+
+    <div class="filtres">
+        <span class="filtre-label">Trier par :</span>
+        <button class="filtre-btn active" onclick="setTri('ligue')">Par ligue</button>
+        <button class="filtre-btn" onclick="setTri('pct')">🔥 Gros écarts d'abord</button>
+        <button class="filtre-btn" onclick="setTri('heure')">🕐 Par heure</button>
     </div>
 
     <div id="matchs-container">
-        <div class="loading">
-            <div class="spinner"></div>
-            <p>Chargement des matchs...</p>
-        </div>
+        <div class="loading"><div class="spinner"></div><p>Chargement des matchs...</p></div>
     </div>
 </div>
 
+<!-- PANEL BUTEURS -->
+<div class="panel-overlay" id="panel-overlay" onclick="closePanel()"></div>
+<div class="panel" id="buteurs-panel">
+    <div class="panel-header">
+        <span class="panel-titre" id="panel-titre"></span>
+        <button class="panel-close" onclick="closePanel()">✕ Fermer</button>
+    </div>
+    <div id="panel-content"><div class="loading"><div class="spinner"></div></div></div>
+</div>
+
 <script>
+let allMatchs = [];
+let triActuel = 'ligue';
+
 document.getElementById('date-today').textContent = new Date().toLocaleDateString('fr-FR', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
 });
+
+function toggleSidebar() {
+    document.getElementById('sidebar').classList.toggle('open');
+    document.getElementById('sidebar-overlay').classList.toggle('open');
+}
+
+function setTri(tri) {
+    triActuel = tri;
+    document.querySelectorAll('.filtre-btn').forEach(b => b.classList.remove('active'));
+    event.target.classList.add('active');
+    afficherMatchs();
+}
+
+function afficherMatchs() {
+    const container = document.getElementById('matchs-container');
+
+    if (triActuel === 'pct') {
+        // Trier tous les matchs par écart de pourcentage
+        const tousMatchs = [];
+        for (const [ligue, matchs] of Object.entries(allMatchs)) {
+            matchs.forEach(m => tousMatchs.push({...m, ligue_nom: ligue}));
+        }
+        tousMatchs.sort((a, b) => Math.abs(b.pct_home - 50) - Math.abs(a.pct_home - 50));
+
+        let html = '<div class="ligue-block"><div class="ligue-header"><h3>🔥 Matchs par écart de probabilité</h3></div>';
+        tousMatchs.forEach(m => { html += renderMatch(m); });
+        html += '</div>';
+        container.innerHTML = html;
+
+    } else if (triActuel === 'heure') {
+        const tousMatchs = [];
+        for (const [ligue, matchs] of Object.entries(allMatchs)) {
+            matchs.forEach(m => tousMatchs.push({...m, ligue_nom: ligue}));
+        }
+        tousMatchs.sort((a, b) => a.heure.localeCompare(b.heure));
+
+        let html = '<div class="ligue-block"><div class="ligue-header"><h3>🕐 Matchs par heure</h3></div>';
+        tousMatchs.forEach(m => { html += renderMatch(m, true); });
+        html += '</div>';
+        container.innerHTML = html;
+
+    } else {
+        // Par ligue
+        let html = '';
+        for (const [ligue, matchs] of Object.entries(allMatchs)) {
+            const drapeau = matchs[0]?.drapeau || '';
+            html += `<div class="ligue-block">
+                <div class="ligue-header">
+                    ${drapeau ? `<span class="fi fi-${drapeau}"></span>` : ''}
+                    <h3>${ligue}</h3>
+                </div>`;
+            matchs.forEach(m => { html += renderMatch(m); });
+            html += '</div>';
+        }
+        container.innerHTML = html;
+    }
+}
+
+function renderMatch(m, showLigue = false) {
+    const ecart = Math.abs(m.pct_home - 50);
+    const estFort = ecart >= 15;
+
+    const scoreBox = m.est_live
+        ? `<div class="score-box score-live">
+            <div class="score-chiffre">${m.goals_home ?? 0} - ${m.goals_away ?? 0}</div>
+            <div class="match-live">LIVE</div>
+           </div>`
+        : `<div class="score-box"><div class="score-upcoming">${m.heure}</div></div>`;
+
+    const formeDots = (forme, align) => {
+        let dots = '';
+        for (let f of forme) dots += `<div class="f-dot f-${f || 'x'}"></div>`;
+        return `<div class="forme-mini ${align}">${dots}</div>`;
+    };
+
+    const pctHomeClass = m.pct_home >= 65 ? 'pct-high' : '';
+    const ligueLabel = showLigue ? `<span style="color:#4a6080;font-size:11px">${m.ligue_nom || ''}</span>` : '';
+
+    return `<div class="match-card">
+        ${ligueLabel}
+        <div class="match-top">
+            <div class="team-home" onclick="openButeurs(${m.home_id}, '${m.home.replace(/'/g, "\\'")}')">
+                <div class="team-nom">${m.home} 🔍</div>
+                <div class="team-rang">${m.rang_home !== '?' ? m.rang_home + 'ème' : ''}</div>
+                ${formeDots(m.forme_home, 'right')}
+            </div>
+            ${scoreBox}
+            <div class="team-away" onclick="openButeurs(${m.away_id}, '${m.away.replace(/'/g, "\\'")}')">
+                <div class="team-nom">${m.away} 🔍</div>
+                <div class="team-rang">${m.rang_away !== '?' ? m.rang_away + 'ème' : ''}</div>
+                ${formeDots(m.forme_away, '')}
+            </div>
+        </div>
+        <div class="pct-bar-container">
+            <div class="pct-labels">
+                <span class="pct-home-label ${pctHomeClass}">${m.pct_home}% ${estFort && m.pct_home > 50 ? '<span class="badge-fort">FAVORI</span>' : ''}</span>
+                <span class="pct-center-label">Probabilité victoire</span>
+                <span class="pct-away-label">${m.pct_away}% ${estFort && m.pct_away > 50 ? '<span class="badge-fort">FAVORI</span>' : ''}</span>
+            </div>
+            <div class="pct-bar">
+                <div class="pct-bar-home" style="width:${m.pct_home}%"></div>
+                <div class="pct-bar-away"></div>
+            </div>
+        </div>
+    </div>`;
+}
 
 function openButeurs(equipeId, equipeNom) {
     document.getElementById('panel-titre').textContent = '⚽ ' + equipeNom;
     document.getElementById('buteurs-panel').style.display = 'block';
     document.getElementById('panel-overlay').style.display = 'block';
-    document.getElementById('panel-content').innerHTML = '<div style="text-align:center;color:#4a6080;padding:40px">Chargement...</div>';
+    document.getElementById('panel-content').innerHTML = '<div class="loading"><div class="spinner"></div></div>';
 
     fetch('/api/equipe/' + equipeId + '/buteurs')
         .then(r => r.json())
         .then(data => {
             if (!data.joueurs || data.joueurs.length === 0) {
-                document.getElementById('panel-content').innerHTML = 
-                    '<div style="text-align:center;color:#4a6080;padding:40px">Aucun buteur trouvé</div>';
+                document.getElementById('panel-content').innerHTML = '<div style="text-align:center;color:#4a6080;padding:40px">Aucun buteur trouvé</div>';
                 return;
             }
-
             let html = '';
-            data.joueurs.forEach((j, i) => {
-                const scoreColor = j.score > 50 ? '#00ff87' : j.score > 20 ? '#00D4FF' : '#fff';
-                const pctBut = Math.min(99, Math.round(j.ratio * 100));
-                
-                html += `
-                <div style="
-                    background: #080C14;
-                    border: 1px solid #1a2540;
-                    border-radius: 10px;
-                    padding: 14px;
-                    margin-bottom: 10px;
-                    display: flex;
-                    gap: 12px;
-                    align-items: center;
-                ">
-                    <img src="https://media.api-sports.io/football/players/${j.joueur_id}.png"
-                         onerror="this.src='https://via.placeholder.com/40x40/1a2540/4a6080?text=?'"
-                         style="width:40px;height:40px;border-radius:50%;object-fit:cover;flex-shrink:0;">
-                    <div style="flex:1">
-                        <div style="font-weight:600;font-size:14px;margin-bottom:4px">${j.nom}</div>
-                        <div style="display:flex;gap:12px;font-size:12px;color:#4a6080;margin-bottom:6px">
-                            <span>⚽ ${j.buts} buts</span>
-                            <span>🅰️ ${j.passes} passes</span>
+            data.joueurs.forEach(j => {
+                html += `<div class="joueur-card">
+                    <img class="joueur-photo"
+                         src="https://media.api-sports.io/football/players/${j.joueur_id}.png"
+                         onerror="this.src='https://via.placeholder.com/40/1a2540/4a6080?text=?'">
+                    <div class="joueur-info">
+                        <div class="joueur-nom">${j.nom}</div>
+                        <div class="joueur-stats">
+                            <span>⚽ ${j.buts}</span>
+                            <span>🅰️ ${j.passes}</span>
                             <span>⭐ ${j.note}</span>
+                            <span>📊 Score: ${j.score}</span>
                         </div>
-                        <div style="background:#1a2540;border-radius:3px;height:4px;overflow:hidden">
-                            <div style="width:${pctBut}%;height:100%;background:linear-gradient(90deg,#00D4FF,#00ff87);border-radius:3px"></div>
+                        <div class="pct-mini-bar">
+                            <div class="pct-mini-fill" style="width:${j.pct_but}%"></div>
                         </div>
-                        <div style="display:flex;justify-content:space-between;font-size:11px;margin-top:3px">
+                        <div class="pct-mini-label">
                             <span style="color:#4a6080">Probabilité but</span>
-                            <span style="color:${scoreColor};font-weight:700">${pctBut}%</span>
+                            <span style="color:${j.pct_but > 40 ? '#00ff87' : '#00D4FF'};font-weight:700">${j.pct_but}%</span>
                         </div>
                     </div>
                 </div>`;
             });
-
             document.getElementById('panel-content').innerHTML = html;
         });
 }
@@ -204,115 +331,21 @@ function closePanel() {
     document.getElementById('panel-overlay').style.display = 'none';
 }
 
+// Charger les matchs
 fetch('/api/matchs-jour')
     .then(r => r.json())
     .then(data => {
-        const container = document.getElementById('matchs-container');
-
         if (!data.ligues || Object.keys(data.ligues).length === 0) {
-            container.innerHTML = '<div class="loading"><p>Aucun match trouvé aujourd\'hui dans nos ligues</p></div>';
+            document.getElementById('matchs-container').innerHTML = '<div class="loading"><p>Aucun match dans nos ligues aujourd\'hui</p></div>';
             return;
         }
-
-        let html = '';
-
-        for (const [ligue, matchs] of Object.entries(data.ligues)) {
-            html += `<div class="ligue-block">
-                <div class="ligue-header"><h3>🏆 ${ligue}</h3></div>`;
-
-            matchs.forEach(m => {
-                const scoreBox = m.est_live
-                    ? `<div class="score-box score-live">
-                        <div class="score-chiffre">${m.goals_home ?? 0} - ${m.goals_away ?? 0}</div>
-                        <div class="match-live">LIVE</div>
-                       </div>`
-                    : `<div class="score-box">
-                        <div class="score-upcoming">${m.heure}</div>
-                       </div>`;
-
-                const formeDots = (forme, align) => {
-                    let dots = '';
-                    for (let f of forme) {
-                        dots += `<div class="f-dot f-${f || 'x'}"></div>`;
-                    }
-                    return `<div class="forme-mini ${align}">${dots}</div>`;
-                };
-
-                const pctHomeClass = m.pct_home >= 65 ? 'pct-high' : '';
-
-                html += `<div class="match-card">
-                    <div class="match-top">
-                        <div class="team-home" style="cursor:pointer" onclick="openButeurs(${m.home_id}, '${m.home}')">
-                            <div class="team-nom" style="color:#00D4FF">${m.home} 🔍</div>
-                            <div class="team-rang">${m.rang_home !== '?' ? m.rang_home + 'ème' : ''}</div>
-                            ${formeDots(m.forme_home, 'right')}
-                        </div>
-                        ${scoreBox}
-                        <div class="team-away" style="cursor:pointer" onclick="openButeurs(${m.away_id}, '${m.away}')">
-                            <div class="team-nom" style="color:#00D4FF">${m.away} 🔍</div>
-                            <div class="team-rang">${m.rang_away !== '?' ? m.rang_away + 'ème' : ''}</div>
-                            ${formeDots(m.forme_away, '')}
-                        </div>
-                        <div></div>
-                    </div>
-                    <div class="pct-bar-container">
-                        <div class="pct-labels">
-                            <span class="pct-home-label ${pctHomeClass}">${m.pct_home}%</span>
-                            <span class="pct-center-label">Probabilité de victoire</span>
-                            <span class="pct-away-label">${m.pct_away}%</span>
-                        </div>
-                        <div class="pct-bar">
-                            <div class="pct-bar-home" style="width: ${m.pct_home}%"></div>
-                            <div class="pct-bar-away"></div>
-                        </div>
-                    </div>
-                </div>`;
-            });
-
-            html += '</div>';
-        }
-
-        container.innerHTML = html;
+        allMatchs = data.ligues;
+        afficherMatchs();
     })
-    .catch(err => {
-        document.getElementById('matchs-container').innerHTML =
-            '<div class="loading"><p>Erreur de chargement</p></div>';
-        console.error(err);
+    .catch(() => {
+        document.getElementById('matchs-container').innerHTML = '<div class="loading"><p>Erreur de chargement</p></div>';
     });
 </script>
-<div id="buteurs-panel" style="
-    display: none;
-    position: fixed;
-    right: 0; top: 0;
-    width: 380px;
-    height: 100vh;
-    background: #0D1321;
-    border-left: 1px solid #1a2540;
-    z-index: 1000;
-    overflow-y: auto;
-    padding: 25px;
-">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-        <h3 id="panel-titre" style="color: #00D4FF; font-size: 16px;"></h3>
-        <button onclick="closePanel()" style="
-            background: none; border: 1px solid #1a2540;
-            color: #4a6080; padding: 6px 12px;
-            border-radius: 6px; cursor: pointer;
-            font-size: 13px;
-        ">✕ Fermer</button>
-    </div>
-    <div id="panel-content">
-        <div style="text-align: center; color: #4a6080; padding: 40px;">Chargement...</div>
-    </div>
-</div>
 
-<div id="panel-overlay" onclick="closePanel()" style="
-    display: none;
-    position: fixed;
-    top: 0; left: 0;
-    width: 100%; height: 100%;
-    background: rgba(0,0,0,0.5);
-    z-index: 999;
-"></div>
 </body>
 </html>
