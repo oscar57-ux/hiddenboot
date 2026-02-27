@@ -1,4 +1,5 @@
 flask
 requests
 selenium
+numpy
 webdriver-manager
