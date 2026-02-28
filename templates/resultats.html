@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Résultats - HiddenBoot</title>
+    <title>Résultats - HiddenScout</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/lipis/flag-icons@7.0.0/css/flag-icons.min.css"/>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -86,8 +86,12 @@
         .precision-pct { font-weight: 700; font-size: 13px; width: 40px; text-align: right; }
 
         .loading { text-align: center; padding: 60px; color: #4a6080; }
-        .spinner { width: 40px; height: 40px; border: 3px solid #1a2540; border-top: 3px solid #00D4FF; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 20px; }
-        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes radar-ring { 0% { transform: scale(0.3); opacity: 0.9; } 100% { transform: scale(1.8); opacity: 0; } }
+        .loader-radar { width: 44px; height: 44px; position: relative; margin: 0 auto 20px; }
+        .loader-radar .ring { position: absolute; inset: 0; border-radius: 50%; border: 2px solid #00D4FF; animation: radar-ring 2s ease-out infinite; }
+        .loader-radar .ring:nth-child(2) { animation-delay: 0.65s; }
+        .loader-radar .ring:nth-child(3) { animation-delay: 1.3s; }
+        .loader-radar .center { position: absolute; width: 10px; height: 10px; border-radius: 50%; background: #00D4FF; box-shadow: 0 0 10px #00D4FF; top: 50%; left: 50%; transform: translate(-50%, -50%); }
 
         .msg-info { background: rgba(0,212,255,0.05); border: 1px solid #1a2540; border-radius: 8px; padding: 15px 20px; color: #4a6080; font-size: 13px; margin-bottom: 20px; }
         .msg-info span { color: #00D4FF; }
@@ -110,7 +114,7 @@
 
 <div class="sidebar" id="sidebar">
     <div class="logo">
-        <h1>HIDDEN<span>BOOT</span></h1>
+        <h1>HIDDEN<span>SCOUT</span></h1>
         <p>Football Analytics</p>
     </div>
     <div class="nav-section">Menu</div>
@@ -153,19 +157,19 @@
 
     <div class="tab-content active" id="tab-derniers">
         <div id="derniers-content">
-            <div class="loading"><div class="spinner"></div><p>Chargement...</p></div>
+            <div class="loading"><div class="loader-radar"><div class="ring"></div><div class="ring"></div><div class="ring"></div><div class="center"></div></div><p>Chargement...</p></div>
         </div>
     </div>
 
     <div class="tab-content" id="tab-attente">
         <div id="attente-content">
-            <div class="loading"><div class="spinner"></div><p>Chargement...</p></div>
+            <div class="loading"><div class="loader-radar"><div class="ring"></div><div class="ring"></div><div class="ring"></div><div class="center"></div></div><p>Chargement...</p></div>
         </div>
     </div>
 
     <div class="tab-content" id="tab-ligues">
         <div id="ligues-content">
-            <div class="loading"><div class="spinner"></div><p>Chargement...</p></div>
+            <div class="loading"><div class="loader-radar"><div class="ring"></div><div class="ring"></div><div class="ring"></div><div class="center"></div></div><p>Chargement...</p></div>
         </div>
     </div>
 
@@ -208,17 +212,17 @@
             </div>
 
             <div style="background:#0D1321;border:1px solid #1a2540;border-radius:12px;padding:20px">
-                <div style="color:#00D4FF;font-size:15px;font-weight:600;margin-bottom:12px">🏆 Score Équipe — Classements HiddenBoot</div>
+                <div style="color:#00D4FF;font-size:15px;font-weight:600;margin-bottom:12px">🏆 Score Équipe — Classements HiddenScout</div>
                 <div style="background:#080C14;border-radius:8px;padding:14px;font-family:monospace;font-size:13px;color:#e0e8f0;line-height:2;margin-bottom:10px">
                     Score = Forme <span style="color:#00D4FF">50%</span> + Classement <span style="color:#00D4FF">35%</span> + Diff. buts <span style="color:#00D4FF">15%</span> + Bonus domicile <span style="color:#00D4FF">+8%</span>
                 </div>
                 <div style="color:#4a6080;font-size:12px;line-height:1.7">
-                    Le score HiddenBoot classe les équipes selon leur dynamique réelle plutôt que leur seul palmarès. Une équipe en série de victoires peut apparaître plus haut que son classement officiel. Utilisé pour identifier les équipes à parier en ce moment.
+                    Le score HiddenScout classe les équipes selon leur dynamique réelle plutôt que leur seul palmarès. Une équipe en série de victoires peut apparaître plus haut que son classement officiel. Utilisé pour identifier les équipes à parier en ce moment.
                 </div>
             </div>
 
             <div style="background:#0D1321;border:1px solid #1a2540;border-radius:12px;padding:20px">
-                <div style="color:#00D4FF;font-size:15px;font-weight:600;margin-bottom:12px">⭐ Score Joueur — Pépites HiddenBoot</div>
+                <div style="color:#00D4FF;font-size:15px;font-weight:600;margin-bottom:12px">⭐ Score Joueur — Pépites HiddenScout</div>
                 <div style="background:#080C14;border-radius:8px;padding:14px;font-family:monospace;font-size:13px;color:#e0e8f0;line-height:2;margin-bottom:10px">
                     Base = Buts&times;<span style="color:#00D4FF">2</span> + Passes&times;<span style="color:#00D4FF">1</span> + Note&times;<span style="color:#00D4FF">5</span> + Ratio&times;<span style="color:#00D4FF">4</span> + Bonus titulaire <span style="color:#00D4FF">+3</span><br>
                     Forme = buts_rec&times;<span style="color:#00D4FF">2</span> + passes_rec&times;<span style="color:#00D4FF">1</span> + note_rec&times;<span style="color:#00D4FF">3</span> + ratio_rec&times;<span style="color:#00D4FF">7</span><br>
@@ -342,7 +346,7 @@ async function chargerHistorique() {
             document.getElementById('attente-content').innerHTML = '<div class="msg-info">Aucune prédiction en attente. Clique sur "Sauvegarder prédictions du jour" !</div>';
         } else {
             let html = '<div class="table-block"><table>';
-            html += '<tr><th>Ligue</th><th>Match</th><th>Prédiction HiddenBoot</th><th>Statut</th></tr>';
+            html += '<tr><th>Ligue</th><th>Match</th><th>Prédiction HiddenScout</th><th>Statut</th></tr>';
             data.en_attente.forEach(m => {
                 const drapeau = DRAPEAUX[m.ligue_id] || '';
                 const favori = m.pct_home > m.pct_away ? m.home : m.away;

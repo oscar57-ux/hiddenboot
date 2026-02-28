@@ -272,8 +272,37 @@ def pepites():
         joueurs_mondial.append({**dict(j), "score": score, "drapeau": DRAPEAUX_LIGUES.get(j["ligue_id"], "")})
     joueurs_mondial.sort(key=lambda x: x["score"], reverse=True)
     resultats["🌐 Top Mondial"] = joueurs_mondial[:50]
+
+    joueurs_en_feu = []
+    try:
+        c.execute("""
+            WITH derniers AS (
+                SELECT joueur_id, buts,
+                       ROW_NUMBER() OVER (PARTITION BY joueur_id ORDER BY date DESC) AS rn
+                FROM joueurs_forme
+            )
+            SELECT d.joueur_id, SUM(d.buts) AS buts_recents,
+                   j.nom, j.poste, j.matchs,
+                   j.buts, j.passes, j.note, j.ratio,
+                   e.nom AS equipe, l.nom AS ligue, l.id AS ligue_id
+            FROM derniers d
+            JOIN api_joueurs j ON d.joueur_id = j.id
+            JOIN api_equipes e ON j.equipe_id = e.id
+            JOIN api_ligues  l ON j.ligue_id  = l.id
+            WHERE d.rn <= 5
+            GROUP BY d.joueur_id
+            HAVING buts_recents >= 3
+            ORDER BY buts_recents DESC, j.buts DESC
+            LIMIT 50
+        """)
+        for j in c.fetchall():
+            score = calculer_score_joueur(j["buts"], j["passes"] or 0, j["note"] or 0, j["matchs"] or 1, j["joueur_id"])
+            joueurs_en_feu.append({**dict(j), "score": score, "drapeau": DRAPEAUX_LIGUES.get(j["ligue_id"], "")})
+    except Exception:
+        pass
+
     conn.close()
-    return render_template("pepites.html", regions=resultats)
+    return render_template("pepites.html", regions=resultats, joueurs_en_feu=joueurs_en_feu)
 
 @app.route("/matchs")
 def matchs():
@@ -282,7 +311,15 @@ def matchs():
 @app.route("/api/matchs-jour")
 def api_matchs_jour():
     import requests as req
-    today = date.today().strftime("%Y-%m-%d")
+    date_param = request.args.get("date", "").strip()
+    if date_param:
+        try:
+            datetime.strptime(date_param, "%Y-%m-%d")
+            today = date_param
+        except ValueError:
+            today = date.today().strftime("%Y-%m-%d")
+    else:
+        today = date.today().strftime("%Y-%m-%d")
     API_KEY = "f0841753cabc35b8ecca13ee835435d1"
     api_headers = {"x-apisports-key": API_KEY}
     response = req.get(
@@ -328,6 +365,38 @@ def api_matchs_jour():
     """)
     moy_buts_par_ligue = {row["ligue_id"]: max(0.5, row["moy"] or 1.35) for row in c.fetchall()}
 
+    def get_forme_detail(equipe_nom, forme_str):
+        if not forme_str or not equipe_nom:
+            return []
+        form_letters = list(forme_str[-5:])
+        c2 = conn.cursor()
+        try:
+            c2.execute("""
+                SELECT home, away, score_home, score_away
+                FROM predictions
+                WHERE (home = ? OR away = ?) AND statut = 'termine'
+                ORDER BY date DESC LIMIT 5
+            """, (equipe_nom, equipe_nom))
+            records = list(c2.fetchall())
+            records.reverse()
+        except Exception:
+            records = []
+        details = []
+        for i, letter in enumerate(form_letters):
+            label = {"W": "Victoire", "D": "Nul", "L": "Défaite"}.get(letter, "")
+            d = {"result": letter, "label": label}
+            if i < len(records):
+                row = records[i]
+                is_home_team = (row["home"] == equipe_nom)
+                opp = row["away"] if is_home_team else row["home"]
+                sh = row["score_home"] if is_home_team else row["score_away"]
+                sa = row["score_away"] if is_home_team else row["score_home"]
+                if sh is not None and sa is not None:
+                    d["opponent"] = opp
+                    d["score"] = f"{sh}-{sa}"
+            details.append(d)
+        return details
+
     ligues = {}
     for match in data.get("response", []):
         ligue_id = match["league"]["id"]
@@ -336,18 +405,35 @@ def api_matchs_jour():
         ligue_nom = match["league"]["name"]
         home_id = match["teams"]["home"]["id"]
         away_id = match["teams"]["away"]["id"]
+        home_name = match["teams"]["home"]["name"]
+        away_name = match["teams"]["away"]["name"]
+        fixture_id = match["fixture"]["id"]
         stats_home = get_stats_equipe(home_id)
         stats_away = get_stats_equipe(away_id)
         moy_ligue = moy_buts_par_ligue.get(ligue_id, 1.35)
-        pct_home, pct_nul, pct_away = calculer_proba_poisson(stats_home, stats_away, moy_ligue)
+        # Utiliser les probabilités sauvegardées si disponibles
+        c_pred = conn.cursor()
+        c_pred.execute(
+            "SELECT pct_home, pct_nul, pct_away FROM predictions WHERE fixture_id = ?",
+            (fixture_id,)
+        )
+        saved = c_pred.fetchone()
+        if saved:
+            pct_home = saved["pct_home"]
+            pct_nul  = saved["pct_nul"]
+            pct_away = saved["pct_away"]
+        else:
+            pct_home, pct_nul, pct_away = calculer_proba_poisson(stats_home, stats_away, moy_ligue)
         heure = match["fixture"]["date"][11:16]
         statut = match["fixture"]["status"]["short"]
         est_live = statut in ["1H", "2H", "HT", "ET", "P"]
+        forme_raw_home = stats_home["forme_raw"] if stats_home else ""
+        forme_raw_away = stats_away["forme_raw"] if stats_away else ""
         if ligue_nom not in ligues:
             ligues[ligue_nom] = []
         ligues[ligue_nom].append({
-            "home": match["teams"]["home"]["name"],
-            "away": match["teams"]["away"]["name"],
+            "home": home_name,
+            "away": away_name,
             "home_id": home_id,
             "away_id": away_id,
             "heure": heure,
@@ -360,8 +446,10 @@ def api_matchs_jour():
             "pct_away": pct_away,
             "rang_home": stats_home["rang"] if stats_home else "?",
             "rang_away": stats_away["rang"] if stats_away else "?",
-            "forme_home": stats_home["forme_raw"] if stats_home else "",
-            "forme_away": stats_away["forme_raw"] if stats_away else "",
+            "forme_home": forme_raw_home,
+            "forme_away": forme_raw_away,
+            "forme_detail_home": get_forme_detail(home_name, forme_raw_home),
+            "forme_detail_away": get_forme_detail(away_name, forme_raw_away),
             "drapeau": DRAPEAUX_LIGUES.get(ligue_id, ""),
         })
     conn.close()

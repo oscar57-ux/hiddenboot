@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Matchs du jour - HiddenBoot</title>
+    <title>Matchs du jour - HiddenScout</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/lipis/flag-icons@7.0.0/css/flag-icons.min.css"/>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -27,8 +27,12 @@
         .filtre-btn:hover, .filtre-btn.active { border-color: #00D4FF; color: #00D4FF; background: rgba(0, 212, 255, 0.05); }
         .filtre-label { color: #4a6080; font-size: 12px; }
         .loading { text-align: center; padding: 60px; color: #4a6080; }
-        .spinner { width: 40px; height: 40px; border: 3px solid #1a2540; border-top: 3px solid #00D4FF; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 20px; }
-        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes radar-ring { 0% { transform: scale(0.3); opacity: 0.9; } 100% { transform: scale(1.8); opacity: 0; } }
+        .loader-radar { width: 44px; height: 44px; position: relative; margin: 0 auto 20px; }
+        .loader-radar .ring { position: absolute; inset: 0; border-radius: 50%; border: 2px solid #00D4FF; animation: radar-ring 2s ease-out infinite; }
+        .loader-radar .ring:nth-child(2) { animation-delay: 0.65s; }
+        .loader-radar .ring:nth-child(3) { animation-delay: 1.3s; }
+        .loader-radar .center { position: absolute; width: 10px; height: 10px; border-radius: 50%; background: #00D4FF; box-shadow: 0 0 10px #00D4FF; top: 50%; left: 50%; transform: translate(-50%, -50%); }
         .ligue-block { background: #0D1321; border: 1px solid #1a2540; border-radius: 12px; margin-bottom: 15px; overflow: hidden; }
         .ligue-header { padding: 12px 20px; border-bottom: 1px solid #1a2540; background: rgba(0, 212, 255, 0.03); display: flex; align-items: center; gap: 10px; }
         .ligue-header h3 { color: #00D4FF; font-size: 13px; font-weight: 600; }
@@ -43,10 +47,13 @@
         .score-box { background: #1a2540; border-radius: 8px; padding: 8px 14px; text-align: center; min-width: 65px; }
         .score-chiffre { font-weight: 700; font-size: 17px; }
         .score-upcoming { color: #4a6080; font-size: 13px; }
-        .score-live { border: 1px solid #ff4444; }
+        .score-live { border: 2px solid #ff2020; box-shadow: 0 0 16px rgba(255,32,32,0.35); }
         .score-ft-label { color: #4a6080; font-size: 11px; margin-top: 2px; }
-        .match-live { color: #ff4444; font-weight: 700; font-size: 11px; animation: pulse 1s infinite; }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+        .match-live { color: #ff2020; font-weight: 800; font-size: 12px; letter-spacing: 1.5px; animation: pulse-live 1s ease-in-out infinite; display: flex; align-items: center; justify-content: center; gap: 4px; margin-top: 2px; }
+        .live-dot { width: 7px; height: 7px; border-radius: 50%; background: #ff2020; position: relative; flex-shrink: 0; }
+        .live-dot::before { content: ''; position: absolute; border-radius: 50%; border: 2px solid rgba(255,32,32,0.6); top: 50%; left: 50%; transform: translate(-50%, -50%); animation: live-ripple 1.5s ease-out infinite; }
+        @keyframes live-ripple { 0% { width: 7px; height: 7px; opacity: 1; } 100% { width: 22px; height: 22px; opacity: 0; } }
+        @keyframes pulse-live { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
         .forme-mini { display: flex; gap: 2px; margin-top: 4px; }
         .forme-mini.right { justify-content: flex-end; }
         .f-dot { width: 7px; height: 7px; border-radius: 50%; }
@@ -54,6 +61,10 @@
         .f-D { background: #FFA500; }
         .f-L { background: #ff4444; }
         .f-x { background: #1a2540; }
+        .form-dot-wrapper { position: relative; display: inline-flex; align-items: center; }
+        .f-tooltip { display: none; position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); background: #0D1321; border: 1px solid #2a3a50; border-radius: 6px; padding: 4px 8px; font-size: 10px; white-space: nowrap; color: #e0e8f0; z-index: 200; pointer-events: none; line-height: 1.4; }
+        .f-tooltip::after { content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 4px solid transparent; border-top-color: #2a3a50; }
+        .form-dot-wrapper:hover .f-tooltip { display: block; }
         .pct-bar-container { margin-top: 8px; }
         .pct-labels { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px; align-items: center; }
         .pct-home-label { color: #00D4FF; font-weight: 700; }
@@ -81,8 +92,21 @@
         .j-dots { display: flex; gap: 3px; margin: 2px 0; align-items: center; }
         .j-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
         .j-pct { font-size: 11px; font-weight: 700; line-height: 1.2; }
-        .spinner-sm { width: 14px; height: 14px; border: 2px solid #1a2540; border-top: 2px solid #00D4FF; border-radius: 50%; animation: spin 1s linear infinite; margin: 5px auto; }
+        @keyframes dots-bounce { 0%, 60%, 100% { transform: translateY(0); opacity: 0.3; } 30% { transform: translateY(-7px); opacity: 1; } }
+        .loader-dots { display: flex; gap: 5px; justify-content: center; margin: 5px auto; }
+        .loader-dots span { width: 6px; height: 6px; border-radius: 50%; background: #00D4FF; animation: dots-bounce 1.2s ease-in-out infinite; }
+        .loader-dots span:nth-child(2) { animation-delay: 0.15s; }
+        .loader-dots span:nth-child(3) { animation-delay: 0.3s; }
         .loading-mini { text-align: center; }
+
+        /* ── Sélecteur de date ────────────────────────────────── */
+        .date-nav { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+        .date-nav-btn { padding: 8px 16px; border-radius: 20px; border: 1px solid #1a2540; background: #0D1321; color: #4a6080; cursor: pointer; font-size: 13px; transition: all 0.2s; white-space: nowrap; }
+        .date-nav-btn:hover:not(:disabled) { border-color: #00D4FF; color: #00D4FF; background: rgba(0,212,255,0.05); }
+        .date-nav-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+        .date-display { flex: 1; text-align: center; font-size: 14px; font-weight: 600; color: #e0e8f0; cursor: pointer; padding: 8px 12px; border-radius: 8px; transition: background 0.2s; min-width: 0; }
+        .date-display:hover { background: rgba(0,212,255,0.05); }
+        .date-display.is-today { color: #00D4FF; }
 
         @media (max-width: 768px) {
             .sidebar { transform: translateX(-100%); }
@@ -97,6 +121,9 @@
             .buteurs-cols { grid-template-columns: 1fr 1fr; gap: 4px; }
             .j-nom { font-size: 10px; }
             .j-photo { width: 26px; height: 26px; }
+            .date-nav { gap: 6px; }
+            .date-nav-btn { font-size: 11px; padding: 6px 10px; }
+            .date-display { font-size: 12px; }
         }
     </style>
 </head>
@@ -107,7 +134,7 @@
 
 <div class="sidebar" id="sidebar">
     <div class="logo">
-        <h1>HIDDEN<span>BOOT</span></h1>
+        <h1>HIDDEN<span>SCOUT</span></h1>
         <p>Football Analytics</p>
     </div>
     <div class="nav-section">Menu</div>
@@ -120,8 +147,14 @@
 
 <div class="main">
     <div class="page-header">
-        <h2>🎯 Matchs du jour</h2>
-        <p id="date-today"></p>
+        <h2 id="page-title">🎯 Matchs du jour</h2>
+    </div>
+
+    <div class="date-nav">
+        <button class="date-nav-btn" id="btn-hier" onclick="changeDate(-1)">← Hier</button>
+        <div class="date-display" id="date-display" onclick="goToToday()"></div>
+        <button class="date-nav-btn" id="btn-aujourd-hui" onclick="goToToday()">Aujourd'hui</button>
+        <button class="date-nav-btn" id="btn-demain" onclick="changeDate(1)">Demain →</button>
     </div>
 
     <div class="formule-box">
@@ -139,7 +172,7 @@
     </div>
 
     <div id="matchs-container">
-        <div class="loading"><div class="spinner"></div><p>Chargement des matchs...</p></div>
+        <div class="loading"><div class="loader-radar"><div class="ring"></div><div class="ring"></div><div class="ring"></div><div class="center"></div></div><p>Chargement des matchs...</p></div>
     </div>
 </div>
 
@@ -147,10 +180,77 @@
 let allMatchs = {};
 let triActuel = 'ligue';
 let pendingButeurs = [];
+let currentDate = '';
 
-document.getElementById('date-today').textContent = new Date().toLocaleDateString('fr-FR', {
-    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
-});
+/* ── Utilitaires date Paris ───────────────────────────────── */
+function getTodayParis() {
+    return new Intl.DateTimeFormat('fr-CA', { timeZone: 'Europe/Paris' }).format(new Date());
+}
+function getTomorrowParis() {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return new Intl.DateTimeFormat('fr-CA', { timeZone: 'Europe/Paris' }).format(d);
+}
+
+/* ── Navigation date ──────────────────────────────────────── */
+function changeDate(delta) {
+    const d = new Date(currentDate + 'T12:00:00');
+    d.setDate(d.getDate() + delta);
+    currentDate = d.toISOString().split('T')[0];
+    updateDateNav();
+    loadMatchs();
+}
+
+function goToToday() {
+    currentDate = getTodayParis();
+    updateDateNav();
+    loadMatchs();
+}
+
+function updateDateNav() {
+    const today    = getTodayParis();
+    const tomorrow = getTomorrowParis();
+    const d = new Date(currentDate + 'T12:00:00');
+    const label = d.toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+    // Date display
+    const disp = document.getElementById('date-display');
+    disp.textContent = label;
+    disp.classList.toggle('is-today', currentDate === today);
+    disp.title = currentDate !== today ? "Cliquer pour revenir à aujourd'hui" : '';
+
+    // Titre de page
+    const titleEl = document.getElementById('page-title');
+    if (currentDate === today) {
+        titleEl.textContent = '🎯 Matchs du jour';
+    } else {
+        const short = d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+        titleEl.textContent = `🎯 Matchs du ${short}`;
+    }
+
+    // Boutons
+    document.getElementById('btn-aujourd-hui').disabled = (currentDate === today);
+    document.getElementById('btn-demain').disabled = (currentDate === tomorrow);
+}
+
+/* ── Reset automatique à minuit (Paris) ──────────────────── */
+function scheduleReset() {
+    const todayBeforeReset = getTodayParis();
+    const now = new Date();
+    const parts = new Intl.DateTimeFormat('fr-FR', {
+        timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+    }).formatToParts(now);
+    const get = type => parseInt(parts.find(p => p.type === type)?.value || '0');
+    const secsLeft = 86400 - get('hour') * 3600 - get('minute') * 60 - get('second') + 5;
+    setTimeout(() => {
+        if (currentDate === todayBeforeReset && getTodayParis() !== todayBeforeReset) {
+            currentDate = getTodayParis();
+            updateDateNav();
+            loadMatchs();
+        }
+        scheduleReset();
+    }, secsLeft * 1000);
+}
 
 function toggleSidebar() {
     document.getElementById('sidebar').classList.toggle('open');
@@ -246,15 +346,28 @@ function renderMatch(m, showLigue) {
     } else if (m.est_live) {
         scoreBox = `<div class="score-box score-live">
             <div class="score-chiffre">${m.goals_home ?? 0} - ${m.goals_away ?? 0}</div>
-            <div class="match-live">LIVE</div>
+            <div class="match-live"><span class="live-dot"></span>LIVE</div>
         </div>`;
     } else {
         scoreBox = `<div class="score-box"><div class="score-upcoming">${m.heure}</div></div>`;
     }
 
-    const formeDots = (forme, align) => {
+    const formeDots = (formeStr, align, details) => {
+        const letters = [...(formeStr || '')];
+        const offset = letters.length - (details ? details.length : 0);
         let dots = '';
-        for (let f of forme) dots += `<div class="f-dot f-${f || 'x'}"></div>`;
+        for (let i = 0; i < letters.length; i++) {
+            const f = letters[i];
+            const detIdx = i - offset;
+            const d = (detIdx >= 0 && details) ? details[detIdx] : null;
+            let tip = '';
+            if (d) {
+                tip = d.opponent ? `${d.label} vs ${d.opponent}${d.score ? ' ' + d.score : ''}` : d.label;
+            } else {
+                tip = f === 'W' ? 'Victoire' : f === 'D' ? 'Nul' : f === 'L' ? 'Défaite' : '';
+            }
+            dots += `<div class="form-dot-wrapper"><div class="f-dot f-${f || 'x'}"></div>${tip ? `<div class="f-tooltip">${tip}</div>` : ''}</div>`;
+        }
         return `<div class="forme-mini ${align}">${dots}</div>`;
     };
 
@@ -269,17 +382,17 @@ function renderMatch(m, showLigue) {
             <div class="team-home">
                 <div class="team-nom">${m.home}</div>
                 <div class="team-rang">${m.rang_home !== '?' ? m.rang_home + 'ème' : ''}</div>
-                ${formeDots(m.forme_home, 'right')}
+                ${formeDots(m.forme_home, 'right', m.forme_detail_home)}
             </div>
             ${scoreBox}
             <div class="team-away">
                 <div class="team-nom">${m.away}</div>
                 <div class="team-rang">${m.rang_away !== '?' ? m.rang_away + 'ème' : ''}</div>
-                ${formeDots(m.forme_away, '')}
+                ${formeDots(m.forme_away, '', m.forme_detail_away)}
             </div>
         </div>
         <div class="buteurs-inline" id="${sectionId}">
-            <div class="loading-mini"><div class="spinner-sm"></div></div>
+            <div class="loading-mini"><div class="loader-dots"><span></span><span></span><span></span></div></div>
         </div>
         <div class="pct-bar-container">
             <div class="pct-labels">
@@ -335,22 +448,34 @@ function afficherMatchs() {
     loadButeursForAll();
 }
 
-/* ── Chargement initial ───────────────────────────────────── */
-fetch('/api/matchs-jour')
-    .then(r => r.json())
-    .then(data => {
-        if (!data.ligues || Object.keys(data.ligues).length === 0) {
+/* ── Chargement des matchs ────────────────────────────────── */
+function loadMatchs() {
+    document.getElementById('matchs-container').innerHTML =
+        '<div class="loading"><div class="loader-radar"><div class="ring"></div><div class="ring"></div><div class="ring"></div><div class="center"></div></div><p>Chargement des matchs...</p></div>';
+    fetch(`/api/matchs-jour?date=${currentDate}`)
+        .then(r => r.json())
+        .then(data => {
+            if (!data.ligues || Object.keys(data.ligues).length === 0) {
+                const d = new Date(currentDate + 'T12:00:00');
+                const label = d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+                document.getElementById('matchs-container').innerHTML =
+                    `<div class="loading"><p>Aucun match dans nos ligues pour le ${label}</p></div>`;
+                return;
+            }
+            allMatchs = data.ligues;
+            afficherMatchs();
+        })
+        .catch(() => {
             document.getElementById('matchs-container').innerHTML =
-                '<div class="loading"><p>Aucun match dans nos ligues aujourd\'hui</p></div>';
-            return;
-        }
-        allMatchs = data.ligues;
-        afficherMatchs();
-    })
-    .catch(() => {
-        document.getElementById('matchs-container').innerHTML =
-            '<div class="loading"><p>Erreur de chargement</p></div>';
-    });
+                '<div class="loading"><p>Erreur de chargement</p></div>';
+        });
+}
+
+/* ── Initialisation ───────────────────────────────────────── */
+currentDate = getTodayParis();
+updateDateNav();
+loadMatchs();
+scheduleReset();
 </script>
 
 </body>

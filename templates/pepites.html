@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pépites - HiddenBoot</title>
+    <title>Pépites - HiddenScout</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/lipis/flag-icons@7.0.0/css/flag-icons.min.css"/>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -75,7 +75,7 @@
 
 <div class="sidebar" id="sidebar">
     <div class="logo">
-        <h1>HIDDEN<span>BOOT</span></h1>
+        <h1>HIDDEN<span>SCOUT</span></h1>
         <p>Football Analytics</p>
     </div>
     <div class="nav-section">Menu</div>
@@ -97,15 +97,63 @@
     </div>
 
     <div class="regions-tabs">
+        <div class="region-tab active" onclick="showRegion('enfeu', event)">🔥 En feu</div>
         {% for region in regions.keys() %}
-        <div class="region-tab {% if loop.first %}active{% endif %}" onclick="showRegion('{{ loop.index }}')">
+        <div class="region-tab" onclick="showRegion('{{ loop.index }}', event)">
             {{ region }}
         </div>
         {% endfor %}
     </div>
 
+    <div class="region-content active" id="region-enfeu">
+        <div class="table-block">
+            <table>
+                <tr>
+                    <th>#</th>
+                    <th>Joueur</th>
+                    <th>Poste</th>
+                    <th>Équipe</th>
+                    <th>Ligue</th>
+                    <th>⚽ Saison</th>
+                    <th>🔥 5M</th>
+                    <th>Score</th>
+                </tr>
+                {% for j in joueurs_en_feu %}
+                <tr>
+                    <td class="{% if loop.index == 1 %}rang-1{% elif loop.index == 2 %}rang-2{% elif loop.index == 3 %}rang-3{% else %}rang{% endif %}">
+                        {% if loop.index == 1 %}🥇{% elif loop.index == 2 %}🥈{% elif loop.index == 3 %}🥉{% else %}{{ loop.index }}{% endif %}
+                    </td>
+                    <td>
+                        <div class="joueur-info">
+                            <img class="joueur-photo"
+                                 src="https://media.api-sports.io/football/players/{{ j.joueur_id }}.png"
+                                 onerror="this.src='https://via.placeholder.com/32/1a2540/4a6080?text=?'">
+                            <div>
+                                <div class="joueur-nom">{{ j.nom }}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="stat-mini">{{ j.poste }}</td>
+                    <td>{{ j.equipe }}</td>
+                    <td>
+                        <span class="ligue-badge">
+                            {% if j.drapeau %}<span class="fi fi-{{ j.drapeau }}"></span>{% endif %}
+                            {{ j.ligue }}
+                        </span>
+                    </td>
+                    <td class="buts">⚽ {{ j.buts }}</td>
+                    <td style="color:#ff6b35;font-weight:700">🔥 {{ j.buts_recents }}</td>
+                    <td class="score">{{ j.score }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="8" style="text-align:center;color:#4a6080;padding:20px">Pas encore de données de forme disponibles</td></tr>
+                {% endfor %}
+            </table>
+        </div>
+    </div>
+
     {% for region, joueurs in regions.items() %}
-    <div class="region-content {% if loop.first %}active{% endif %}" id="region-{{ loop.index }}">
+    <div class="region-content" id="region-{{ loop.index }}">
         <div class="table-block">
             <table>
                 <tr>
@@ -161,11 +209,11 @@ function toggleSidebar() {
     document.getElementById('sidebar-overlay').classList.toggle('open');
 }
 
-function showRegion(index) {
+function showRegion(id, e) {
     document.querySelectorAll('.region-content').forEach(el => el.classList.remove('active'));
     document.querySelectorAll('.region-tab').forEach(el => el.classList.remove('active'));
-    document.getElementById('region-' + index).classList.add('active');
-    document.querySelectorAll('.region-tab')[index-1].classList.add('active');
+    document.getElementById('region-' + id).classList.add('active');
+    if (e && e.target) e.target.classList.add('active');
 }
 </script>
 
