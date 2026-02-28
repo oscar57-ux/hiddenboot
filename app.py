@@ -677,11 +677,14 @@ def api_buteurs_equipe(equipe_id):
     eq_row = c.fetchone()
     total_buts_equipe = max(1, eq_row["buts_pour"] or 1) if eq_row else 1
 
-    # Tous les joueurs de l'équipe (pas seulement ceux avec des buts)
+    # Tous les joueurs de l'équipe avec leur équipe et ligue
     c.execute("""
         SELECT j.id as joueur_id, j.nom, j.poste, j.matchs,
-               j.buts, j.passes, j.note, j.ratio
+               j.buts, j.passes, j.note, j.ratio,
+               e.nom as equipe, l.nom as ligue, l.id as ligue_id
         FROM api_joueurs j
+        JOIN api_equipes e ON j.equipe_id = e.id
+        JOIN api_ligues l ON j.ligue_id = l.id
         WHERE j.equipe_id = ?
         ORDER BY j.buts DESC
     """, (equipe_id,))
@@ -748,12 +751,15 @@ def api_buteurs_equipe(equipe_id):
             "ci_bas": ci_bas,
             "ci_haut": ci_haut,
             "forme_recente": forme_recente,
+            "equipe": j["equipe"],
+            "ligue": j["ligue"],
+            "drapeau": DRAPEAUX_LIGUES.get(j["ligue_id"], ""),
         })
 
-    # Trier par probabilité de marquer — retourner le top 3
+    # Trier par probabilité — top 15 (inline prend les 3 premiers, onglet buteurs filtre >20%)
     result.sort(key=lambda x: x["pct_but"], reverse=True)
     conn.close()
-    return jsonify({"joueurs": result[:3], "equipe_id": equipe_id})
+    return jsonify({"joueurs": result[:15], "equipe_id": equipe_id})
 
 @app.route("/resultats")
 def resultats():
