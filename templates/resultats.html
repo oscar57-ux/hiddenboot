@@ -457,26 +457,29 @@ async function chargerHistorique() {
 
         const derniers   = data.derniers   || [];
         const en_attente = data.en_attente || [];
+        const aucunePred = derniers.length === 0 && en_attente.length === 0;
 
-        // Stats cards avec filtre client si seuil > 0 (le backend filtre déjà, mais on veut aussi les en_attente)
         const total  = derniers.length;
         const correct= derniers.filter(m => m.prediction_correcte === 1).length;
         const prec   = total > 0 ? Math.round(correct / total * 100) : null;
         const att    = en_attente.length;
         renderStatsCards(total, correct, prec, att);
 
-        renderResultats(derniers);
-        renderEnAttente(en_attente);
+        renderResultats(derniers, aucunePred);
+        renderEnAttente(en_attente, aucunePred);
     } catch(e) { console.error(e); }
 }
 
-function renderResultats(matchs) {
+function renderResultats(matchs, aucunePred) {
     const el = document.getElementById('resultats-content');
     const dateLabel = formatDateLabel(currentDate);
-    // Le filtre seuil est déjà appliqué côté serveur via ?seuil=
     if (!matchs.length) {
-        const seuilLabel = currentSeuil > 0 ? ` à ${currentSeuil}%+` : '';
-        el.innerHTML = `<div class="empty-state">Aucune prédiction${seuilLabel} vérifiée pour ${dateLabel}.</div>`;
+        if (aucunePred) {
+            el.innerHTML = `<div class="empty-state" style="line-height:1.8">Aucune prédiction sauvegardée pour ${dateLabel}.<br><span style="color:#00D4FF;font-size:12px">Sauvegarde automatique à minuit et 12h (heure Paris)</span></div>`;
+        } else {
+            const seuilLabel = currentSeuil > 0 ? ` à ${currentSeuil}%+` : '';
+            el.innerHTML = `<div class="empty-state">Aucune prédiction${seuilLabel} vérifiée pour ${dateLabel}.</div>`;
+        }
         return;
     }
     let html = '<div class="table-block"><table>';
@@ -509,11 +512,15 @@ function renderResultats(matchs) {
     el.innerHTML = html;
 }
 
-function renderEnAttente(matchs) {
+function renderEnAttente(matchs, aucunePred) {
     const el = document.getElementById('attente-content');
     const seuilLabel = currentSeuil > 0 ? ` à ${currentSeuil}%+` : '';
     if (!matchs.length) {
-        el.innerHTML = `<div class="empty-state">Aucune prédiction${seuilLabel} en attente pour ${formatDateLabel(currentDate)}.</div>`;
+        if (aucunePred) {
+            el.innerHTML = `<div class="empty-state" style="line-height:1.8">Aucune prédiction sauvegardée pour ${formatDateLabel(currentDate)}.<br><span style="color:#00D4FF;font-size:12px">Sauvegarde automatique à minuit et 12h (heure Paris)</span></div>`;
+        } else {
+            el.innerHTML = `<div class="empty-state">Aucune prédiction${seuilLabel} en attente pour ${formatDateLabel(currentDate)}.</div>`;
+        }
         return;
     }
     let html = '<div class="table-block"><table>';

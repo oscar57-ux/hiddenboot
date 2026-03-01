@@ -1958,8 +1958,15 @@ try:
     _scheduler.add_job(
         _job_sauvegarder_predictions_auto,
         "cron",
-        hour=11, minute=0,
-        id="sauvegarder_11h",
+        hour=0, minute=0,
+        id="sauvegarder_minuit",
+        replace_existing=True,
+    )
+    _scheduler.add_job(
+        _job_sauvegarder_predictions_auto,
+        "cron",
+        hour=12, minute=0,
+        id="sauvegarder_midi",
         replace_existing=True,
     )
     _scheduler.add_job(
@@ -1970,7 +1977,7 @@ try:
         replace_existing=True,
     )
     _scheduler.start()
-    print("[scheduler] demarre - paris@12h | sauvegarde@11h | verification toutes les 3min")
+    print("[scheduler] demarre - paris@12h | sauvegarde@00h+12h | verification toutes les 3min")
 except Exception as _sched_err:
     print(f"[scheduler] non demarre: {_sched_err}")
 
