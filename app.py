@@ -1205,22 +1205,27 @@ def historique_predictions():
     })
 
 # ── APScheduler : génération automatique des paris à midi (Europe/Paris) ──────
+def _job_generer_paris():
+    try:
+        from generateur_paris import generer_paris
+        generer_paris()
+    except Exception as e:
+        print(f"[scheduler] erreur generer_paris: {e}")
+
 try:
     from apscheduler.schedulers.background import BackgroundScheduler
-    from generateur_paris import generer_paris as _generer_paris
-    _scheduler = BackgroundScheduler(daemon=True)
+    _scheduler = BackgroundScheduler(timezone="Europe/Paris")
     _scheduler.add_job(
-        _generer_paris,
+        _job_generer_paris,
         "cron",
         hour=12, minute=0,
-        timezone="Europe/Paris",
         id="generer_paris_midi",
         replace_existing=True,
     )
     _scheduler.start()
-    print("✅ APScheduler démarré — génération paris chaque jour à 12h00 Europe/Paris")
+    print("[scheduler] demarre - generation paris chaque jour a 12h00 Europe/Paris")
 except Exception as _sched_err:
-    print(f"⚠️  APScheduler non démarré : {_sched_err}")
+    print(f"[scheduler] non demarre: {_sched_err}")
 
 
 if __name__ == "__main__":
