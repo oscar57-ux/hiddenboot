@@ -325,6 +325,40 @@ def pepites():
 def matchs():
     return render_template("matchs.html")
 
+@app.route("/api/debug")
+def api_debug():
+    """Endpoint de diagnostic pour vérifier l'état sur Railway."""
+    import sqlite3 as _sq
+    info = {
+        "api_key_set": bool(API_SPORTS_KEY),
+        "api_key_prefix": API_SPORTS_KEY[:6] + "..." if API_SPORTS_KEY else "VIDE",
+    }
+    try:
+        conn = get_db()
+        c = conn.cursor()
+        c.execute("SELECT COUNT(*) n FROM api_ligues"); info["api_ligues"] = c.fetchone()[0]
+        c.execute("SELECT COUNT(*) n FROM classements"); info["classements"] = c.fetchone()[0]
+        conn.close()
+        info["db"] = "ok"
+    except Exception as e:
+        info["db"] = str(e)
+    try:
+        import requests as req
+        r = req.get(
+            "https://v3.football.api-sports.io/fixtures",
+            headers={"x-apisports-key": API_SPORTS_KEY},
+            params={"date": date.today().strftime("%Y-%m-%d"), "timezone": "Europe/Paris"},
+            timeout=8,
+        )
+        d = r.json()
+        info["api_status"] = r.status_code
+        info["api_results"] = d.get("results", 0)
+        info["api_errors"] = d.get("errors", [])
+    except Exception as e:
+        info["api_call"] = str(e)
+    return jsonify(info)
+
+
 @app.route("/api/matchs-jour")
 def api_matchs_jour():
     import requests as req
@@ -338,13 +372,22 @@ def api_matchs_jour():
     else:
         today = date.today().strftime("%Y-%m-%d")
     API_KEY = API_SPORTS_KEY
+    if not API_KEY:
+        print("[matchs-jour] ERREUR: API_SPORTS_KEY non definie")
+        return jsonify({"ligues": {}, "date": today, "error": "API_SPORTS_KEY manquante"})
     api_headers = {"x-apisports-key": API_KEY}
-    response = req.get(
-        "https://v3.football.api-sports.io/fixtures",
-        headers=api_headers,
-        params={"date": today, "timezone": "Europe/Paris"}
-    )
-    data = response.json()
+    try:
+        response = req.get(
+            "https://v3.football.api-sports.io/fixtures",
+            headers=api_headers,
+            params={"date": today, "timezone": "Europe/Paris"},
+            timeout=15,
+        )
+        data = response.json()
+    except Exception as e:
+        print(f"[matchs-jour] ERREUR appel API: {e}")
+        return jsonify({"ligues": {}, "date": today, "error": str(e)})
+    print(f"[matchs-jour] API results={data.get('results',0)} errors={data.get('errors')}")
     conn = get_db()
     c = conn.cursor()
     c.execute("SELECT id FROM api_ligues")
@@ -432,12 +475,16 @@ def api_matchs_jour():
         stats_away = get_stats_equipe(away_id)
         moy_ligue = moy_buts_par_ligue.get(ligue_id, 1.35)
         # Utiliser les probabilités sauvegardées si disponibles
-        c_pred = conn.cursor()
-        c_pred.execute(
-            "SELECT pct_home, pct_nul, pct_away FROM predictions WHERE fixture_id = ?",
-            (fixture_id,)
-        )
-        saved = c_pred.fetchone()
+        saved = None
+        try:
+            c_pred = conn.cursor()
+            c_pred.execute(
+                "SELECT pct_home, pct_nul, pct_away FROM predictions WHERE fixture_id = ?",
+                (fixture_id,)
+            )
+            saved = c_pred.fetchone()
+        except Exception:
+            pass
         if saved:
             pct_home = saved["pct_home"]
             pct_nul  = saved["pct_nul"]
