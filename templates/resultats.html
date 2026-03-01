@@ -9,92 +9,143 @@
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { background: #080C14; color: #fff; font-family: 'Segoe UI', Arial, sans-serif; display: flex; min-height: 100vh; }
 
+        /* ── SIDEBAR ── */
         .sidebar { width: 240px; min-height: 100vh; background: #0D1321; border-right: 1px solid #1a2540; padding: 30px 0; position: fixed; left: 0; top: 0; z-index: 100; transition: transform 0.3s; }
         .logo { padding: 0 25px 30px; border-bottom: 1px solid #1a2540; margin-bottom: 20px; }
         .logo h1 { font-size: 22px; font-weight: 800; letter-spacing: 1px; }
         .logo h1 span { color: #00D4FF; }
         .logo p { color: #4a6080; font-size: 11px; margin-top: 4px; text-transform: uppercase; letter-spacing: 2px; }
         .nav-item { display: flex; align-items: center; gap: 12px; padding: 13px 25px; color: #4a6080; text-decoration: none; font-size: 14px; transition: all 0.2s; border-left: 3px solid transparent; }
-        .nav-item:hover, .nav-item.active { color: #00D4FF; background: rgba(0, 212, 255, 0.05); border-left: 3px solid #00D4FF; }
+        .nav-item:hover, .nav-item.active { color: #00D4FF; background: rgba(0,212,255,0.05); border-left: 3px solid #00D4FF; }
         .nav-section { padding: 20px 25px 8px; color: #2a3a50; font-size: 10px; text-transform: uppercase; letter-spacing: 2px; }
-
         .burger { display: none; position: fixed; top: 15px; left: 15px; z-index: 200; background: #0D1321; border: 1px solid #1a2540; border-radius: 8px; padding: 8px 12px; cursor: pointer; color: #00D4FF; font-size: 20px; }
         .sidebar-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 99; }
 
+        /* ── MAIN ── */
         .main { margin-left: 240px; padding: 30px; flex: 1; }
-        .page-header { margin-bottom: 25px; }
+        .page-header { margin-bottom: 20px; }
         .page-header h2 { font-size: 24px; font-weight: 700; }
         .page-header p { color: #4a6080; font-size: 13px; margin-top: 5px; }
 
-        /* STATS GLOBALES */
-        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 25px; }
-        .stat-card { background: #0D1321; border: 1px solid #1a2540; border-radius: 12px; padding: 20px; text-align: center; }
+        /* ── DATE NAV ── */
+        .date-nav { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+        .date-nav-btn { background: #1a2540; border: 1px solid #1a2540; color: #4a6080; padding: 7px 14px; border-radius: 7px; cursor: pointer; font-size: 13px; transition: all 0.2s; }
+        .date-nav-btn:hover { color: #00D4FF; border-color: #00D4FF; }
+        .date-nav-btn.today-btn { background: rgba(0,212,255,0.08); color: #00D4FF; border-color: #00D4FF; }
+        .date-display { background: #0D1321; border: 1px solid #1a2540; border-radius: 8px; padding: 7px 18px; font-size: 14px; font-weight: 600; color: #fff; min-width: 140px; text-align: center; }
+
+        /* ── REFRESH BAR ── */
+        .refresh-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+        .refresh-info { color: #4a6080; font-size: 12px; }
+        .refresh-info span { color: #00D4FF; }
+        .btn { padding: 8px 16px; border-radius: 8px; border: none; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s; }
+        .btn-primary { background: #00D4FF; color: #000; }
+        .btn-primary:hover { background: #00b8d9; }
+        .btn-success { background: rgba(0,255,135,0.15); color: #00ff87; border: 1px solid #00ff87; }
+        .btn-success:hover { background: rgba(0,255,135,0.25); }
+        .btn-warning { background: rgba(255,165,0,0.15); color: #FFA500; border: 1px solid #FFA500; }
+        .btn-warning:hover { background: rgba(255,165,0,0.25); }
+        #action-msg { color: #4a6080; font-size: 12px; }
+
+        /* ── STATS CARDS ── */
+        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px; }
+        .stat-card { background: #0D1321; border: 1px solid #1a2540; border-radius: 12px; padding: 18px; text-align: center; }
         .stat-card .label { color: #4a6080; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
-        .stat-card .value { font-size: 32px; font-weight: 700; color: #00D4FF; margin-top: 8px; }
+        .stat-card .value { font-size: 28px; font-weight: 700; color: #00D4FF; margin-top: 6px; }
         .stat-card .value.good { color: #00ff87; }
         .stat-card .value.bad { color: #ff4444; }
 
-        /* BOUTONS ACTION */
-        .actions { display: flex; gap: 10px; margin-bottom: 25px; flex-wrap: wrap; }
-        .btn { padding: 10px 20px; border-radius: 8px; border: none; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s; }
-        .btn-primary { background: #00D4FF; color: #000; }
-        .btn-primary:hover { background: #00b8d9; }
-        .btn-secondary { background: #1a2540; color: #4a6080; border: 1px solid #1a2540; }
-        .btn-secondary:hover { color: #00D4FF; border-color: #00D4FF; }
-        .btn-success { background: rgba(0,255,135,0.15); color: #00ff87; border: 1px solid #00ff87; }
-
-        /* TABS */
-        .tabs { display: flex; gap: 0; margin-bottom: 20px; border-bottom: 1px solid #1a2540; }
-        .tab { padding: 10px 20px; cursor: pointer; font-size: 13px; color: #4a6080; border-bottom: 2px solid transparent; transition: all 0.2s; margin-bottom: -1px; }
+        /* ── TABS ── */
+        .tabs { display: flex; gap: 0; margin-bottom: 20px; border-bottom: 1px solid #1a2540; overflow-x: auto; }
+        .tab { padding: 10px 18px; cursor: pointer; font-size: 13px; color: #4a6080; border-bottom: 2px solid transparent; transition: all 0.2s; margin-bottom: -1px; white-space: nowrap; }
         .tab:hover { color: #fff; }
         .tab.active { color: #00D4FF; border-bottom: 2px solid #00D4FF; }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
 
-        /* TABLE RÉSULTATS */
+        /* ── TABLE ── */
         .table-block { background: #0D1321; border: 1px solid #1a2540; border-radius: 12px; overflow: hidden; overflow-x: auto; }
-        table { width: 100%; border-collapse: collapse; min-width: 700px; }
-        th { padding: 12px 15px; text-align: left; color: #2a3a50; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #1a2540; }
-        td { padding: 11px 15px; border-bottom: 1px solid #0a1020; font-size: 13px; }
+        table { width: 100%; border-collapse: collapse; min-width: 600px; }
+        th { padding: 11px 14px; text-align: left; color: #2a3a50; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #1a2540; }
+        td { padding: 10px 14px; border-bottom: 1px solid #0a1020; font-size: 13px; }
         tr:last-child td { border-bottom: none; }
         tr:hover td { background: rgba(0,212,255,0.02); }
-
-        .match-teams { font-weight: 600; }
-        .match-teams .home { color: #fff; }
-        .match-teams .vs { color: #2a3a50; margin: 0 6px; }
-        .match-teams .away { color: #fff; }
-
-        .score-reel { font-weight: 700; font-size: 15px; color: #fff; }
-
-        .pct-bar-mini { display: flex; height: 5px; background: #1a2540; border-radius: 3px; overflow: hidden; width: 120px; }
+        .match-teams .home, .match-teams .away { color: #fff; font-weight: 600; }
+        .match-teams .vs { color: #2a3a50; margin: 0 5px; }
+        .pct-bar-mini { display: flex; height: 4px; background: #1a2540; border-radius: 3px; overflow: hidden; width: 100px; margin-top: 4px; }
         .pct-home-mini { background: #00D4FF; }
-        .pct-away-mini { background: #ff4444; flex: 1; }
+        .badge-ok { display: inline-block; background: rgba(0,255,135,0.15); border: 1px solid #00ff87; color: #00ff87; font-size: 11px; padding: 2px 8px; border-radius: 10px; }
+        .badge-ko { display: inline-block; background: rgba(255,68,68,0.15); border: 1px solid #ff4444; color: #ff4444; font-size: 11px; padding: 2px 8px; border-radius: 10px; }
+        .badge-attente { display: inline-block; background: rgba(255,165,0,0.15); border: 1px solid #FFA500; color: #FFA500; font-size: 11px; padding: 2px 8px; border-radius: 10px; }
+        .ligue-badge { display: inline-flex; align-items: center; gap: 4px; background: #1a2540; padding: 2px 7px; border-radius: 4px; font-size: 11px; color: #4a6080; }
 
-        .badge-ok { display: inline-block; background: rgba(0,255,135,0.15); border: 1px solid #00ff87; color: #00ff87; font-size: 11px; padding: 3px 8px; border-radius: 10px; }
-        .badge-ko { display: inline-block; background: rgba(255,68,68,0.15); border: 1px solid #ff4444; color: #ff4444; font-size: 11px; padding: 3px 8px; border-radius: 10px; }
-        .badge-attente { display: inline-block; background: rgba(255,165,0,0.15); border: 1px solid #FFA500; color: #FFA500; font-size: 11px; padding: 3px 8px; border-radius: 10px; }
+        /* ── STATS TAB ── */
+        .seuil-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+        .seuil-btns button { padding: 6px 14px; border-radius: 20px; border: 1px solid #1a2540; background: #1a2540; color: #4a6080; font-size: 12px; cursor: pointer; transition: all 0.2s; }
+        .seuil-btns button:hover { border-color: #00D4FF; color: #00D4FF; }
+        .seuil-btns button.active { border-color: #00D4FF; background: rgba(0,212,255,0.1); color: #00D4FF; }
+        .stats-info-banner { background: rgba(0,212,255,0.06); border: 1px solid #1a2540; border-radius: 10px; padding: 14px 20px; margin-bottom: 20px; font-size: 13px; color: #4a6080; }
+        .stats-info-banner strong { color: #00D4FF; }
 
-        .ligue-badge { display: inline-flex; align-items: center; gap: 4px; background: #1a2540; padding: 3px 8px; border-radius: 4px; font-size: 11px; color: #4a6080; }
+        /* ── CHART ── */
+        .chart-wrap { background: #0D1321; border: 1px solid #1a2540; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+        .chart-title { font-size: 13px; color: #4a6080; margin-bottom: 16px; }
+        .chart-bars { display: flex; align-items: flex-end; gap: 3px; height: 150px; padding-bottom: 24px; position: relative; overflow-x: auto; }
+        .chart-bar { display: flex; flex-direction: column; align-items: center; flex: 1; min-width: 18px; position: relative; }
+        .chart-bar-fill { width: 100%; border-radius: 3px 3px 0 0; min-height: 2px; transition: height 0.3s; position: relative; cursor: pointer; }
+        .chart-bar-fill:hover::after { content: attr(data-tooltip); position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); background: #0D1321; border: 1px solid #1a2540; border-radius: 6px; padding: 4px 8px; font-size: 11px; color: #fff; white-space: nowrap; pointer-events: none; }
+        .chart-bar-date { font-size: 9px; color: #2a3a50; transform: rotate(-45deg); transform-origin: top left; position: absolute; bottom: -20px; left: 4px; white-space: nowrap; }
 
-        /* PRECISION PAR LIGUE */
+        /* ── LIGUE PRECISION TABLE ── */
         .ligue-precision { background: #0D1321; border: 1px solid #1a2540; border-radius: 12px; overflow: hidden; }
-        .ligue-row { display: flex; align-items: center; gap: 15px; padding: 12px 20px; border-bottom: 1px solid #0a1020; }
+        .ligue-row { display: flex; align-items: center; gap: 15px; padding: 11px 18px; border-bottom: 1px solid #0a1020; }
         .ligue-row:last-child { border-bottom: none; }
         .ligue-nom { flex: 1; font-size: 13px; display: flex; align-items: center; gap: 6px; }
-        .precision-bar { width: 150px; height: 6px; background: #1a2540; border-radius: 3px; overflow: hidden; }
+        .precision-bar { width: 130px; height: 5px; background: #1a2540; border-radius: 3px; overflow: hidden; }
         .precision-fill { height: 100%; border-radius: 3px; }
-        .precision-pct { font-weight: 700; font-size: 13px; width: 40px; text-align: right; }
+        .precision-pct { font-weight: 700; font-size: 13px; width: 38px; text-align: right; }
 
-        .loading { text-align: center; padding: 60px; color: #4a6080; }
+        /* ── BUTEURS TAB ── */
+        .buteur-stats-globales { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 18px; }
+        .buteur-stat-card { background: #0D1321; border: 1px solid #1a2540; border-radius: 10px; padding: 14px; text-align: center; }
+        .buteur-stat-card .label { color: #4a6080; font-size: 11px; text-transform: uppercase; }
+        .buteur-stat-card .value { font-size: 22px; font-weight: 700; color: #00D4FF; margin-top: 5px; }
+        .buteur-stat-card .sub { font-size: 11px; color: #4a6080; margin-top: 2px; }
+
+        .buteur-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+        .buteur-pred-card { background: #0D1321; border: 1px solid #1a2540; border-radius: 12px; padding: 16px; transition: border-color 0.2s; }
+        .buteur-pred-card:hover { border-color: #2a3a60; }
+        .buteur-pred-card .bpc-header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+        .buteur-avatar { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; border: 2px solid #1a2540; background: #1a2540; flex-shrink: 0; }
+        .buteur-info-main { flex: 1; min-width: 0; }
+        .buteur-nom { font-weight: 700; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .buteur-equipe { font-size: 12px; color: #4a6080; margin-top: 2px; }
+        .bpc-match { font-size: 12px; color: #4a6080; margin-bottom: 10px; }
+        .bpc-match strong { color: #fff; }
+        .bpc-proba { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+        .bpc-proba-val { font-size: 22px; font-weight: 700; color: #00D4FF; }
+        .bpc-proba-ic { font-size: 11px; color: #4a6080; }
+        .bpc-forme { display: flex; gap: 4px; margin-bottom: 10px; }
+        .forme-dot-b { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; }
+        .forme-dot-b.but { background: rgba(0,212,255,0.2); color: #00D4FF; border: 1px solid #00D4FF; }
+        .forme-dot-b.passe { background: rgba(255,165,0,0.2); color: #FFA500; border: 1px solid #FFA500; }
+        .forme-dot-b.vide { background: rgba(255,68,68,0.1); color: #ff4444; border: 1px solid rgba(255,68,68,0.3); }
+        .bpc-result { padding: 6px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; text-align: center; }
+        .bpc-result.marque { background: rgba(0,255,135,0.1); color: #00ff87; border: 1px solid rgba(0,255,135,0.3); }
+        .bpc-result.rate { background: rgba(255,68,68,0.1); color: #ff4444; border: 1px solid rgba(255,68,68,0.3); }
+        .bpc-result.attente { background: rgba(255,165,0,0.1); color: #FFA500; border: 1px solid rgba(255,165,0,0.3); }
+
+        /* ── MISC ── */
+        .loading { text-align: center; padding: 50px; color: #4a6080; }
         @keyframes radar-ring { 0% { transform: scale(0.3); opacity: 0.9; } 100% { transform: scale(1.8); opacity: 0; } }
-        .loader-radar { width: 44px; height: 44px; position: relative; margin: 0 auto 20px; }
+        .loader-radar { width: 40px; height: 40px; position: relative; margin: 0 auto 16px; }
         .loader-radar .ring { position: absolute; inset: 0; border-radius: 50%; border: 2px solid #00D4FF; animation: radar-ring 2s ease-out infinite; }
         .loader-radar .ring:nth-child(2) { animation-delay: 0.65s; }
         .loader-radar .ring:nth-child(3) { animation-delay: 1.3s; }
-        .loader-radar .center { position: absolute; width: 10px; height: 10px; border-radius: 50%; background: #00D4FF; box-shadow: 0 0 10px #00D4FF; top: 50%; left: 50%; transform: translate(-50%, -50%); }
-
-        .msg-info { background: rgba(0,212,255,0.05); border: 1px solid #1a2540; border-radius: 8px; padding: 15px 20px; color: #4a6080; font-size: 13px; margin-bottom: 20px; }
+        .loader-radar .center { position: absolute; width: 9px; height: 9px; border-radius: 50%; background: #00D4FF; box-shadow: 0 0 8px #00D4FF; top: 50%; left: 50%; transform: translate(-50%, -50%); }
+        .msg-info { background: rgba(0,212,255,0.05); border: 1px solid #1a2540; border-radius: 8px; padding: 14px 18px; color: #4a6080; font-size: 13px; margin-bottom: 16px; }
         .msg-info span { color: #00D4FF; }
+        .empty-state { text-align: center; padding: 50px; color: #4a6080; font-size: 13px; }
 
         @media (max-width: 768px) {
             .sidebar { transform: translateX(-100%); }
@@ -102,8 +153,9 @@
             .sidebar-overlay.open { display: block; }
             .burger { display: block; }
             .main { margin-left: 0; padding: 20px 15px; padding-top: 60px; }
-            .stats-grid { grid-template-columns: repeat(2, 1fr); }
-            .precision-bar { width: 80px; }
+            .stats-grid, .buteur-stats-globales { grid-template-columns: repeat(2,1fr); }
+            .precision-bar { width: 70px; }
+            .buteur-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -129,57 +181,92 @@
 <div class="main">
     <div class="page-header">
         <h2>✅ Résultats & Formules</h2>
-        <p>Prédictions vs résultats réels + documentation des modèles mathématiques</p>
+        <p>Prédictions vs résultats réels + suivi des buteurs prédits</p>
     </div>
 
-    <div class="msg-info">
-        💡 <span>Comment ça marche</span> — Clique sur "Sauvegarder prédictions" chaque matin avant les matchs, puis "Vérifier résultats" le lendemain. Le site calcule automatiquement la précision de nos formules.
+    <!-- Navigation par date -->
+    <div class="date-nav">
+        <button class="date-nav-btn" onclick="changeDate(-1)">← Hier</button>
+        <div class="date-display" id="date-display">—</div>
+        <button class="date-nav-btn today-btn" onclick="goToToday()">Aujourd'hui</button>
+        <button class="date-nav-btn" onclick="changeDate(1)">Demain →</button>
     </div>
 
-    <div class="actions">
-        <button class="btn btn-primary" onclick="sauvegarderPredictions()">💾 Sauvegarder prédictions du jour</button>
-        <button class="btn btn-success" onclick="verifierResultats()">✅ Vérifier résultats d'hier</button>
-        <span id="action-msg" style="color:#4a6080;font-size:13px;align-self:center"></span>
+    <!-- Barre de rafraîchissement -->
+    <div class="refresh-bar">
+        <div class="refresh-info">🔄 Dernière vérif : <span id="last-check-label">jamais</span></div>
+        <button class="btn btn-primary" onclick="sauvegarderPredictions()">💾 Sauvegarder</button>
+        <button class="btn btn-success" onclick="verifierResultats()">✅ Vérifier matchs</button>
+        <span id="action-msg"></span>
     </div>
 
+    <!-- Stats cards dynamiques -->
     <div class="stats-grid" id="stats-globales">
-        <div class="stat-card"><div class="label">Prédictions ≥65%</div><div class="value" id="stat-total">—</div></div>
-        <div class="stat-card"><div class="label">Correctes (≥65%)</div><div class="value good" id="stat-correct">—</div></div>
-        <div class="stat-card"><div class="label">Précision forte conviction</div><div class="value" id="stat-precision">—</div></div>
+        <div class="stat-card"><div class="label">Prédictions terminées</div><div class="value" id="stat-total">—</div></div>
+        <div class="stat-card"><div class="label">Correctes</div><div class="value good" id="stat-correct">—</div></div>
+        <div class="stat-card"><div class="label">Précision globale</div><div class="value" id="stat-precision">—</div></div>
         <div class="stat-card"><div class="label">En attente</div><div class="value" id="stat-attente">—</div></div>
     </div>
-    <div class="msg-info" style="margin-bottom:20px">
-        📌 <span>Précision calculée uniquement sur les prédictions à forte conviction (≥65%)</span> — les matchs trop incertains sont exclus de l'historique et des statistiques.
-    </div>
 
+    <!-- Onglets -->
     <div class="tabs">
-        <div class="tab active" onclick="showTab('derniers')">📋 Derniers résultats</div>
-        <div class="tab" onclick="showTab('attente')">⏳ En attente</div>
-        <div class="tab" onclick="showTab('ligues')">🏆 Précision par ligue</div>
-        <div class="tab" onclick="showTab('formules')">📐 Formules</div>
+        <div class="tab active" id="tab-btn-resultats" onclick="showTab('resultats', this)">📋 Résultats</div>
+        <div class="tab" id="tab-btn-attente" onclick="showTab('attente', this)">⏳ En attente</div>
+        <div class="tab" id="tab-btn-stats" onclick="showTab('stats', this)">📊 Statistiques</div>
+        <div class="tab" id="tab-btn-buteurs" onclick="showTab('buteurs', this)">⚽ Buteurs</div>
+        <div class="tab" id="tab-btn-formules" onclick="showTab('formules', this)">📐 Formules</div>
     </div>
 
-    <div class="tab-content active" id="tab-derniers">
-        <div id="derniers-content">
-            <div class="loading"><div class="loader-radar"><div class="ring"></div><div class="ring"></div><div class="ring"></div><div class="center"></div></div><p>Chargement...</p></div>
-        </div>
+    <!-- Tab Résultats -->
+    <div class="tab-content active" id="tab-resultats">
+        <div id="resultats-content"><div class="loading"><div class="loader-radar"><div class="ring"></div><div class="ring"></div><div class="ring"></div><div class="center"></div></div><p>Chargement...</p></div></div>
     </div>
 
+    <!-- Tab En attente -->
     <div class="tab-content" id="tab-attente">
-        <div id="attente-content">
-            <div class="loading"><div class="loader-radar"><div class="ring"></div><div class="ring"></div><div class="ring"></div><div class="center"></div></div><p>Chargement...</p></div>
-        </div>
+        <div id="attente-content"><div class="loading"><div class="loader-radar"><div class="ring"></div><div class="ring"></div><div class="ring"></div><div class="center"></div></div><p>Chargement...</p></div></div>
     </div>
 
-    <div class="tab-content" id="tab-ligues">
-        <div id="ligues-content">
-            <div class="loading"><div class="loader-radar"><div class="ring"></div><div class="ring"></div><div class="ring"></div><div class="center"></div></div><p>Chargement...</p></div>
+    <!-- Tab Statistiques -->
+    <div class="tab-content" id="tab-stats">
+        <div class="seuil-btns" id="seuil-btns">
+            <button class="active" onclick="chargerStats(0, this)">Tout</button>
+            <button onclick="chargerStats(65, this)">65%+</button>
+            <button onclick="chargerStats(70, this)">70%+</button>
+            <button onclick="chargerStats(75, this)">75%+</button>
+            <button onclick="chargerStats(80, this)">80%+</button>
+            <button onclick="chargerStats(85, this)">85%+</button>
+            <button onclick="chargerStats(90, this)">90%+</button>
+            <button onclick="chargerStats(95, this)">95%+</button>
         </div>
+        <div id="stats-banner"></div>
+        <div class="chart-wrap">
+            <div class="chart-title">Précision sur les 30 derniers jours</div>
+            <div class="chart-bars" id="chart-bars"></div>
+        </div>
+        <div id="stats-ligues-content"></div>
     </div>
 
+    <!-- Tab Buteurs -->
+    <div class="tab-content" id="tab-buteurs">
+        <div class="buteur-stats-globales" id="buteurs-stats-globales">
+            <div class="buteur-stat-card"><div class="label">Total prédictions</div><div class="value" id="bstat-total">—</div></div>
+            <div class="buteur-stat-card"><div class="label">Taux réussite 20%+</div><div class="value" id="bstat-20">—</div><div class="sub" id="bstat-20-sub"></div></div>
+            <div class="buteur-stat-card"><div class="label">Taux réussite 40%+</div><div class="value" id="bstat-40">—</div><div class="sub" id="bstat-40-sub"></div></div>
+            <div class="buteur-stat-card"><div class="label">Taux réussite 65%+</div><div class="value" id="bstat-65">—</div><div class="sub" id="bstat-65-sub"></div></div>
+        </div>
+        <div class="seuil-btns" id="buteur-seuil-btns">
+            <button class="active" onclick="filtrerButeurs(20, this)">20%+</button>
+            <button onclick="filtrerButeurs(30, this)">30%+</button>
+            <button onclick="filtrerButeurs(40, this)">40%+</button>
+            <button onclick="filtrerButeurs(65, this)">65%+</button>
+        </div>
+        <div id="buteurs-content"><div class="loading"><div class="loader-radar"><div class="ring"></div><div class="ring"></div><div class="ring"></div><div class="center"></div></div><p>Chargement...</p></div></div>
+    </div>
+
+    <!-- Tab Formules -->
     <div class="tab-content" id="tab-formules">
         <div style="display:grid;gap:15px;margin-top:5px">
-
             <div style="background:#0D1321;border:1px solid #1a2540;border-radius:12px;padding:20px">
                 <div style="color:#00D4FF;font-size:15px;font-weight:600;margin-bottom:12px">🎯 Poisson Double — Prédiction de match</div>
                 <div style="background:#080C14;border-radius:8px;padding:14px;font-family:monospace;font-size:13px;color:#e0e8f0;line-height:2;margin-bottom:10px">
@@ -187,11 +274,8 @@
                     λ_B = (buts_B / moy_ligue) &times; (buts_encaissés_A / moy_ligue) &times; <span style="color:#4a6080">1.0</span><br>
                     P(i buts - j buts) = Poisson(λ_A, i) &times; Poisson(λ_B, j) &nbsp;pour i,j &isin; [0..8]
                 </div>
-                <div style="color:#4a6080;font-size:12px;line-height:1.7">
-                    Le modèle de Poisson double prédit le nombre de buts de chaque équipe séparément, en tenant compte de leur force offensive, de la défense adverse et de la moyenne de buts de la ligue. L'avantage domicile est modélisé par un facteur ×1.3. La forme récente ajuste λ de ±20% (w=0.9).
-                </div>
+                <div style="color:#4a6080;font-size:12px;line-height:1.7">Le modèle de Poisson double prédit le nombre de buts de chaque équipe séparément, en tenant compte de leur force offensive, de la défense adverse et de la moyenne de buts de la ligue. L'avantage domicile est modélisé par un facteur ×1.3. La forme récente ajuste λ de ±20% (w=0.9).</div>
             </div>
-
             <div style="background:#0D1321;border:1px solid #1a2540;border-radius:12px;padding:20px">
                 <div style="color:#00D4FF;font-size:15px;font-weight:600;margin-bottom:12px">⚽ Monte Carlo Buteur — Probabilité de marquer</div>
                 <div style="background:#080C14;border-radius:8px;padding:14px;font-family:monospace;font-size:13px;color:#e0e8f0;line-height:2;margin-bottom:10px">
@@ -199,230 +283,451 @@
                     P(but) = 1 &minus; e<sup>&minus;λ</sup><br>
                     Monte Carlo : 10 000 simulations avec bruit &Nopf;(1, 0.15) &rarr; IC 95%
                 </div>
-                <div style="color:#4a6080;font-size:12px;line-height:1.7">
-                    Pour chaque buteur, λ intègre son taux de conversion saison, la défense de l'adversaire, sa forme récente (pondérée), l'avantage domicile et sa part des buts de l'équipe. Monte Carlo simule 10 000 matchs avec une légère variance aléatoire pour produire une probabilité et un intervalle de confiance à 95%.
-                </div>
+                <div style="color:#4a6080;font-size:12px;line-height:1.7">Pour chaque buteur, λ intègre son taux de conversion saison, la défense de l'adversaire, sa forme récente (pondérée), l'avantage domicile et sa part des buts de l'équipe. Monte Carlo simule 10 000 matchs avec une légère variance aléatoire pour produire une probabilité et un intervalle de confiance à 95%.</div>
             </div>
-
             <div style="background:#0D1321;border:1px solid #1a2540;border-radius:12px;padding:20px">
                 <div style="color:#00D4FF;font-size:15px;font-weight:600;margin-bottom:12px">📈 Forme Pondérée</div>
                 <div style="background:#080C14;border-radius:8px;padding:14px;font-family:monospace;font-size:13px;color:#e0e8f0;line-height:2;margin-bottom:10px">
                     Score = &Sigma;(résultat<sub>i</sub> &times; <span style="color:#00D4FF">0.9</span><sup>N&minus;1&minus;i</sup>) / &Sigma;(<span style="color:#00D4FF">0.9</span><sup>N&minus;1&minus;i</sup>)<br>
                     W = <span style="color:#00D4FF">3</span> pts &nbsp;| D = <span style="color:#FFA500">1</span> pt &nbsp;| L = <span style="color:#ff4444">0</span> pt &nbsp;| Fenêtre : 10 derniers matchs
                 </div>
-                <div style="color:#4a6080;font-size:12px;line-height:1.7">
-                    Les matchs récents pèsent plus que les anciens. Chaque résultat reçoit un poids qui décroît de 10% par match en remontant dans le temps. Un score de 3.0 = que des victoires récentes. Ce score ajuste λ de ±20% dans le modèle Poisson.
-                </div>
+                <div style="color:#4a6080;font-size:12px;line-height:1.7">Les matchs récents pèsent plus que les anciens. Chaque résultat reçoit un poids qui décroît de 10% par match en remontant dans le temps. Un score de 3.0 = que des victoires récentes. Ce score ajuste λ de ±20% dans le modèle Poisson.</div>
             </div>
-
             <div style="background:#0D1321;border:1px solid #1a2540;border-radius:12px;padding:20px">
                 <div style="color:#00D4FF;font-size:15px;font-weight:600;margin-bottom:12px">🏆 Score Équipe — Classements HiddenScout</div>
                 <div style="background:#080C14;border-radius:8px;padding:14px;font-family:monospace;font-size:13px;color:#e0e8f0;line-height:2;margin-bottom:10px">
                     Score = Forme <span style="color:#00D4FF">50%</span> + Classement <span style="color:#00D4FF">35%</span> + Diff. buts <span style="color:#00D4FF">15%</span> + Bonus domicile <span style="color:#00D4FF">+8%</span>
                 </div>
-                <div style="color:#4a6080;font-size:12px;line-height:1.7">
-                    Le score HiddenScout classe les équipes selon leur dynamique réelle plutôt que leur seul palmarès. Une équipe en série de victoires peut apparaître plus haut que son classement officiel. Utilisé pour identifier les équipes à parier en ce moment.
-                </div>
+                <div style="color:#4a6080;font-size:12px;line-height:1.7">Le score HiddenScout classe les équipes selon leur dynamique réelle plutôt que leur seul palmarès.</div>
             </div>
-
             <div style="background:#0D1321;border:1px solid #1a2540;border-radius:12px;padding:20px">
                 <div style="color:#00D4FF;font-size:15px;font-weight:600;margin-bottom:12px">⭐ Score Joueur — Pépites HiddenScout</div>
                 <div style="background:#080C14;border-radius:8px;padding:14px;font-family:monospace;font-size:13px;color:#e0e8f0;line-height:2;margin-bottom:10px">
                     Base = Buts&times;<span style="color:#00D4FF">2</span> + Passes&times;<span style="color:#00D4FF">1</span> + Note&times;<span style="color:#00D4FF">5</span> + Ratio&times;<span style="color:#00D4FF">4</span> + Bonus titulaire <span style="color:#00D4FF">+3</span><br>
-                    Forme = buts_rec&times;<span style="color:#00D4FF">2</span> + passes_rec&times;<span style="color:#00D4FF">1</span> + note_rec&times;<span style="color:#00D4FF">3</span> + ratio_rec&times;<span style="color:#00D4FF">7</span><br>
-                    Score final = Base + Forme
+                    Forme = buts_rec&times;<span style="color:#00D4FF">2</span> + passes_rec&times;<span style="color:#00D4FF">1</span> + note_rec&times;<span style="color:#00D4FF">3</span> + ratio_rec&times;<span style="color:#00D4FF">7</span>
                 </div>
-                <div style="color:#4a6080;font-size:12px;line-height:1.7">
-                    Le score joueur combine les statistiques de la saison entière avec la forme récente (5 derniers matchs). La forme récente est fortement pondérée via le ratio des matchs récents (×7), ce qui permet à un joueur en feu de devancer un buteur régulier mais en panne.
-                </div>
+                <div style="color:#4a6080;font-size:12px;line-height:1.7">Le score joueur combine les statistiques de la saison entière avec la forme récente (5 derniers matchs).</div>
             </div>
-
         </div>
     </div>
-</div>
+
+</div><!-- end .main -->
 
 <script>
 const DRAPEAUX = {
-    61: "fr", 62: "fr", 39: "gb-eng", 40: "gb-eng",
-    140: "es", 141: "es", 135: "it", 136: "it",
-    78: "de", 79: "de", 94: "pt", 95: "pt",
-    88: "nl", 89: "nl", 144: "be", 203: "tr",
-    235: "ru", 106: "pl", 286: "rs", 283: "ro",
-    197: "gr", 210: "hr", 218: "at", 207: "ch",
-    179: "gb-sct", 71: "br", 72: "br", 128: "ar",
-    131: "ar", 239: "co", 265: "cl", 268: "uy"
+    61:"fr",62:"fr",39:"gb-eng",40:"gb-eng",140:"es",141:"es",135:"it",136:"it",
+    78:"de",79:"de",94:"pt",95:"pt",88:"nl",89:"nl",144:"be",203:"tr",204:"tr",
+    235:"ru",236:"ru",106:"pl",107:"pl",286:"rs",283:"ro",197:"gr",210:"hr",
+    218:"at",207:"ch",179:"gb-sct",71:"br",72:"br",128:"ar",131:"ar",239:"co",265:"cl",268:"uy"
 };
+
+let currentDate = getTodayParis();
+let refreshInterval = null;
+let lastCheckTime = null;
+let timerInterval = null;
+let currentSeuil = 0;
+let currentButeurSeuil = 20;
+let _cachedHistorique = null;
+let _cachedButeurs = null;
+
+// ── UTILS ────────────────────────────────────────────────────────────────────
+
+function getTodayParis() {
+    return new Date().toLocaleDateString('fr-CA', { timeZone: 'Europe/Paris' });
+}
+
+function formatDateLabel(d) {
+    const today = getTodayParis();
+    const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
+    const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
+    const yStr = yesterday.toLocaleDateString('fr-CA');
+    const tStr = tomorrow.toLocaleDateString('fr-CA');
+    if (d === today) return "Aujourd'hui";
+    if (d === yStr)  return "Hier";
+    if (d === tStr)  return "Demain";
+    const [y, m, day] = d.split('-');
+    const MOIS = ['jan','fév','mars','avr','mai','juin','juil','août','sep','oct','nov','déc'];
+    return `${parseInt(day)} ${MOIS[parseInt(m)-1]} ${y}`;
+}
+
+function loader() {
+    return '<div class="loading"><div class="loader-radar"><div class="ring"></div><div class="ring"></div><div class="ring"></div><div class="center"></div></div><p>Chargement...</p></div>';
+}
 
 function toggleSidebar() {
     document.getElementById('sidebar').classList.toggle('open');
     document.getElementById('sidebar-overlay').classList.toggle('open');
 }
 
-function showTab(tab) {
-    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    document.getElementById('tab-' + tab).classList.add('active');
-    event.target.classList.add('active');
+// ── DATE NAV ─────────────────────────────────────────────────────────────────
+
+function changeDate(delta) {
+    const d = new Date(currentDate);
+    d.setDate(d.getDate() + delta);
+    currentDate = d.toLocaleDateString('fr-CA');
+    updateDateNav();
+    chargerHistorique();
+    chargerButeurs(currentButeurSeuil);
 }
 
+function goToToday() {
+    currentDate = getTodayParis();
+    updateDateNav();
+    chargerHistorique();
+    chargerButeurs(currentButeurSeuil);
+}
+
+function updateDateNav() {
+    document.getElementById('date-display').textContent = formatDateLabel(currentDate);
+}
+
+// ── TABS ─────────────────────────────────────────────────────────────────────
+
+function showTab(name, el) {
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.getElementById('tab-' + name).classList.add('active');
+    if (el) el.classList.add('active');
+    if (name === 'stats') chargerStats(currentSeuil);
+    if (name === 'buteurs') chargerButeurs(currentButeurSeuil);
+}
+
+// ── ACTIONS ──────────────────────────────────────────────────────────────────
+
 async function sauvegarderPredictions() {
-    document.getElementById('action-msg').textContent = '⏳ Sauvegarde en cours...';
+    setMsg('⏳ Sauvegarde en cours...');
     try {
         const r = await fetch('/api/sauvegarder-predictions');
         const data = await r.json();
-        document.getElementById('action-msg').textContent = `✅ ${data.sauvegarde} prédictions sauvegardées pour le ${data.date}`;
+        setMsg(`✅ ${data.sauvegarde} prédictions sauvegardées pour le ${data.date}`);
         chargerHistorique();
-    } catch(e) {
-        document.getElementById('action-msg').textContent = '❌ Erreur';
-    }
+        chargerButeurs(currentButeurSeuil);
+    } catch(e) { setMsg('❌ Erreur'); }
 }
 
 async function verifierResultats() {
-    document.getElementById('action-msg').textContent = '⏳ Vérification en cours...';
+    setMsg('⏳ Vérification en cours...');
     try {
-        const r = await fetch('/api/verifier-resultats');
-        const data = await r.json();
-        document.getElementById('action-msg').textContent = `✅ ${data.correct}/${data.verifie} correctes — Précision: ${data.precision}% pour le ${data.date}`;
+        const [r1, r2] = await Promise.all([
+            fetch(`/api/verifier-resultats?date=${currentDate}`),
+            fetch(`/api/verifier-buteurs?date=${currentDate}`),
+        ]);
+        const d1 = await r1.json();
+        lastCheckTime = Date.now();
+        updateLastCheckLabel();
+        setMsg(`✅ ${d1.correct}/${d1.verifie} correctes — ${d1.precision}% — ${d1.date}`);
         chargerHistorique();
-    } catch(e) {
-        document.getElementById('action-msg').textContent = '❌ Erreur';
-    }
+        chargerButeurs(currentButeurSeuil);
+    } catch(e) { setMsg('❌ Erreur'); }
 }
+
+function setMsg(txt) {
+    document.getElementById('action-msg').textContent = txt;
+}
+
+// ── HISTORIQUE (onglets Résultats + En attente + Stats cards) ─────────────────
 
 async function chargerHistorique() {
     try {
-        const r = await fetch('/api/historique-predictions');
+        const url = `/api/historique-predictions?date=${currentDate}&seuil=0`;
+        const r = await fetch(url);
         const data = await r.json();
-
-        // Filtrage forte conviction ≥65% (évite les matchs trop incertains)
-        const confiants = (data.derniers || []).filter(m => Math.max(m.pct_home || 0, m.pct_away || 0) >= 65);
-        const total65   = confiants.length;
-        const correct65 = confiants.filter(m => m.prediction_correcte === 1).length;
-        const prec65    = total65 > 0 ? Math.round(correct65 / total65 * 100) : 0;
-
-        // Stats globales — basées sur les prédictions ≥65%
-        document.getElementById('stat-total').textContent     = total65;
-        document.getElementById('stat-correct').textContent   = correct65;
-        document.getElementById('stat-precision').textContent = prec65 + '%';
-        document.getElementById('stat-attente').textContent   = data.stats.en_attente;
-
-        const precColor = prec65 >= 60 ? '#00ff87' : prec65 >= 50 ? '#00D4FF' : '#ff4444';
-        document.getElementById('stat-precision').style.color = precColor;
-
-        // Derniers résultats — uniquement les ≥65%
-        if (confiants.length === 0) {
-            document.getElementById('derniers-content').innerHTML = '<div class="msg-info">Aucune prédiction à forte conviction (≥65%) vérifiée pour l\'instant.</div>';
-        } else {
-            let html = '<div class="table-block"><table>';
-            html += '<tr><th>Date</th><th>Ligue</th><th>Match</th><th>Prédiction</th><th>Résultat</th><th>✓</th></tr>';
-            confiants.forEach(m => {
-                const drapeau = DRAPEAUX[m.ligue_id] || '';
-                const favori  = m.pct_home > m.pct_away ? m.home : m.away;
-                const pctFavori = Math.max(m.pct_home, m.pct_away);
-                const badge = m.prediction_correcte === 1
-                    ? '<span class="badge-ok">✅ Correct</span>'
-                    : '<span class="badge-ko">❌ Raté</span>';
-
-                html += `<tr>
-                    <td style="color:#4a6080">${m.date}</td>
-                    <td><span class="ligue-badge">${drapeau ? `<span class="fi fi-${drapeau}"></span>` : ''} ${m.ligue}</span></td>
-                    <td class="match-teams">
-                        <span class="home">${m.home}</span>
-                        <span class="vs">vs</span>
-                        <span class="away">${m.away}</span>
-                    </td>
-                    <td>
-                        <div style="font-size:12px;margin-bottom:4px">
-                            <span style="color:#00D4FF;font-weight:700">${m.pct_home}%</span>
-                            <span style="color:#4a6080;margin:0 4px">—</span>
-                            <span style="color:#ff4444;font-weight:700">${m.pct_away}%</span>
-                        </div>
-                        <div class="pct-bar-mini">
-                            <div class="pct-home-mini" style="width:${m.pct_home}%"></div>
-                            <div class="pct-away-mini"></div>
-                        </div>
-                        <div style="font-size:11px;color:#4a6080;margin-top:3px">Favori: ${favori} (<span style="color:#00ff87;font-weight:700">${pctFavori}%</span>)</div>
-                    </td>
-                    <td class="score-reel">${m.score_home} - ${m.score_away}</td>
-                    <td>${badge}</td>
-                </tr>`;
-            });
-            html += '</table></div>';
-            document.getElementById('derniers-content').innerHTML = html;
-        }
-
-        // En attente
-        if (data.en_attente.length === 0) {
-            document.getElementById('attente-content').innerHTML = '<div class="msg-info">Aucune prédiction en attente. Clique sur "Sauvegarder prédictions du jour" !</div>';
-        } else {
-            let html = '<div class="table-block"><table>';
-            html += '<tr><th>Ligue</th><th>Match</th><th>Prédiction HiddenScout</th><th>Statut</th></tr>';
-            data.en_attente.forEach(m => {
-                const drapeau = DRAPEAUX[m.ligue_id] || '';
-                const favori = m.pct_home > m.pct_away ? m.home : m.away;
-                const pctFavori = Math.max(m.pct_home, m.pct_away);
-                const estFort = pctFavori >= 65;
-
-                html += `<tr>
-                    <td><span class="ligue-badge">${drapeau ? `<span class="fi fi-${drapeau}"></span>` : ''} ${m.ligue}</span></td>
-                    <td class="match-teams">
-                        <span class="home">${m.home}</span>
-                        <span class="vs">vs</span>
-                        <span class="away">${m.away}</span>
-                    </td>
-                    <td>
-                        <div style="font-size:12px;margin-bottom:4px">
-                            <span style="color:#00D4FF;font-weight:700">${m.pct_home}%</span>
-                            <span style="color:#4a6080;margin:0 4px">—</span>
-                            <span style="color:#ff4444;font-weight:700">${m.pct_away}%</span>
-                        </div>
-                        <div class="pct-bar-mini">
-                            <div class="pct-home-mini" style="width:${m.pct_home}%"></div>
-                            <div class="pct-away-mini"></div>
-                        </div>
-                        <div style="font-size:11px;margin-top:3px">
-                            Favori: <span style="color:${estFort ? '#00ff87' : '#00D4FF'}">${favori} (${pctFavori}%)</span>
-                            ${estFort ? '<span style="color:#00ff87;margin-left:6px">🔥 FORT</span>' : ''}
-                        </div>
-                    </td>
-                    <td><span class="badge-attente">⏳ En attente</span></td>
-                </tr>`;
-            });
-            html += '</table></div>';
-            document.getElementById('attente-content').innerHTML = html;
-        }
-
-        // Précision par ligue
-        if (data.par_ligue.length === 0) {
-            document.getElementById('ligues-content').innerHTML = '<div class="msg-info">Pas encore de données par ligue.</div>';
-        } else {
-            let html = '<div class="ligue-precision">';
-            data.par_ligue.forEach(l => {
-                const drapeau = DRAPEAUX[l.ligue_id] || '';
-                const color = l.precision >= 65 ? '#00ff87' : l.precision >= 50 ? '#00D4FF' : '#ff4444';
-                html += `<div class="ligue-row">
-                    <div class="ligue-nom">
-                        ${drapeau ? `<span class="fi fi-${drapeau}"></span>` : ''}
-                        ${l.ligue}
-                    </div>
-                    <div style="color:#4a6080;font-size:12px">${l.correct}/${l.total}</div>
-                    <div class="precision-bar">
-                        <div class="precision-fill" style="width:${l.precision}%;background:${color}"></div>
-                    </div>
-                    <div class="precision-pct" style="color:${color}">${l.precision}%</div>
-                </div>`;
-            });
-            html += '</div>';
-            document.getElementById('ligues-content').innerHTML = html;
-        }
-
-    } catch(e) {
-        console.error(e);
-    }
+        _cachedHistorique = data;
+        renderStatsCards(data.stats);
+        renderResultats(data.derniers || []);
+        renderEnAttente(data.en_attente || []);
+    } catch(e) { console.error(e); }
 }
 
-// Charger au démarrage
+function renderStatsCards(stats) {
+    document.getElementById('stat-total').textContent = stats.total || 0;
+    document.getElementById('stat-correct').textContent = stats.correct || 0;
+    const prec = stats.precision || 0;
+    const el = document.getElementById('stat-precision');
+    el.textContent = prec + '%';
+    el.className = 'value ' + (prec >= 60 ? 'good' : prec >= 50 ? '' : 'bad');
+    document.getElementById('stat-attente').textContent = stats.en_attente || 0;
+}
+
+function renderResultats(matchs) {
+    const el = document.getElementById('resultats-content');
+    const dateLabel = formatDateLabel(currentDate);
+    if (!matchs.length) {
+        el.innerHTML = `<div class="empty-state">Aucune prédiction vérifiée pour ${dateLabel}.</div>`;
+        return;
+    }
+    let html = '<div class="table-block"><table>';
+    html += '<tr><th>Date</th><th>Ligue</th><th>Match</th><th>Prédiction</th><th>Score</th><th>✓</th></tr>';
+    matchs.forEach(m => {
+        const dr = DRAPEAUX[m.ligue_id] || '';
+        const favori = m.pct_home > m.pct_away ? m.home : m.away;
+        const pctFav = Math.max(m.pct_home||0, m.pct_away||0);
+        const badge = m.prediction_correcte === 1
+            ? '<span class="badge-ok">✅ Correct</span>'
+            : '<span class="badge-ko">❌ Raté</span>';
+        html += `<tr>
+            <td style="color:#4a6080">${m.date}</td>
+            <td><span class="ligue-badge">${dr?`<span class="fi fi-${dr}"></span>`:''} ${m.ligue}</span></td>
+            <td><span class="match-teams"><span class="home">${m.home}</span><span class="vs">vs</span><span class="away">${m.away}</span></span></td>
+            <td>
+                <div style="font-size:12px;margin-bottom:3px">
+                    <span style="color:#00D4FF;font-weight:700">${m.pct_home}%</span>
+                    <span style="color:#4a6080;margin:0 3px">—</span>
+                    <span style="color:#ff4444;font-weight:700">${m.pct_away}%</span>
+                </div>
+                <div class="pct-bar-mini"><div class="pct-home-mini" style="width:${m.pct_home}%"></div></div>
+                <div style="font-size:11px;color:#4a6080;margin-top:2px">Favori: <span style="color:#00ff87">${favori} (${pctFav}%)</span></div>
+            </td>
+            <td style="font-weight:700">${m.score_home ?? '?'} - ${m.score_away ?? '?'}</td>
+            <td>${badge}</td>
+        </tr>`;
+    });
+    html += '</table></div>';
+    el.innerHTML = html;
+}
+
+function renderEnAttente(matchs) {
+    const el = document.getElementById('attente-content');
+    const today = getTodayParis();
+    if (!matchs.length) {
+        el.innerHTML = `<div class="empty-state">Aucune prédiction en attente pour ${formatDateLabel(currentDate)}.</div>`;
+        return;
+    }
+    let html = '';
+    if (currentDate === today) {
+        html += `<div style="margin-bottom:14px"><button class="btn btn-warning" onclick="verifierResultats()">🔄 Forcer vérification</button></div>`;
+    }
+    html += '<div class="table-block"><table>';
+    html += '<tr><th>Ligue</th><th>Match</th><th>Prédiction HiddenScout</th><th>Statut</th></tr>';
+    matchs.forEach(m => {
+        const dr = DRAPEAUX[m.ligue_id] || '';
+        const favori = m.pct_home > m.pct_away ? m.home : m.away;
+        const pctFav = Math.max(m.pct_home||0, m.pct_away||0);
+        const fort = pctFav >= 65;
+        html += `<tr>
+            <td><span class="ligue-badge">${dr?`<span class="fi fi-${dr}"></span>`:''} ${m.ligue}</span></td>
+            <td><span class="match-teams"><span class="home">${m.home}</span><span class="vs">vs</span><span class="away">${m.away}</span></span></td>
+            <td>
+                <div style="font-size:12px;margin-bottom:3px">
+                    <span style="color:#00D4FF;font-weight:700">${m.pct_home}%</span>
+                    <span style="color:#4a6080;margin:0 3px">—</span>
+                    <span style="color:#ff4444;font-weight:700">${m.pct_away}%</span>
+                </div>
+                <div class="pct-bar-mini"><div class="pct-home-mini" style="width:${m.pct_home}%"></div></div>
+                <div style="font-size:11px;margin-top:2px">Favori: <span style="color:${fort?'#00ff87':'#00D4FF'}">${favori} (${pctFav}%)</span>${fort?' <span style="color:#00ff87">🔥</span>':''}</div>
+            </td>
+            <td><span class="badge-attente">⏳ En attente</span></td>
+        </tr>`;
+    });
+    html += '</table></div>';
+    el.innerHTML = html;
+}
+
+// ── STATS TAB ────────────────────────────────────────────────────────────────
+
+async function chargerStats(seuil, btn) {
+    currentSeuil = seuil;
+    if (btn) {
+        document.querySelectorAll('#seuil-btns button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+    }
+    const data = await fetch(`/api/historique-predictions?seuil=${seuil}`).then(r => r.json());
+    // Banner
+    const banner = document.getElementById('stats-banner');
+    const label = seuil > 0 ? `matchs à ${seuil}%+` : 'tous les matchs';
+    banner.innerHTML = `<div class="stats-info-banner">Sur les <strong>${label}</strong> : précision <strong>${data.stats.precision}%</strong> (${data.stats.correct}/${data.stats.total} matchs terminés)</div>`;
+    // Graphique
+    renderChart(data.par_jour || []);
+    // Ligues
+    renderLiguesStats(data.par_ligue || []);
+}
+
+function renderChart(parJour) {
+    const el = document.getElementById('chart-bars');
+    if (!parJour.length) { el.innerHTML = '<div style="color:#4a6080;font-size:13px;padding:20px">Pas encore de données.</div>'; return; }
+    const maxPrec = Math.max(...parJour.map(d => d.precision), 1);
+    let html = '';
+    parJour.forEach(d => {
+        const h = Math.round(d.precision * 1.4);
+        const color = d.precision >= 65 ? '#00ff87' : d.precision >= 50 ? '#00D4FF' : '#ff4444';
+        const [y, m, day] = d.date.split('-');
+        const dateLabel = `${parseInt(day)}/${m}`;
+        const tooltip = `${d.date} — ${d.precision}% (${d.correct}/${d.total})`;
+        html += `<div class="chart-bar">
+            <div class="chart-bar-fill" style="height:${Math.max(h,2)}px;background:${color}" data-tooltip="${tooltip}"></div>
+            <div class="chart-bar-date">${dateLabel}</div>
+        </div>`;
+    });
+    el.innerHTML = html;
+}
+
+function renderLiguesStats(parLigue) {
+    const el = document.getElementById('stats-ligues-content');
+    if (!parLigue.length) { el.innerHTML = '<div class="msg-info">Pas encore de données par ligue.</div>'; return; }
+    let html = '<div class="ligue-precision">';
+    parLigue.forEach(l => {
+        const dr = DRAPEAUX[l.ligue_id] || '';
+        const color = l.precision >= 65 ? '#00ff87' : l.precision >= 50 ? '#00D4FF' : '#ff4444';
+        html += `<div class="ligue-row">
+            <div class="ligue-nom">${dr?`<span class="fi fi-${dr}"></span>`:''} ${l.ligue}</div>
+            <div style="color:#4a6080;font-size:12px">${l.correct}/${l.total}</div>
+            <div class="precision-bar"><div class="precision-fill" style="width:${l.precision}%;background:${color}"></div></div>
+            <div class="precision-pct" style="color:${color}">${l.precision}%</div>
+        </div>`;
+    });
+    html += '</div>';
+    el.innerHTML = html;
+}
+
+// ── BUTEURS TAB ───────────────────────────────────────────────────────────────
+
+async function chargerButeurs(seuil) {
+    currentButeurSeuil = seuil;
+    const el = document.getElementById('buteurs-content');
+    el.innerHTML = loader();
+    try {
+        const data = await fetch(`/api/predictions-buteurs?date=${currentDate}`).then(r => r.json());
+        _cachedButeurs = data;
+        renderButeursStats(data.stats);
+        renderButeursPreds(data.predictions || [], seuil);
+    } catch(e) { el.innerHTML = '<div class="empty-state">Erreur de chargement.</div>'; }
+}
+
+function filtrerButeurs(seuil, btn) {
+    currentButeurSeuil = seuil;
+    document.querySelectorAll('#buteur-seuil-btns button').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    if (_cachedButeurs) renderButeursPreds(_cachedButeurs.predictions || [], seuil);
+}
+
+function renderButeursStats(stats) {
+    document.getElementById('bstat-total').textContent = stats.total || 0;
+    const p20 = stats.precision_20;
+    document.getElementById('bstat-20').textContent = p20 !== null ? p20 + '%' : '—';
+    document.getElementById('bstat-20-sub').textContent = p20 !== null ? `(${stats.tot_20} matchs)` : '';
+    const p40 = stats.precision_40;
+    document.getElementById('bstat-40').textContent = p40 !== null ? p40 + '%' : '—';
+    document.getElementById('bstat-40-sub').textContent = p40 !== null ? `(${stats.tot_40} matchs)` : '';
+    const p65 = stats.precision_65;
+    document.getElementById('bstat-65').textContent = p65 !== null ? p65 + '%' : '—';
+    document.getElementById('bstat-65-sub').textContent = p65 !== null ? `(${stats.tot_65} matchs)` : '';
+}
+
+function renderButeursPreds(predictions, seuil) {
+    const el = document.getElementById('buteurs-content');
+    const filtered = predictions.filter(b => (b.probabilite || 0) >= seuil);
+    if (!filtered.length) {
+        el.innerHTML = `<div class="empty-state">Aucune prédiction buteur à ${seuil}%+ pour ${formatDateLabel(currentDate)}.</div>`;
+        return;
+    }
+    let html = '<div class="buteur-grid">';
+    filtered.forEach(b => {
+        const photoUrl = `https://media.api-sports.io/football/players/${b.joueur_id}.png`;
+        const fallbackUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(b.nom)}&background=1a2540&color=00D4FF&size=44`;
+        const dr = DRAPEAUX[b.ligue_id] || '';
+
+        // Forme depuis forme_snapshot
+        let forme = [];
+        try { forme = JSON.parse(b.forme_snapshot || '[]'); } catch(e) {}
+        let formeDots = '';
+        for (let i = 0; i < 5; i++) {
+            const f = forme[i];
+            if (!f) { formeDots += `<div class="forme-dot-b vide">—</div>`; continue; }
+            if (f.buts > 0) formeDots += `<div class="forme-dot-b but" title="${f.buts} but(s)">${f.buts}</div>`;
+            else if (f.passes > 0) formeDots += `<div class="forme-dot-b passe" title="${f.passes} passe(s)">P</div>`;
+            else formeDots += `<div class="forme-dot-b vide">—</div>`;
+        }
+
+        // Résultat
+        let resultHtml = '';
+        if (b.statut === 'termine') {
+            if (b.a_marque) {
+                resultHtml = `<div class="bpc-result marque">✅ A marqué (${b.buts_reels} but${b.buts_reels > 1 ? 's' : ''})</div>`;
+            } else {
+                resultHtml = `<div class="bpc-result rate">❌ N'a pas marqué</div>`;
+            }
+        } else {
+            resultHtml = `<div class="bpc-result attente">⏳ En attente</div>`;
+        }
+
+        const ligueBadge = dr ? `<span class="fi fi-${dr}" style="font-size:11px"></span> ` : '';
+
+        html += `<div class="buteur-pred-card">
+            <div class="bpc-header">
+                <img class="buteur-avatar" src="${photoUrl}" onerror="this.src='${fallbackUrl}'" alt="${b.nom}">
+                <div class="buteur-info-main">
+                    <div class="buteur-nom">${b.nom}</div>
+                    <div class="buteur-equipe">${ligueBadge}${b.equipe} · ${b.ligue}</div>
+                </div>
+            </div>
+            <div class="bpc-match"><strong>${b.match_home}</strong> <span style="color:#4a6080">vs</span> <strong>${b.match_away}</strong></div>
+            <div class="bpc-proba">
+                <span class="bpc-proba-val">${b.probabilite}%</span>
+                <span class="bpc-proba-ic">[${b.intervalle_bas}% – ${b.intervalle_haut}%]</span>
+            </div>
+            <div class="bpc-forme">${formeDots}</div>
+            ${resultHtml}
+        </div>`;
+    });
+    html += '</div>';
+    el.innerHTML = html;
+}
+
+// ── AUTO-REFRESH ──────────────────────────────────────────────────────────────
+
+async function initAutoRefresh() {
+    const today = getTodayParis();
+    try {
+        const r = await fetch(`/api/historique-predictions?date=${today}`);
+        const data = await r.json();
+        if ((data.en_attente || []).length === 0) return;
+        lastCheckTime = Date.now();
+        updateLastCheckLabel();
+        refreshInterval = setInterval(autoVerify, 3 * 60 * 1000);
+        startRefreshTimer();
+    } catch(e) {}
+}
+
+async function autoVerify() {
+    const today = getTodayParis();
+    try {
+        await Promise.all([
+            fetch(`/api/verifier-resultats?date=${today}`),
+            fetch(`/api/verifier-buteurs?date=${today}`)
+        ]);
+        lastCheckTime = Date.now();
+        updateLastCheckLabel();
+        if (currentDate === today) {
+            chargerHistorique();
+            chargerButeurs(currentButeurSeuil);
+        }
+        // Vérifier si encore des matchs en attente
+        const r = await fetch(`/api/historique-predictions?date=${today}`);
+        const data = await r.json();
+        if ((data.en_attente || []).length === 0) {
+            clearInterval(refreshInterval); refreshInterval = null;
+            if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+        }
+    } catch(e) {}
+}
+
+function startRefreshTimer() {
+    if (timerInterval) clearInterval(timerInterval);
+    timerInterval = setInterval(updateLastCheckLabel, 30000);
+}
+
+function updateLastCheckLabel() {
+    const el = document.getElementById('last-check-label');
+    if (!lastCheckTime) { el.textContent = 'jamais'; return; }
+    const diff = Math.floor((Date.now() - lastCheckTime) / 60000);
+    el.textContent = diff < 1 ? "à l'instant" : `il y a ${diff} min`;
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+
+updateDateNav();
 chargerHistorique();
+initAutoRefresh();
 </script>
 
 </body>

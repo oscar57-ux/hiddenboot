@@ -503,6 +503,7 @@ def api_matchs_jour():
             "away": away_name,
             "home_id": home_id,
             "away_id": away_id,
+            "fixture_id": fixture_id,
             "heure": heure,
             "statut": statut,
             "est_live": est_live,
@@ -1107,6 +1108,129 @@ def sauvegarder_predictions():
             pass
 
     conn.commit()
+
+    # ── Sauvegarde des buteurs prédits ─────────────────────────────────────────
+    try:
+        c.execute("""CREATE TABLE IF NOT EXISTS predictions_buteurs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            joueur_id INTEGER, nom TEXT, equipe TEXT, ligue TEXT, ligue_id INTEGER,
+            fixture_id INTEGER, date TEXT,
+            match_home TEXT, match_away TEXT,
+            est_home INTEGER,
+            probabilite REAL, intervalle_bas INTEGER, intervalle_haut INTEGER,
+            forme_snapshot TEXT,
+            a_marque INTEGER DEFAULT NULL, buts_reels INTEGER DEFAULT NULL,
+            statut TEXT DEFAULT 'en_attente',
+            UNIQUE(joueur_id, fixture_id)
+        )""")
+        conn.commit()
+
+        c2 = conn.cursor()
+        # Recharger la liste des matchs d'aujourd'hui déjà filtrés
+        for match in data.get("response", []):
+            ligue_id = match["league"]["id"]
+            if ligue_id not in ligues_suivies:
+                continue
+            home_id  = match["teams"]["home"]["id"]
+            away_id  = match["teams"]["away"]["id"]
+            home_name = match["teams"]["home"]["name"]
+            away_name = match["teams"]["away"]["name"]
+            fixture_id = match["fixture"]["id"]
+            ligue_nom_b = match["league"]["name"]
+
+            # Moyenne buts ligue
+            c2.execute("""
+                SELECT CAST(SUM(buts_pour) AS REAL) / MAX(1, SUM(victoires + nuls + defaites)) AS moy
+                FROM classements WHERE ligue_id = ?
+            """, (ligue_id,))
+            moy_row2 = c2.fetchone()
+            moy_ligue_b = max(0.5, (moy_row2["moy"] or 1.35) if moy_row2 and moy_row2["moy"] else 1.35)
+
+            for (eq_id, adv_id, est_home_b, eq_name_b) in [
+                (home_id, away_id, True, home_name),
+                (away_id, home_id, False, away_name),
+            ]:
+                # Stats défensives adversaire
+                c2.execute("""
+                    SELECT buts_contre, victoires, nuls, defaites
+                    FROM classements WHERE equipe_id = ?
+                """, (adv_id,))
+                adv_row = c2.fetchone()
+                if adv_row:
+                    matchs_adv = max(1, (adv_row["victoires"] or 0) + (adv_row["nuls"] or 0) + (adv_row["defaites"] or 0))
+                    be_adv_b = (adv_row["buts_contre"] or 0) / matchs_adv
+                else:
+                    be_adv_b = moy_ligue_b
+
+                # Buts totaux équipe
+                c2.execute("SELECT buts_pour FROM classements WHERE equipe_id = ?", (eq_id,))
+                eq_row2 = c2.fetchone()
+                total_buts_eq = max(1, eq_row2["buts_pour"] or 1) if eq_row2 else 1
+
+                # Joueurs (matchs >= 5)
+                c2.execute("""
+                    SELECT j.id as joueur_id, j.nom, j.matchs, j.buts, j.passes, j.note, j.ratio,
+                           e.nom as equipe
+                    FROM api_joueurs j
+                    JOIN api_equipes e ON j.equipe_id = e.id
+                    WHERE j.equipe_id = ? AND j.matchs >= 5
+                    ORDER BY j.buts DESC
+                """, (eq_id,))
+                joueurs_b = c2.fetchall()
+
+                for jb in joueurs_b:
+                    buts_j = jb["buts"] or 0
+                    matchs_j = max(1, jb["matchs"] or 1)
+                    ratio_j = float(jb["ratio"]) if jb["ratio"] else (buts_j / matchs_j)
+                    part_j = min(0.50, buts_j / total_buts_eq) if buts_j > 0 else 0.03
+
+                    forme_str_b = ""
+                    forme_recente_b = []
+                    try:
+                        c2.execute("""
+                            SELECT buts, passes, note, date FROM joueurs_forme
+                            WHERE joueur_id = ? ORDER BY date DESC LIMIT 5
+                        """, (jb["joueur_id"],))
+                        fr = c2.fetchall()
+                        forme_recente_b = [{"buts": r["buts"] or 0, "passes": r["passes"] or 0, "note": round(float(r["note"] or 0), 1)} for r in fr]
+                        if fr:
+                            forme_str_b = "".join(
+                                "W" if (r["buts"] or 0) > 0 else ("D" if (r["passes"] or 0) > 0 else "L")
+                                for r in fr
+                            )
+                    except Exception:
+                        pass
+
+                    pct_b, ci_bas_b, ci_haut_b = calculer_proba_buteur_mc(
+                        ratio_buts=max(0.01, ratio_j),
+                        buts_encaisses_adv=be_adv_b,
+                        forme_str=forme_str_b,
+                        est_domicile=est_home_b,
+                        part_buts=part_j,
+                        moy_ligue=moy_ligue_b,
+                    )
+
+                    if pct_b >= 20:
+                        import json as _json
+                        try:
+                            c.execute("""INSERT OR IGNORE INTO predictions_buteurs
+                                (joueur_id, nom, equipe, ligue, ligue_id, fixture_id, date,
+                                 match_home, match_away, est_home, probabilite, intervalle_bas,
+                                 intervalle_haut, forme_snapshot, statut)
+                                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,'en_attente')
+                            """, (
+                                jb["joueur_id"], jb["nom"], jb["equipe"] or eq_name_b,
+                                ligue_nom_b, ligue_id, fixture_id, today,
+                                home_name, away_name, 1 if est_home_b else 0,
+                                pct_b, ci_bas_b, ci_haut_b,
+                                _json.dumps(forme_recente_b),
+                            ))
+                        except Exception:
+                            pass
+        conn.commit()
+    except Exception as _be:
+        print(f"[sauvegarder] erreur buteurs: {_be}")
+
     conn.close()
     return jsonify({"sauvegarde": total, "date": today})
 
@@ -1116,14 +1240,20 @@ def verifier_resultats():
     import requests as req
     from datetime import datetime, timedelta
 
-    hier = (date.today() - timedelta(days=1)).strftime("%Y-%m-%d")
+    date_param = request.args.get("date", "").strip()
+    try:
+        datetime.strptime(date_param, "%Y-%m-%d")
+        cible = date_param
+    except (ValueError, TypeError):
+        cible = (date.today() - timedelta(days=1)).strftime("%Y-%m-%d")
+
     API_KEY = API_SPORTS_KEY
     api_headers = {"x-apisports-key": API_KEY}
 
     response = req.get(
         "https://v3.football.api-sports.io/fixtures",
         headers=api_headers,
-        params={"date": hier, "timezone": "Europe/Paris"}
+        params={"date": cible, "timezone": "Europe/Paris"}
     )
     data = response.json()
 
@@ -1187,7 +1317,7 @@ def verifier_resultats():
         "verifie": total_verifie,
         "correct": total_correct,
         "precision": precision,
-        "date": hier
+        "date": cible
     })
 
 @app.route("/api/historique-predictions")
@@ -1195,61 +1325,294 @@ def historique_predictions():
     conn = get_db()
     c = conn.cursor()
 
-    # Stats globales
-    c.execute("""
+    seuil = max(0, min(100, int(request.args.get("seuil", 0) or 0)))
+    seuil_sql = f"AND MAX(pct_home, pct_away) >= {seuil}" if seuil > 0 else ""
+
+    date_param = request.args.get("date", "").strip()
+    try:
+        datetime.strptime(date_param, "%Y-%m-%d")
+        date_filtre = date_param
+    except (ValueError, TypeError):
+        date_filtre = None
+
+    # Stats globales (matchs terminés + seuil)
+    c.execute(f"""
         SELECT
             COUNT(*) as total,
             SUM(CASE WHEN prediction_correcte = 1 THEN 1 ELSE 0 END) as correct,
             SUM(CASE WHEN statut = 'en_attente' THEN 1 ELSE 0 END) as en_attente
         FROM predictions
+        WHERE statut = 'termine' {seuil_sql}
     """)
-    stats = c.fetchone()
+    stats_row = c.fetchone()
+    c.execute("SELECT COUNT(*) as n FROM predictions WHERE statut = 'en_attente'")
+    attente_row = c.fetchone()
 
-    # Précision par ligue
-    c.execute("""
+    # Précision par ligue (terminés + seuil)
+    c.execute(f"""
         SELECT ligue, ligue_id,
                COUNT(*) as total,
                SUM(CASE WHEN prediction_correcte = 1 THEN 1 ELSE 0 END) as correct
         FROM predictions
-        WHERE statut = 'termine'
+        WHERE statut = 'termine' {seuil_sql}
         GROUP BY ligue
         ORDER BY correct * 100 / COUNT(*) DESC
     """)
     par_ligue = c.fetchall()
 
-    # Derniers matchs vérifiés
-    c.execute("""
+    # Derniers matchs vérifiés (terminés + seuil + date si fourni)
+    date_sql_derniers = f"AND date = '{date_filtre}'" if date_filtre else ""
+    c.execute(f"""
         SELECT * FROM predictions
-        WHERE statut = 'termine'
+        WHERE statut = 'termine' {seuil_sql} {date_sql_derniers}
         ORDER BY date DESC, fixture_id DESC
-        LIMIT 50
+        LIMIT 100
     """)
     derniers = c.fetchall()
 
-    # Matchs en attente (aujourd'hui)
-    c.execute("""
+    # En attente (sans seuil + date si fourni)
+    date_sql_attente = f"AND date = '{date_filtre}'" if date_filtre else ""
+    c.execute(f"""
         SELECT * FROM predictions
-        WHERE statut = 'en_attente'
+        WHERE statut = 'en_attente' {date_sql_attente}
         ORDER BY date DESC
-        LIMIT 50
+        LIMIT 100
     """)
     en_attente = c.fetchall()
 
+    # Par jour — 30 derniers jours, terminés + seuil
+    c.execute(f"""
+        SELECT date,
+               COUNT(*) as total,
+               SUM(CASE WHEN prediction_correcte = 1 THEN 1 ELSE 0 END) as correct
+        FROM predictions
+        WHERE statut = 'termine' {seuil_sql}
+        GROUP BY date
+        ORDER BY date DESC
+        LIMIT 30
+    """)
+    par_jour_rows = c.fetchall()
+    par_jour = []
+    for r in par_jour_rows:
+        total_j = r["total"] or 0
+        correct_j = r["correct"] or 0
+        par_jour.append({
+            "date": r["date"],
+            "total": total_j,
+            "correct": correct_j,
+            "precision": round(correct_j / total_j * 100) if total_j > 0 else 0,
+        })
+    par_jour.reverse()
+
     conn.close()
 
-    precision_globale = round((stats["correct"] / stats["total"] * 100)) if stats["total"] and stats["correct"] else 0
+    total_s = stats_row["total"] or 0
+    correct_s = stats_row["correct"] or 0
+    precision_globale = round(correct_s / total_s * 100) if total_s > 0 else 0
 
     return jsonify({
         "stats": {
-            "total": stats["total"] or 0,
-            "correct": stats["correct"] or 0,
+            "total": total_s,
+            "correct": correct_s,
             "precision": precision_globale,
-            "en_attente": stats["en_attente"] or 0
+            "en_attente": attente_row["n"] or 0,
         },
-        "par_ligue": [{"ligue": r["ligue"], "ligue_id": r["ligue_id"], "total": r["total"], "correct": r["correct"] or 0, "precision": round((r["correct"] or 0) / r["total"] * 100)} for r in par_ligue],
+        "par_ligue": [
+            {
+                "ligue": r["ligue"],
+                "ligue_id": r["ligue_id"],
+                "total": r["total"],
+                "correct": r["correct"] or 0,
+                "precision": round((r["correct"] or 0) / r["total"] * 100),
+            }
+            for r in par_ligue
+        ],
         "derniers": [dict(r) for r in derniers],
-        "en_attente": [dict(r) for r in en_attente]
+        "en_attente": [dict(r) for r in en_attente],
+        "par_jour": par_jour,
+        "date": date_filtre or "",
+        "seuil": seuil,
     })
+
+@app.route("/api/predictions-buteurs")
+def api_predictions_buteurs():
+    date_param = request.args.get("date", date.today().strftime("%Y-%m-%d")).strip()
+    try:
+        datetime.strptime(date_param, "%Y-%m-%d")
+    except (ValueError, TypeError):
+        date_param = date.today().strftime("%Y-%m-%d")
+
+    conn = get_db()
+    c = conn.cursor()
+
+    # Créer la table si elle n'existe pas encore
+    c.execute("""CREATE TABLE IF NOT EXISTS predictions_buteurs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        joueur_id INTEGER, nom TEXT, equipe TEXT, ligue TEXT, ligue_id INTEGER,
+        fixture_id INTEGER, date TEXT,
+        match_home TEXT, match_away TEXT,
+        est_home INTEGER,
+        probabilite REAL, intervalle_bas INTEGER, intervalle_haut INTEGER,
+        forme_snapshot TEXT,
+        a_marque INTEGER DEFAULT NULL, buts_reels INTEGER DEFAULT NULL,
+        statut TEXT DEFAULT 'en_attente',
+        UNIQUE(joueur_id, fixture_id)
+    )""")
+
+    c.execute("""
+        SELECT * FROM predictions_buteurs
+        WHERE date = ?
+        ORDER BY probabilite DESC
+    """, (date_param,))
+    rows = c.fetchall()
+
+    # Stats globales buteurs
+    c.execute("""
+        SELECT
+            COUNT(*) as total,
+            SUM(CASE WHEN statut = 'termine' AND a_marque = 1 THEN 1 ELSE 0 END) as marque,
+            SUM(CASE WHEN statut = 'termine' THEN 1 ELSE 0 END) as termine,
+            SUM(CASE WHEN probabilite >= 20 AND statut = 'termine' AND a_marque = 1 THEN 1 ELSE 0 END) as ok_20,
+            SUM(CASE WHEN probabilite >= 20 AND statut = 'termine' THEN 1 ELSE 0 END) as tot_20,
+            SUM(CASE WHEN probabilite >= 30 AND statut = 'termine' AND a_marque = 1 THEN 1 ELSE 0 END) as ok_30,
+            SUM(CASE WHEN probabilite >= 30 AND statut = 'termine' THEN 1 ELSE 0 END) as tot_30,
+            SUM(CASE WHEN probabilite >= 40 AND statut = 'termine' AND a_marque = 1 THEN 1 ELSE 0 END) as ok_40,
+            SUM(CASE WHEN probabilite >= 40 AND statut = 'termine' THEN 1 ELSE 0 END) as tot_40,
+            SUM(CASE WHEN probabilite >= 65 AND statut = 'termine' AND a_marque = 1 THEN 1 ELSE 0 END) as ok_65,
+            SUM(CASE WHEN probabilite >= 65 AND statut = 'termine' THEN 1 ELSE 0 END) as tot_65
+        FROM predictions_buteurs
+    """)
+    gs = c.fetchone()
+    conn.close()
+
+    def pct(ok, tot):
+        return round(ok / tot * 100) if tot and tot > 0 else None
+
+    predictions = [dict(r) for r in rows]
+
+    return jsonify({
+        "predictions": predictions,
+        "date": date_param,
+        "stats": {
+            "total": gs["total"] or 0,
+            "termine": gs["termine"] or 0,
+            "marque": gs["marque"] or 0,
+            "precision_20": pct(gs["ok_20"] or 0, gs["tot_20"] or 0),
+            "precision_30": pct(gs["ok_30"] or 0, gs["tot_30"] or 0),
+            "precision_40": pct(gs["ok_40"] or 0, gs["tot_40"] or 0),
+            "precision_65": pct(gs["ok_65"] or 0, gs["tot_65"] or 0),
+            "tot_20": gs["tot_20"] or 0,
+            "tot_30": gs["tot_30"] or 0,
+            "tot_40": gs["tot_40"] or 0,
+            "tot_65": gs["tot_65"] or 0,
+        }
+    })
+
+
+@app.route("/api/verifier-buteurs")
+def api_verifier_buteurs():
+    import requests as req
+    date_param = request.args.get("date", date.today().strftime("%Y-%m-%d")).strip()
+    try:
+        datetime.strptime(date_param, "%Y-%m-%d")
+    except (ValueError, TypeError):
+        date_param = date.today().strftime("%Y-%m-%d")
+
+    conn = get_db()
+    c = conn.cursor()
+
+    # Récupérer les fixture_ids distincts en attente pour cette date
+    try:
+        c.execute("""
+            SELECT DISTINCT fixture_id FROM predictions_buteurs
+            WHERE date = ? AND statut = 'en_attente'
+        """, (date_param,))
+        fixture_ids = [r["fixture_id"] for r in c.fetchall()]
+    except Exception:
+        conn.close()
+        return jsonify({"verifie": 0, "marque": 0, "date": date_param})
+
+    API_KEY = API_SPORTS_KEY
+    api_headers = {"x-apisports-key": API_KEY}
+    total_verifie = 0
+    total_marque = 0
+
+    # Limiter à 15 fixtures par appel pour éviter le rate limit
+    fixture_ids = fixture_ids[:15]
+
+    for fid in fixture_ids:
+        try:
+            resp = req.get(
+                "https://v3.football.api-sports.io/fixtures/players",
+                headers=api_headers,
+                params={"fixture": fid},
+                timeout=10,
+            )
+            fdata = resp.json()
+        except Exception:
+            continue
+
+        responses = fdata.get("response", [])
+        if not responses:
+            continue
+
+        # Vérifier si le match est FT
+        fixture_info = responses[0].get("team", {}) if responses else {}
+        # Statut du match dans le premier team block
+        statut_match = None
+        try:
+            statut_match = responses[0].get("players", [{}])[0].get("statistics", [{}])[0]
+        except Exception:
+            pass
+
+        # Récupérer le statut via l'endpoint fixtures
+        try:
+            resp2 = req.get(
+                "https://v3.football.api-sports.io/fixtures",
+                headers=api_headers,
+                params={"id": fid},
+                timeout=8,
+            )
+            fd2 = resp2.json()
+            fix_statut = fd2.get("response", [{}])[0].get("fixture", {}).get("status", {}).get("short", "")
+        except Exception:
+            fix_statut = ""
+
+        if fix_statut != "FT":
+            continue
+
+        # Construire un dict joueur_id -> buts
+        buts_par_joueur = {}
+        for team_block in responses:
+            for joueur_block in team_block.get("players", []):
+                jid = joueur_block.get("player", {}).get("id")
+                stats_j = joueur_block.get("statistics", [{}])[0]
+                goals = stats_j.get("goals", {}).get("total") or 0
+                if jid:
+                    buts_par_joueur[jid] = goals
+
+        # Mettre à jour nos prédictions pour ce fixture
+        c.execute("""
+            SELECT id, joueur_id FROM predictions_buteurs
+            WHERE fixture_id = ? AND statut = 'en_attente'
+        """, (fid,))
+        preds = c.fetchall()
+        for pred in preds:
+            jid = pred["joueur_id"]
+            buts_reels = buts_par_joueur.get(jid, 0)
+            a_marque = 1 if buts_reels > 0 else 0
+            c.execute("""
+                UPDATE predictions_buteurs SET
+                    a_marque = ?, buts_reels = ?, statut = 'termine'
+                WHERE id = ?
+            """, (a_marque, buts_reels, pred["id"]))
+            total_verifie += 1
+            total_marque += a_marque
+
+    conn.commit()
+    conn.close()
+    return jsonify({"verifie": total_verifie, "marque": total_marque, "date": date_param})
+
 
 # ── APScheduler : génération automatique des paris à midi (Europe/Paris) ──────
 def _job_generer_paris():
