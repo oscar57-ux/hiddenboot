@@ -69,7 +69,7 @@
         .pct-labels { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px; align-items: center; }
         .pct-home-label { color: #00D4FF; font-weight: 700; }
         .pct-away-label { color: #ff6644; font-weight: 700; }
-        .pct-center-label { color: #4a6080; font-size: 11px; }
+        .pct-center-label { color: #FFA500; font-size: 11px; font-weight: 700; }
         .pct-bar { height: 6px; background: #1a2540; border-radius: 3px; overflow: hidden; display: flex; }
         .pct-bar-home { height: 100%; background: linear-gradient(90deg, #00D4FF, #0099bb); }
         .pct-bar-nul { height: 100%; background: #FFA500; }
@@ -82,16 +82,17 @@
 
         /* ── Buteurs inline ───────────────────────────────────── */
         .buteurs-inline { border-top: 1px solid #0f1a2e; border-bottom: 1px solid #0f1a2e; margin: 6px 0 10px; padding: 8px 0; min-height: 24px; }
-        .buteurs-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-        .buteurs-col { display: flex; flex-direction: column; gap: 2px; }
-        .j-row { display: flex; align-items: flex-start; gap: 7px; padding: 3px 4px; border-radius: 6px; }
-        .j-photo { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; background: #1a2540; flex-shrink: 0; border: 1px solid #1a2540; }
-        .j-info { flex: 1; min-width: 0; }
-        .j-nom { font-size: 11px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #e0e8f0; line-height: 1.3; }
-        .j-stats { font-size: 10px; color: #4a6080; margin: 1px 0 2px; }
-        .j-dots { display: flex; gap: 3px; margin: 2px 0; align-items: center; }
-        .j-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
-        .j-pct { font-size: 11px; font-weight: 700; line-height: 1.2; }
+        .buteurs-cols { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+        .buteurs-cols::-webkit-scrollbar { display: none; }
+        .buteurs-col { display: contents; }
+        .j-row { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; width: 80px; gap: 3px; padding: 6px 4px; border-radius: 8px; border: 1px solid #1a2540; }
+        .j-photo { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; background: #1a2540; flex-shrink: 0; border: 1px solid #1a2540; }
+        .j-info { width: 100%; text-align: center; }
+        .j-nom { font-size: 10px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #e0e8f0; line-height: 1.3; display: block; }
+        .j-stats { font-size: 9px; color: #4a6080; margin: 1px 0 2px; }
+        .j-dots { display: flex; gap: 3px; margin: 2px 0; align-items: center; justify-content: center; }
+        .j-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+        .j-pct { font-size: 11px; font-weight: 700; line-height: 1.2; text-align: center; display: block; }
         @keyframes dots-bounce { 0%, 60%, 100% { transform: translateY(0); opacity: 0.3; } 30% { transform: translateY(-7px); opacity: 1; } }
         .loader-dots { display: flex; gap: 5px; justify-content: center; margin: 5px auto; }
         .loader-dots span { width: 6px; height: 6px; border-radius: 50%; background: #00D4FF; animation: dots-bounce 1.2s ease-in-out infinite; }
@@ -149,9 +150,7 @@
             .team-nom { font-size: 13px; }
             .filtres { gap: 6px; }
             .filtre-btn { font-size: 12px; padding: 8px 12px; min-height: 44px; }
-            .buteurs-cols { grid-template-columns: 1fr 1fr; gap: 4px; }
             .j-nom { font-size: 10px; }
-            .j-photo { width: 26px; height: 26px; }
             .date-nav { gap: 6px; }
             .date-nav-btn { font-size: 13px; padding: 10px 14px; min-height: 44px; }
             .date-display { font-size: 13px; min-height: 44px; display: flex; align-items: center; }
@@ -204,13 +203,6 @@
     </div>
 
     <div class="main-tab-content active" id="tab-matchs">
-        <div class="formule-box">
-            Modèle <span>Poisson</span> : λ = (buts_marqués/moy) × (buts_encaissés_adv/moy) × <span>facteur domicile 1.3×</span> | Forme <span>pondérée w=0.9</span> | Buteurs via <span>Monte Carlo 10 000 simulations</span>
-        </div>
-        <div class="formule-box" style="margin-bottom:20px">
-            Probabilité but joueur = <span>λ</span>(taux_conv × opposition × forme × domicile<span>×1.15</span> × part_buts) | <span>Monte Carlo 10 000 simulations</span> | IC 95%
-        </div>
-
         <div class="filtres">
             <span class="filtre-label">Trier par :</span>
             <button class="filtre-btn active" onclick="setTri('ligue', event)">Par ligue</button>
