@@ -10,6 +10,10 @@ app = Flask(__name__)
 
 API_SPORTS_KEY = os.environ.get("API_SPORTS_KEY", "")
 
+# Timestamps des dernières exécutions scheduler
+_last_save_time = None    # datetime
+_last_verify_time = None  # datetime
+
 DRAPEAUX_LIGUES = {
     61: "fr", 62: "fr",
     39: "gb-eng", 40: "gb-eng",
@@ -1658,6 +1662,31 @@ def historique_predictions():
         "seuil": seuil,
     })
 
+@app.route("/api/scheduler-status")
+def scheduler_status():
+    """Expose les timestamps des dernières exécutions automatiques"""
+    def fmt_time(dt):
+        if dt is None:
+            return None
+        return dt.strftime("%H:%M")
+
+    def fmt_ago(dt):
+        if dt is None:
+            return None
+        diff = int((datetime.now() - dt).total_seconds() / 60)
+        if diff < 1:
+            return "à l'instant"
+        if diff == 1:
+            return "il y a 1 min"
+        return f"il y a {diff} min"
+
+    return jsonify({
+        "last_save_label": fmt_time(_last_save_time),
+        "last_verify_label": fmt_ago(_last_verify_time),
+        "last_verify_ts": _last_verify_time.timestamp() if _last_verify_time else 0,
+    })
+
+
 @app.route("/api/predictions-buteurs")
 def api_predictions_buteurs():
     date_param = request.args.get("date", date.today().strftime("%Y-%m-%d")).strip()
@@ -1846,6 +1875,40 @@ def _job_generer_paris():
     except Exception as e:
         print(f"[scheduler] erreur generer_paris: {e}")
 
+
+def _job_sauvegarder_predictions_auto():
+    global _last_save_time
+    try:
+        with app.test_request_context('/api/sauvegarder-predictions'):
+            sauvegarder_predictions()
+        _last_save_time = datetime.now()
+        print("[scheduler] sauvegarde predictions auto OK")
+    except Exception as e:
+        print(f"[scheduler] erreur sauvegarde: {e}")
+
+
+def _job_verifier_resultats_auto():
+    global _last_verify_time
+    today = date.today().strftime("%Y-%m-%d")
+    try:
+        conn = get_db()
+        c = conn.cursor()
+        c.execute("SELECT COUNT(*) as n FROM predictions WHERE date = ? AND statut = 'en_attente'", (today,))
+        row = c.fetchone()
+        conn.close()
+        if not row or (row["n"] or 0) == 0:
+            return
+    except Exception:
+        pass
+    try:
+        with app.test_request_context(f'/api/verifier-resultats?date={today}'):
+            verifier_resultats()
+        _last_verify_time = datetime.now()
+        print("[scheduler] verification resultats auto OK")
+    except Exception as e:
+        print(f"[scheduler] erreur verification: {e}")
+
+
 try:
     from apscheduler.schedulers.background import BackgroundScheduler
     _scheduler = BackgroundScheduler(timezone="Europe/Paris")
@@ -1856,8 +1919,22 @@ try:
         id="generer_paris_midi",
         replace_existing=True,
     )
+    _scheduler.add_job(
+        _job_sauvegarder_predictions_auto,
+        "cron",
+        hour=11, minute=0,
+        id="sauvegarder_11h",
+        replace_existing=True,
+    )
+    _scheduler.add_job(
+        _job_verifier_resultats_auto,
+        "interval",
+        minutes=3,
+        id="verifier_3min",
+        replace_existing=True,
+    )
     _scheduler.start()
-    print("[scheduler] demarre - generation paris chaque jour a 12h00 Europe/Paris")
+    print("[scheduler] demarre - paris@12h | sauvegarde@11h | verification toutes les 3min")
 except Exception as _sched_err:
     print(f"[scheduler] non demarre: {_sched_err}")
 
