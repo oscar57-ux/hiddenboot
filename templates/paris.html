@@ -9,152 +9,199 @@
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { background: #080C14; color: #fff; font-family: 'Segoe UI', Arial, sans-serif; display: flex; min-height: 100vh; }
 
-        /* ── Sidebar ──────────────────────────────────────────── */
+        /* ── Sidebar desktop ──────────────────────────────────── */
         .sidebar { width: 240px; min-height: 100vh; background: #0D1321; border-right: 1px solid #1a2540; padding: 30px 0; position: fixed; left: 0; top: 0; z-index: 100; transition: transform 0.3s; }
         .logo { padding: 0 25px 30px; border-bottom: 1px solid #1a2540; margin-bottom: 20px; }
         .logo h1 { font-size: 22px; font-weight: 800; letter-spacing: 1px; }
         .logo h1 span { color: #00D4FF; }
         .logo p { color: #4a6080; font-size: 11px; margin-top: 4px; text-transform: uppercase; letter-spacing: 2px; }
-        .nav-item { display: flex; align-items: center; gap: 12px; padding: 13px 25px; color: #4a6080; text-decoration: none; font-size: 14px; transition: all 0.2s; border-left: 3px solid transparent; }
+        .nav-item { display: flex; align-items: center; gap: 12px; padding: 13px 25px; color: #4a6080; text-decoration: none; font-size: 14px; transition: all 0.2s; border-left: 3px solid transparent; white-space: nowrap; overflow: hidden; }
         .nav-item:hover, .nav-item.active { color: #00D4FF; background: rgba(0,212,255,0.05); border-left: 3px solid #00D4FF; }
         .nav-section { padding: 20px 25px 8px; color: #2a3a50; font-size: 10px; text-transform: uppercase; letter-spacing: 2px; }
-        .burger { display: none; position: fixed; top: 15px; left: 15px; z-index: 200; background: #0D1321; border: 1px solid #1a2540; border-radius: 8px; padding: 8px 12px; cursor: pointer; color: #00D4FF; font-size: 20px; }
-        .sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 99; }
 
-        /* ── Layout ───────────────────────────────────────────── */
-        .main { margin-left: 240px; padding: 30px; flex: 1; }
-        .page-header { margin-bottom: 20px; }
+        /* ── Main ─────────────────────────────────────────────── */
+        .main { margin-left: 240px; padding: 30px; flex: 1; max-width: 900px; }
+        .page-header { margin-bottom: 18px; }
         .page-header h2 { font-size: 24px; font-weight: 700; }
         .page-header p { color: #4a6080; font-size: 13px; margin-top: 5px; }
 
+        /* ── Info seuils ──────────────────────────────────────── */
+        .seuils-banner { background: rgba(0,212,255,0.04); border: 1px solid #1a2540; border-radius: 10px; padding: 11px 16px; margin-bottom: 18px; font-size: 12px; color: #4a6080; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .seuils-banner .sep { display: inline-flex; align-items: center; gap: 8px; }
+        .seuil-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
+
         /* ── Actions bar ──────────────────────────────────────── */
-        .page-actions { display: flex; align-items: center; gap: 14px; margin-bottom: 20px; flex-wrap: wrap; }
-        .gen-info { color: #4a6080; font-size: 12px; flex: 1; }
+        .page-actions { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; }
+        .gen-info { color: #4a6080; font-size: 13px; flex: 1; min-width: 0; }
         .gen-info strong { color: #e0e8f0; }
-        .btn-regen { padding: 9px 18px; border-radius: 8px; border: 1px solid #00D4FF; background: rgba(0,212,255,0.08); color: #00D4FF; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s; display: flex; align-items: center; gap: 6px; }
+        .btn-regen { min-height: 44px; padding: 0 20px; border-radius: 10px; border: 1px solid #00D4FF; background: rgba(0,212,255,0.08); color: #00D4FF; cursor: pointer; font-size: 14px; font-weight: 600; transition: all 0.2s; display: flex; align-items: center; gap: 8px; }
         .btn-regen:hover:not(:disabled) { background: rgba(0,212,255,0.18); }
         .btn-regen:disabled { opacity: 0.5; cursor: not-allowed; }
-        .btn-regen .spinner { display: none; width: 14px; height: 14px; border: 2px solid #00D4FF; border-top-color: transparent; border-radius: 50%; animation: spin 0.7s linear infinite; }
+        .btn-regen .spinner { display: none; width: 16px; height: 16px; border: 2px solid #00D4FF; border-top-color: transparent; border-radius: 50%; animation: spin 0.7s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
 
         /* ── Résumé IA ────────────────────────────────────────── */
-        .resume-box { background: rgba(0,212,255,0.05); border: 1px solid #1a2540; border-left: 3px solid #00D4FF; border-radius: 8px; padding: 12px 16px; margin-bottom: 24px; font-size: 13px; color: #e0e8f0; font-style: italic; }
-        .resume-box::before { content: '💡 '; }
+        .resume-box { background: rgba(0,212,255,0.05); border: 1px solid #1a2540; border-left: 3px solid #00D4FF; border-radius: 8px; padding: 12px 16px; margin-bottom: 24px; font-size: 13px; color: #e0e8f0; font-style: italic; line-height: 1.6; }
+
+        /* ── Swipe tabs mobile ────────────────────────────────── */
+        .paris-tabs { display: none; }
 
         /* ── Sections catégories ──────────────────────────────── */
-        .cat-section { margin-bottom: 30px; }
-        .cat-title { font-size: 15px; font-weight: 700; padding: 8px 0 14px; display: flex; align-items: center; gap: 10px; }
+        .cat-section { margin-bottom: 28px; }
+        .cat-title { font-size: 16px; font-weight: 700; padding: 10px 0 16px; display: flex; align-items: center; gap: 10px; }
         .cat-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
         .cat-meta { color: #4a6080; font-size: 12px; font-weight: 400; }
+        .cat-count { padding: 2px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; }
 
-        /* ── Cartes paris ─────────────────────────────────────── */
-        .pari-card { background: #0D1321; border: 1px solid #1a2540; border-radius: 12px; padding: 16px 20px; margin-bottom: 10px; display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: start; transition: background 0.15s; }
+        /* ── Carte pari — nouveau design ──────────────────────── */
+        .pari-card { background: #0D1321; border: 1px solid #1a2540; border-radius: 14px; padding: 18px; margin-bottom: 12px; transition: background 0.15s; }
         .pari-card:hover { background: rgba(0,212,255,0.02); }
-        .pari-card.safe { border-left: 3px solid #00ff87; }
-        .pari-card.cool { border-left: 3px solid #FFA500; }
-        .pari-card.fun  { border-left: 3px solid #ff4444; }
+        .pari-card.safe    { border-left: 4px solid #00ff87; }
+        .pari-card.tentant { border-left: 4px solid #FFA500; }
+        .pari-card.fun     { border-left: 4px solid #ff4444; }
 
-        .pari-match { font-weight: 700; font-size: 14px; color: #e0e8f0; margin-bottom: 3px; }
-        .pari-ligue { color: #4a6080; font-size: 11px; display: flex; align-items: center; gap: 5px; margin-bottom: 8px; }
-        .pari-type  { color: #00D4FF; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
-        .pari-desc  { color: #aaa; font-size: 12px; margin-bottom: 8px; }
-        .pari-raison { color: #4a6080; font-size: 12px; font-style: italic; border-top: 1px solid #0f1a2e; padding-top: 8px; margin-top: 4px; line-height: 1.5; }
-        .pari-raison::before { content: '" '; color: #2a3a50; }
-        .pari-raison::after  { content: ' "'; color: #2a3a50; }
+        /* Header carte : match + badge probabilité + cote */
+        .pc-header { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
+        .pc-main { flex: 1; min-width: 0; }
+        .pc-match { font-weight: 700; font-size: 15px; color: #e0e8f0; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .pc-ligue { color: #4a6080; font-size: 12px; margin-bottom: 8px; }
+        .pc-type   { color: #00D4FF; font-size: 14px; font-weight: 600; }
+        .pc-desc   { color: #aaa; font-size: 12px; margin-top: 3px; }
 
-        .pari-right { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; min-width: 90px; }
-        .pari-cote  { font-size: 32px; font-weight: 800; line-height: 1; }
-        .pari-cote.safe { color: #00ff87; }
-        .pari-cote.cool { color: #FFA500; }
-        .pari-cote.fun  { color: #ff4444; }
-        .pari-cote-label { color: #4a6080; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; }
+        /* Badge probabilité HiddenScout */
+        .pc-badge { flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+        .hs-proba { font-size: 22px; font-weight: 800; line-height: 1; }
+        .hs-proba.safe    { color: #00ff87; }
+        .hs-proba.tentant { color: #FFA500; }
+        .hs-proba.fun     { color: #ff4444; }
+        .hs-label { font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: #4a6080; text-align: right; }
 
-        .pct-wrap { width: 90px; }
-        .pct-label { font-size: 11px; font-weight: 700; margin-bottom: 4px; text-align: right; }
-        .pct-bar { height: 5px; background: #1a2540; border-radius: 3px; overflow: hidden; }
-        .pct-fill { height: 100%; border-radius: 3px; }
-        .pct-fill.safe { background: #00ff87; }
-        .pct-fill.cool { background: #FFA500; }
-        .pct-fill.fun  { background: #ff4444; }
+        /* Cote Winamax */
+        .pc-cote-wrap { display: flex; align-items: center; gap: 10px; margin-top: 10px; padding-top: 10px; border-top: 1px solid #0f1a2e; }
+        .pc-cote-label { font-size: 11px; color: #4a6080; text-transform: uppercase; letter-spacing: 1px; }
+        .pc-cote { font-size: 28px; font-weight: 800; }
+        .pc-cote.safe    { color: #00ff87; }
+        .pc-cote.tentant { color: #FFA500; }
+        .pc-cote.fun     { color: #ff4444; }
+        .pc-raison { flex: 1; color: #4a6080; font-size: 12px; font-style: italic; line-height: 1.5; }
 
-        .badge-cat { font-size: 10px; padding: 3px 8px; border-radius: 10px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
-        .badge-cat.safe { background: rgba(0,255,135,0.15); border: 1px solid #00ff87; color: #00ff87; }
-        .badge-cat.cool { background: rgba(255,165,0,0.15);  border: 1px solid #FFA500; color: #FFA500; }
-        .badge-cat.fun  { background: rgba(255,68,68,0.15);  border: 1px solid #ff4444; color: #ff4444; }
-
-        /* ── Countdown (aucun pari) ───────────────────────────── */
+        /* ── Countdown ────────────────────────────────────────── */
         .countdown-box { background: #0D1321; border: 1px solid #1a2540; border-radius: 16px; padding: 50px 30px; text-align: center; margin: 20px 0; }
         .countdown-title { color: #4a6080; font-size: 14px; margin-bottom: 20px; }
-        .countdown-time { font-size: 52px; font-weight: 800; color: #00D4FF; letter-spacing: 5px; font-variant-numeric: tabular-nums; margin-bottom: 20px; }
-        .countdown-sub { color: #2a3a50; font-size: 12px; }
+        .countdown-time { font-size: 48px; font-weight: 800; color: #00D4FF; letter-spacing: 5px; font-variant-numeric: tabular-nums; margin-bottom: 20px; }
+        .no-pari-msg { background: rgba(255,165,0,0.08); border: 1px solid rgba(255,165,0,0.3); border-radius: 12px; padding: 20px; text-align: center; color: #FFA500; font-size: 14px; margin: 10px 0 24px; }
 
-        /* ── Historique résultats ─────────────────────────────── */
-        .historique { margin-top: 40px; }
-        .historique h3 { font-size: 15px; font-weight: 700; color: #e0e8f0; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+        /* ── Historique générations ───────────────────────────── */
+        .historique { margin-top: 32px; }
+        .historique h3 { font-size: 15px; font-weight: 700; color: #e0e8f0; margin-bottom: 14px; }
         .histo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
         .histo-card { background: #0D1321; border: 1px solid #1a2540; border-radius: 10px; padding: 12px 15px; }
         .histo-date { font-size: 12px; color: #4a6080; margin-bottom: 8px; }
-        .histo-counts { display: flex; gap: 10px; font-size: 12px; }
+        .histo-counts { display: flex; gap: 8px; font-size: 12px; flex-wrap: wrap; }
         .histo-counts span { padding: 2px 7px; border-radius: 8px; font-weight: 600; }
-        .histo-safe { background: rgba(0,255,135,0.12); color: #00ff87; }
-        .histo-cool { background: rgba(255,165,0,0.12);  color: #FFA500; }
-        .histo-fun  { background: rgba(255,68,68,0.12);  color: #ff4444; }
-        /* ── Historique ✅/❌ ─────────────────────────────────── */
-        .paris-histo { margin-top: 40px; }
-        .paris-histo-stats { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 20px; }
+        .histo-safe    { background: rgba(0,255,135,0.12); color: #00ff87; }
+        .histo-tentant { background: rgba(255,165,0,0.12);  color: #FFA500; }
+        .histo-fun     { background: rgba(255,68,68,0.12);   color: #ff4444; }
+
+        /* ── Historique ✅/❌ résultats ───────────────────────── */
+        .paris-histo { margin-top: 36px; }
+        .paris-histo-stats { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 18px; }
         .ph-stat { background: #0D1321; border: 1px solid #1a2540; border-radius: 10px; padding: 14px; text-align: center; }
         .ph-stat .label { color: #4a6080; font-size: 11px; text-transform: uppercase; }
-        .ph-stat .value { font-size: 24px; font-weight: 700; color: #00D4FF; margin-top: 5px; }
+        .ph-stat .value { font-size: 22px; font-weight: 700; color: #00D4FF; margin-top: 5px; }
         .ph-table { background: #0D1321; border: 1px solid #1a2540; border-radius: 12px; overflow: hidden; overflow-x: auto; }
-        .ph-table table { width: 100%; border-collapse: collapse; min-width: 550px; }
+        .ph-table table { width: 100%; border-collapse: collapse; min-width: 520px; }
         .ph-table th { padding: 10px 14px; text-align: left; color: #2a3a50; font-size: 11px; text-transform: uppercase; border-bottom: 1px solid #1a2540; }
         .ph-table td { padding: 9px 14px; border-bottom: 1px solid #0a1020; font-size: 13px; }
         .ph-table tr:last-child td { border-bottom: none; }
         .ph-badge-g { display:inline-block;background:rgba(0,255,135,0.12);border:1px solid #00ff87;color:#00ff87;font-size:11px;padding:2px 8px;border-radius:10px; }
         .ph-badge-p { display:inline-block;background:rgba(255,68,68,0.12);border:1px solid #ff4444;color:#ff4444;font-size:11px;padding:2px 8px;border-radius:10px; }
-        @media (max-width: 768px) { .paris-histo-stats { grid-template-columns: repeat(2,1fr); } }
+        .btn-verifier { min-height: 40px; padding: 0 16px; border-radius: 8px; border: 1px solid #00D4FF; background: rgba(0,212,255,0.08); color: #00D4FF; cursor: pointer; font-size: 13px; }
 
-        /* ── Loader radar ─────────────────────────────────────── */
-        .msg-info { background: rgba(0,212,255,0.05); border: 1px solid #1a2540; border-radius: 8px; padding: 15px 20px; color: #4a6080; font-size: 13px; margin-bottom: 20px; }
-        .msg-info span { color: #00D4FF; }
-
-        @keyframes radar-ring { 0% { transform: scale(0.3); opacity: 0.9; } 100% { transform: scale(1.8); opacity: 0; } }
-        .loader-radar { width: 44px; height: 44px; position: relative; margin: 0 auto 20px; }
-        .loader-radar .ring { position: absolute; inset: 0; border-radius: 50%; border: 2px solid #00D4FF; animation: radar-ring 2s ease-out infinite; }
-        .loader-radar .ring:nth-child(2) { animation-delay: 0.65s; }
-        .loader-radar .ring:nth-child(3) { animation-delay: 1.3s; }
-        .loader-radar .center { position: absolute; width: 10px; height: 10px; border-radius: 50%; background: #00D4FF; box-shadow: 0 0 10px #00D4FF; top: 50%; left: 50%; transform: translate(-50%,-50%); }
-
-        .loading-overlay { display: none; position: fixed; inset: 0; background: rgba(8,12,20,0.85); z-index: 300; flex-direction: column; align-items: center; justify-content: center; gap: 16px; }
+        /* ── Loading overlay ──────────────────────────────────── */
+        .loading-overlay { display: none; position: fixed; inset: 0; background: rgba(8,12,20,0.9); z-index: 300; flex-direction: column; align-items: center; justify-content: center; gap: 20px; }
         .loading-overlay.visible { display: flex; }
+        .skeleton-bar { background: linear-gradient(90deg, #1a2540 25%, #2a3a50 50%, #1a2540 75%); background-size: 200% 100%; animation: skeleton 1.5s infinite; border-radius: 6px; }
+        @keyframes skeleton { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+        .loading-cards { display: flex; flex-direction: column; gap: 12px; width: min(400px, 90vw); }
+        .loading-card { background: #0D1321; border: 1px solid #1a2540; border-radius: 14px; padding: 18px; }
+        .loading-card .sk1 { height: 16px; width: 70%; margin-bottom: 10px; }
+        .loading-card .sk2 { height: 12px; width: 50%; margin-bottom: 6px; }
+        .loading-card .sk3 { height: 12px; width: 80%; }
         .loading-overlay p { color: #4a6080; font-size: 14px; }
         .loading-overlay strong { color: #00D4FF; }
 
+        /* ── Bottom navigation mobile ─────────────────────────── */
+        .bottom-nav { display: none; }
+        .more-menu { display: none; position: fixed; bottom: 60px; left: 0; right: 0; background: #0D1321; border-top: 1px solid #1a2540; z-index: 150; flex-direction: column; }
+        .more-menu.open { display: flex; }
+        .more-menu a { display: flex; align-items: center; gap: 12px; padding: 14px 24px; color: #4a6080; text-decoration: none; font-size: 14px; border-bottom: 1px solid #0a1020; }
+        .more-menu a:last-child { border-bottom: none; }
+        .more-menu a:hover { color: #00D4FF; }
+        .more-overlay { display: none; position: fixed; inset: 0; z-index: 140; }
+        .more-overlay.open { display: block; }
+
         /* ── Responsive ───────────────────────────────────────── */
         @media (max-width: 768px) {
-            .sidebar { transform: translateX(-100%); }
-            .sidebar.open { transform: translateX(0); }
-            .sidebar-overlay.open { display: block; }
-            .burger { display: block; }
-            .main { margin-left: 0; padding: 20px 15px; padding-top: 60px; }
-            .pari-card { grid-template-columns: 1fr; }
-            .pari-right { align-items: flex-start; flex-direction: row; flex-wrap: wrap; min-width: unset; }
-            .pct-wrap { width: 120px; }
+            .sidebar { display: none; }
+            .main { margin-left: 0; padding: 16px 14px; padding-bottom: 80px; max-width: 100%; }
+            .page-header h2 { font-size: 20px; }
+            .paris-tabs { display: flex; overflow-x: auto; gap: 0; border-bottom: 1px solid #1a2540; margin-bottom: 20px; -ms-overflow-style: none; scrollbar-width: none; }
+            .paris-tabs::-webkit-scrollbar { display: none; }
+            .paris-tab { padding: 11px 18px; cursor: pointer; font-size: 14px; font-weight: 600; color: #4a6080; border-bottom: 3px solid transparent; white-space: nowrap; min-height: 44px; display: flex; align-items: center; }
+            .paris-tab.active { color: #00D4FF; border-bottom-color: #00D4FF; }
+            .cat-section { display: none; }
+            .cat-section.active { display: block; }
+            .pari-card { padding: 16px; }
+            .pc-match { font-size: 14px; }
+            .pc-cote { font-size: 32px; }
+            .hs-proba { font-size: 26px; }
             .countdown-time { font-size: 36px; }
+            .paris-histo-stats { grid-template-columns: repeat(2,1fr); }
             .histo-grid { grid-template-columns: repeat(2, 1fr); }
+            .page-actions { gap: 8px; }
+            .btn-regen { min-height: 44px; font-size: 14px; }
+            .seuils-banner { font-size: 11px; }
+            /* Bottom nav */
+            .bottom-nav { display: flex; position: fixed; bottom: 0; left: 0; right: 0; height: 58px; background: #0D1321; border-top: 1px solid #1a2540; z-index: 200; }
+            .bottom-nav a, .bottom-nav button { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: #4a6080; text-decoration: none; font-size: 10px; border: none; background: none; cursor: pointer; padding: 6px 4px; min-height: 44px; transition: color 0.2s; }
+            .bottom-nav a.active, .bottom-nav button.active { color: #00D4FF; }
+            .bottom-nav .bn-icon { font-size: 20px; line-height: 1; }
+        }
+        @media (min-width: 769px) {
+            .burger { display: none; }
         }
     </style>
 </head>
 <body>
 
 <div class="loading-overlay" id="loading-overlay">
-    <div class="loader-radar"><div class="ring"></div><div class="ring"></div><div class="ring"></div><div class="center"></div></div>
+    <div class="loading-cards">
+        <div class="loading-card">
+            <div class="skeleton-bar sk1"></div>
+            <div class="skeleton-bar sk2"></div>
+            <div class="skeleton-bar sk3"></div>
+        </div>
+        <div class="loading-card">
+            <div class="skeleton-bar sk1" style="width:60%"></div>
+            <div class="skeleton-bar sk2" style="width:40%"></div>
+            <div class="skeleton-bar sk3" style="width:75%"></div>
+        </div>
+        <div class="loading-card">
+            <div class="skeleton-bar sk1" style="width:80%"></div>
+            <div class="skeleton-bar sk2" style="width:55%"></div>
+        </div>
+    </div>
     <p><strong>Génération en cours…</strong></p>
-    <p>Claude analyse les matchs et génère les paris (~30 secondes)</p>
+    <p>Claude analyse les matchs (~30 secondes)</p>
 </div>
 
-<button class="burger" onclick="toggleSidebar()">☰</button>
-<div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar()"></div>
+<!-- More menu overlay -->
+<div class="more-overlay" id="more-overlay" onclick="closeMoreMenu()"></div>
+<div class="more-menu" id="more-menu">
+    <a href="/alertes">🔔 Alertes</a>
+    <a href="/resultats">✅ Résultats & Formules</a>
+</div>
 
 <div class="sidebar" id="sidebar">
     <div class="logo">
@@ -162,18 +209,27 @@
         <p>Football Analytics</p>
     </div>
     <div class="nav-section">Menu</div>
-    <a href="/matchs"    class="nav-item"><span>🎯</span> Matchs</a>
-    <a href="/pepites"   class="nav-item"><span>⚽</span> Pépites</a>
+    <a href="/matchs"      class="nav-item"><span>🎯</span> Matchs</a>
+    <a href="/pepites"     class="nav-item"><span>⚽</span> Pépites</a>
     <a href="/classements" class="nav-item"><span>🏆</span> Classements</a>
-    <a href="/alertes"   class="nav-item"><span>🔔</span> Alertes</a>
-    <a href="/paris"     class="nav-item active"><span>🎰</span> Paris</a>
-    <a href="/resultats" class="nav-item"><span>✅</span> Résultats & Formules</a>
+    <a href="/alertes"     class="nav-item"><span>🔔</span> Alertes</a>
+    <a href="/paris"       class="nav-item active"><span>🎰</span> Paris</a>
+    <a href="/resultats"   class="nav-item"><span>✅</span> Résultats & Formules</a>
 </div>
 
 <div class="main">
     <div class="page-header">
         <h2>🎰 Paris du jour</h2>
-        <p>Générés par Claude (claude-sonnet-4-6) sur la base des modèles Poisson + Monte Carlo HiddenScout</p>
+        <p>Sélection HiddenScout — probabilités Poisson/Monte Carlo</p>
+    </div>
+
+    <!-- Encadré seuils -->
+    <div class="seuils-banner">
+        ℹ️ Seuils HiddenScout :
+        <span class="sep"><span class="seuil-dot" style="background:#00ff87"></span> <strong style="color:#00ff87">SAFE</strong> ≥80%</span>
+        <span class="sep"><span class="seuil-dot" style="background:#FFA500"></span> <strong style="color:#FFA500">TENTANT</strong> 65–79%</span>
+        <span class="sep"><span class="seuil-dot" style="background:#ff4444"></span> <strong style="color:#ff4444">FUN</strong> 55–64%</span>
+        <span style="color:#2a3a50"> · &lt;55% ignoré</span>
     </div>
 
     <!-- Actions bar -->
@@ -181,7 +237,7 @@
         <div class="gen-info">
             <strong>{{ date_today }}</strong>
             {% if derniere_gen %}
-             — Dernière génération : <strong>{{ derniere_gen[11:16] }}</strong>
+             — Génération : <strong>{{ derniere_gen[11:16] }}</strong>
             {% else %}
              — <span style="color:#FFA500">Aucune génération aujourd'hui</span>
             {% endif %}
@@ -192,72 +248,99 @@
         </button>
     </div>
 
-    <div class="msg-info">
-        💡 <span>Comment ça marche</span> — Sauvegarde d'abord les prédictions du jour (<a href="/resultats" style="color:#00D4FF">Résultats</a>), puis clique sur Regénérer ou attends la génération automatique à midi. Les paris sont classés par conviction.
-    </div>
-
     {% if resume %}
-    <div class="resume-box">{{ resume }}</div>
+    <div class="resume-box">💡 {{ resume }}</div>
     {% endif %}
 
     {% if has_paris %}
 
+    <!-- Tabs mobile (swipe entre catégories) -->
+    <div class="paris-tabs" id="paris-tabs">
+        {% if safe_paris %}
+        <div class="paris-tab active" onclick="showCat('safe', this)">🟢 SAFE ({{ safe_paris|length }})</div>
+        {% endif %}
+        {% if tentant_paris %}
+        <div class="paris-tab {% if not safe_paris %}active{% endif %}" onclick="showCat('tentant', this)">🟡 TENTANT ({{ tentant_paris|length }})</div>
+        {% endif %}
+        {% if fun_paris %}
+        <div class="paris-tab {% if not safe_paris and not tentant_paris %}active{% endif %}" onclick="showCat('fun', this)">🔴 FUN ({{ fun_paris|length }})</div>
+        {% endif %}
+    </div>
+
     <!-- ── SAFE ──────────────────────────────────────────────── -->
     {% if safe_paris %}
-    <div class="cat-section">
+    <div class="cat-section {% if safe_paris %}active{% endif %}" id="cat-safe">
         <div class="cat-title">
             <span class="cat-dot" style="background:#00ff87"></span>
-            Safe 🟢
-            <span class="badge-cat safe">{{ safe_paris|length }} paris</span>
-            <span class="cat-meta">Cote 1.20–1.55 · Probabilité ≥75%</span>
+            SAFE 🟢
+            <span class="cat-count" style="background:rgba(0,255,135,0.12);color:#00ff87;border:1px solid rgba(0,255,135,0.3)">{{ safe_paris|length }} paris</span>
+            <span class="cat-meta">Probabilité HiddenScout ≥ 80%</span>
         </div>
         {% for p in safe_paris %}
+        {% set proba = p.probabilite_hiddenscout or p.probabilite %}
         <div class="pari-card safe">
-            <div class="pari-left">
-                <div class="pari-match">{{ p.match }}</div>
-                <div class="pari-ligue">{{ p.ligue }}</div>
-                <div class="pari-type">{{ p.type_pari }}</div>
-                <div class="pari-desc">{{ p.description }}</div>
-                <div class="pari-raison">{{ p.raisonnement }}</div>
-            </div>
-            <div class="pari-right">
-                <span class="pari-cote-label">Cote</span>
-                <span class="pari-cote safe">{{ p.cote }}</span>
-                <div class="pct-wrap">
-                    <div class="pct-label" style="color:#00ff87">{{ p.probabilite }}%</div>
-                    <div class="pct-bar"><div class="pct-fill safe" style="width:{{ p.probabilite }}%"></div></div>
+            <div class="pc-header">
+                <div class="pc-main">
+                    <div class="pc-match">{{ p.match }}</div>
+                    <div class="pc-ligue">{{ p.ligue }}</div>
+                    <div class="pc-type">{{ p.type_pari }}</div>
+                    {% if p.description and p.description != p.type_pari %}
+                    <div class="pc-desc">{{ p.description }}</div>
+                    {% endif %}
                 </div>
+                <div class="pc-badge">
+                    <div class="hs-proba safe">{{ proba }}%</div>
+                    <div class="hs-label">HiddenScout</div>
+                </div>
+            </div>
+            <div class="pc-cote-wrap">
+                <div style="display:flex;flex-direction:column">
+                    <span class="pc-cote-label">Cote Winamax</span>
+                    <span class="pc-cote safe">{{ p.cote }}</span>
+                </div>
+                {% if p.raisonnement %}
+                <div class="pc-raison">{{ p.raisonnement }}</div>
+                {% endif %}
             </div>
         </div>
         {% endfor %}
     </div>
     {% endif %}
 
-    <!-- ── COOL ──────────────────────────────────────────────── -->
-    {% if cool_paris %}
-    <div class="cat-section">
+    <!-- ── TENTANT ───────────────────────────────────────────── -->
+    {% if tentant_paris %}
+    <div class="cat-section {% if not safe_paris %}active{% endif %}" id="cat-tentant">
         <div class="cat-title">
             <span class="cat-dot" style="background:#FFA500"></span>
-            Cool 🟡
-            <span class="badge-cat cool">{{ cool_paris|length }} paris</span>
-            <span class="cat-meta">Cote 1.55–2.20 · Probabilité ≥60%</span>
+            TENTANT 🟡
+            <span class="cat-count" style="background:rgba(255,165,0,0.12);color:#FFA500;border:1px solid rgba(255,165,0,0.3)">{{ tentant_paris|length }} paris</span>
+            <span class="cat-meta">Probabilité HiddenScout 65–79%</span>
         </div>
-        {% for p in cool_paris %}
-        <div class="pari-card cool">
-            <div class="pari-left">
-                <div class="pari-match">{{ p.match }}</div>
-                <div class="pari-ligue">{{ p.ligue }}</div>
-                <div class="pari-type">{{ p.type_pari }}</div>
-                <div class="pari-desc">{{ p.description }}</div>
-                <div class="pari-raison">{{ p.raisonnement }}</div>
-            </div>
-            <div class="pari-right">
-                <span class="pari-cote-label">Cote</span>
-                <span class="pari-cote cool">{{ p.cote }}</span>
-                <div class="pct-wrap">
-                    <div class="pct-label" style="color:#FFA500">{{ p.probabilite }}%</div>
-                    <div class="pct-bar"><div class="pct-fill cool" style="width:{{ p.probabilite }}%"></div></div>
+        {% for p in tentant_paris %}
+        {% set proba = p.probabilite_hiddenscout or p.probabilite %}
+        <div class="pari-card tentant">
+            <div class="pc-header">
+                <div class="pc-main">
+                    <div class="pc-match">{{ p.match }}</div>
+                    <div class="pc-ligue">{{ p.ligue }}</div>
+                    <div class="pc-type">{{ p.type_pari }}</div>
+                    {% if p.description and p.description != p.type_pari %}
+                    <div class="pc-desc">{{ p.description }}</div>
+                    {% endif %}
                 </div>
+                <div class="pc-badge">
+                    <div class="hs-proba tentant">{{ proba }}%</div>
+                    <div class="hs-label">HiddenScout</div>
+                </div>
+            </div>
+            <div class="pc-cote-wrap">
+                <div style="display:flex;flex-direction:column">
+                    <span class="pc-cote-label">Cote Winamax</span>
+                    <span class="pc-cote tentant">{{ p.cote }}</span>
+                </div>
+                {% if p.raisonnement %}
+                <div class="pc-raison">{{ p.raisonnement }}</div>
+                {% endif %}
             </div>
         </div>
         {% endfor %}
@@ -266,29 +349,38 @@
 
     <!-- ── FUN ───────────────────────────────────────────────── -->
     {% if fun_paris %}
-    <div class="cat-section">
+    <div class="cat-section {% if not safe_paris and not tentant_paris %}active{% endif %}" id="cat-fun">
         <div class="cat-title">
             <span class="cat-dot" style="background:#ff4444"></span>
-            Fun 🔴
-            <span class="badge-cat fun">{{ fun_paris|length }} paris</span>
-            <span class="cat-meta">Cote 2.20+ · Probabilité ≥50%</span>
+            FUN 🔴
+            <span class="cat-count" style="background:rgba(255,68,68,0.12);color:#ff4444;border:1px solid rgba(255,68,68,0.3)">{{ fun_paris|length }} paris</span>
+            <span class="cat-meta">Probabilité HiddenScout 55–64%</span>
         </div>
         {% for p in fun_paris %}
+        {% set proba = p.probabilite_hiddenscout or p.probabilite %}
         <div class="pari-card fun">
-            <div class="pari-left">
-                <div class="pari-match">{{ p.match }}</div>
-                <div class="pari-ligue">{{ p.ligue }}</div>
-                <div class="pari-type">{{ p.type_pari }}</div>
-                <div class="pari-desc">{{ p.description }}</div>
-                <div class="pari-raison">{{ p.raisonnement }}</div>
-            </div>
-            <div class="pari-right">
-                <span class="pari-cote-label">Cote</span>
-                <span class="pari-cote fun">{{ p.cote }}</span>
-                <div class="pct-wrap">
-                    <div class="pct-label" style="color:#ff4444">{{ p.probabilite }}%</div>
-                    <div class="pct-bar"><div class="pct-fill fun" style="width:{{ p.probabilite }}%"></div></div>
+            <div class="pc-header">
+                <div class="pc-main">
+                    <div class="pc-match">{{ p.match }}</div>
+                    <div class="pc-ligue">{{ p.ligue }}</div>
+                    <div class="pc-type">{{ p.type_pari }}</div>
+                    {% if p.description and p.description != p.type_pari %}
+                    <div class="pc-desc">{{ p.description }}</div>
+                    {% endif %}
                 </div>
+                <div class="pc-badge">
+                    <div class="hs-proba fun">{{ proba }}%</div>
+                    <div class="hs-label">HiddenScout</div>
+                </div>
+            </div>
+            <div class="pc-cote-wrap">
+                <div style="display:flex;flex-direction:column">
+                    <span class="pc-cote-label">Cote Winamax</span>
+                    <span class="pc-cote fun">{{ p.cote }}</span>
+                </div>
+                {% if p.raisonnement %}
+                <div class="pc-raison">{{ p.raisonnement }}</div>
+                {% endif %}
             </div>
         </div>
         {% endfor %}
@@ -296,15 +388,16 @@
     {% endif %}
 
     {% else %}
-    <!-- ── COUNTDOWN (aucun pari) ─────────────────────────────── -->
+    <!-- ── Pas de paris ────────────────────────────────────────── -->
+    <div class="no-pari-msg">😴 Pas de pari solide aujourd'hui — patience !</div>
     <div class="countdown-box">
-        <div class="countdown-title">⏳ Génération automatique des paris à <strong style="color:#00D4FF">12h00</strong> (heure Paris)</div>
+        <div class="countdown-title">⏳ Prochaine génération automatique à <strong style="color:#00D4FF">12h00</strong> (heure Paris)</div>
         <div class="countdown-time" id="countdown">--:--:--</div>
-        <div class="countdown-sub">Ou clique sur <strong style="color:#00D4FF">Regénérer</strong> pour lancer maintenant</div>
+        <div style="color:#2a3a50;font-size:12px">Ou clique sur <strong style="color:#00D4FF">Regénérer</strong> maintenant</div>
     </div>
     {% endif %}
 
-    <!-- ── HISTORIQUE 7 JOURS ─────────────────────────────────── -->
+    <!-- ── Historique générations ───────────────────────────── -->
     {% if historique %}
     <div class="historique">
         <h3>📅 Historique — 7 derniers jours</h3>
@@ -313,9 +406,9 @@
             <div class="histo-card">
                 <div class="histo-date">{{ h.date }}</div>
                 <div class="histo-counts">
-                    {% if h.n_safe %}<span class="histo-safe">{{ h.n_safe }} Safe</span>{% endif %}
-                    {% if h.n_cool %}<span class="histo-cool">{{ h.n_cool }} Cool</span>{% endif %}
-                    {% if h.n_fun  %}<span class="histo-fun">{{ h.n_fun }} Fun</span>{% endif %}
+                    {% if h.n_safe %}<span class="histo-safe">{{ h.n_safe }} S</span>{% endif %}
+                    {% if h.n_cool %}<span class="histo-tentant">{{ h.n_cool }} T</span>{% endif %}
+                    {% if h.n_fun  %}<span class="histo-fun">{{ h.n_fun }} F</span>{% endif %}
                     {% if not h.n_safe and not h.n_cool and not h.n_fun %}
                     <span style="color:#2a3a50">—</span>
                     {% endif %}
@@ -326,38 +419,35 @@
     </div>
     {% endif %}
 
-    <!-- ── HISTORIQUE ✅/❌ ───────────────────────────────────── -->
+    <!-- ── Historique ✅/❌ résultats ───────────────────────── -->
     {% if paris_histo is defined %}
     <div class="paris-histo">
         <h3>📊 Historique des paris — résultats réels</h3>
 
         {% if histo_stats.total > 0 %}
         <div class="paris-histo-stats">
-            <div class="ph-stat"><div class="label">Paris vérifiés</div><div class="value">{{ histo_stats.total }}</div></div>
+            <div class="ph-stat"><div class="label">Vérifiés</div><div class="value">{{ histo_stats.total }}</div></div>
             <div class="ph-stat"><div class="label">Gagnés</div><div class="value" style="color:#00ff87">{{ histo_stats.gagne }}</div></div>
             <div class="ph-stat"><div class="label">Taux réussite</div><div class="value" style="color:{{ '#00ff87' if histo_stats.taux >= 55 else '#FFA500' if histo_stats.taux >= 45 else '#ff4444' }}">{{ histo_stats.taux }}%</div></div>
-            <div class="ph-stat"><div class="label">ROI estimé (1€/pari)</div><div class="value" style="color:{{ '#00ff87' if histo_stats.roi >= 0 else '#ff4444' }}">{{ '+' if histo_stats.roi >= 0 else '' }}{{ histo_stats.roi }}%</div></div>
-        </div>
-        <div class="msg-info" style="margin-bottom:14px">
-            💡 ROI calculé sur 1€ mis par pari. Gains = somme des cotes gagnées − nombre total de paris.
+            <div class="ph-stat"><div class="label">ROI (1€/pari)</div><div class="value" style="color:{{ '#00ff87' if histo_stats.roi >= 0 else '#ff4444' }}">{{ '+' if histo_stats.roi >= 0 else '' }}{{ histo_stats.roi }}%</div></div>
         </div>
         {% endif %}
 
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
             <div style="font-size:13px;color:#4a6080">{{ paris_histo|length }} entrées vérifiées</div>
-            <button onclick="verifierParis()" style="padding:6px 14px;border-radius:8px;border:1px solid #00D4FF;background:rgba(0,212,255,0.08);color:#00D4FF;cursor:pointer;font-size:12px">🔄 Vérifier hier</button>
+            <button class="btn-verifier" onclick="verifierParis()">🔄 Vérifier hier</button>
         </div>
 
         {% if paris_histo %}
         <div class="ph-table">
             <table>
-                <tr><th>Date</th><th>Match</th><th>Type de pari</th><th>Cote</th><th>Score réel</th><th>Résultat</th></tr>
+                <tr><th>Date</th><th>Match</th><th>Type</th><th>Cote</th><th>Score</th><th>Résultat</th></tr>
                 {% for p in paris_histo %}
                 <tr>
-                    <td style="color:#4a6080">{{ p.date }}</td>
+                    <td style="color:#4a6080;white-space:nowrap">{{ p.date }}</td>
                     <td style="font-weight:600">{{ p.match }}</td>
                     <td style="color:#00D4FF">{{ p.type_pari }}</td>
-                    <td style="font-weight:700;color:{% if p.categorie=='safe' %}#00ff87{% elif p.categorie=='cool' %}#FFA500{% else %}#ff4444{% endif %}">{{ p.cote }}</td>
+                    <td style="font-weight:700;color:{% if p.categorie=='safe' %}#00ff87{% elif p.categorie in ('tentant','cool') %}#FFA500{% else %}#ff4444{% endif %}">{{ p.cote }}</td>
                     <td style="font-family:monospace">{{ p.score_reel or '—' }}</td>
                     <td>
                         {% if p.gagne == 1 %}<span class="ph-badge-g">✅ Gagné</span>
@@ -369,25 +459,40 @@
             </table>
         </div>
         {% else %}
-        <div style="text-align:center;color:#4a6080;padding:30px;font-size:13px">
-            Aucun pari vérifié pour l'instant. Clique sur "Vérifier hier" après chaque journée.
-        </div>
+        <div style="text-align:center;color:#4a6080;padding:30px;font-size:13px">Aucun pari vérifié. Clique sur "Vérifier hier" après chaque journée.</div>
         {% endif %}
     </div>
     {% endif %}
 
 </div><!-- /main -->
 
+<!-- Bottom navigation mobile -->
+<nav class="bottom-nav">
+    <a href="/matchs"><span class="bn-icon">🎯</span>Matchs</a>
+    <a href="/pepites"><span class="bn-icon">⚽</span>Pépites</a>
+    <a href="/classements"><span class="bn-icon">🏆</span>Class.</a>
+    <a href="/paris" class="active"><span class="bn-icon">🎰</span>Paris</a>
+    <button onclick="toggleMoreMenu()"><span class="bn-icon">☰</span>Plus</button>
+</nav>
+
 <script>
-async function verifierParis() {
-    const r = await fetch('/api/verifier-paris');
-    const d = await r.json();
-    alert(`✅ ${d.gagne}/${d.verifie} paris gagnés pour le ${d.date}`);
-    location.reload();
+/* ── Catégories swipe mobile ──────────────────────────────── */
+function showCat(id, tab) {
+    document.querySelectorAll('.cat-section').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.paris-tab').forEach(t => t.classList.remove('active'));
+    const sec = document.getElementById('cat-' + id);
+    if (sec) sec.classList.add('active');
+    if (tab) tab.classList.add('active');
 }
-function toggleSidebar() {
-    document.getElementById('sidebar').classList.toggle('open');
-    document.getElementById('sidebar-overlay').classList.toggle('open');
+
+/* ── More menu mobile ─────────────────────────────────────── */
+function toggleMoreMenu() {
+    document.getElementById('more-menu').classList.toggle('open');
+    document.getElementById('more-overlay').classList.toggle('open');
+}
+function closeMoreMenu() {
+    document.getElementById('more-menu').classList.remove('open');
+    document.getElementById('more-overlay').classList.remove('open');
 }
 
 /* ── Countdown vers midi Paris ───────────────────────────── */
@@ -397,12 +502,11 @@ function updateCountdown() {
     let target  = new Date(paris);
     target.setHours(12, 0, 0, 0);
     if (paris >= target) target.setDate(target.getDate() + 1);
-
     const diff = target - paris;
-    const h    = Math.floor(diff / 3600000);
-    const m    = Math.floor((diff % 3600000) / 60000);
-    const s    = Math.floor((diff % 60000) / 1000);
-    const el   = document.getElementById('countdown');
+    const h = Math.floor(diff / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    const s = Math.floor((diff % 60000) / 1000);
+    const el = document.getElementById('countdown');
     if (el) el.textContent =
         String(h).padStart(2,'0') + ':' +
         String(m).padStart(2,'0') + ':' +
@@ -420,13 +524,13 @@ async function regenerer() {
     const spinner = document.getElementById('regen-spinner');
     const overlay = document.getElementById('loading-overlay');
 
-    btn.disabled        = true;
+    btn.disabled = true;
     spinner.style.display = 'block';
-    label.textContent   = 'Génération…';
+    label.textContent = 'Génération…';
     overlay.classList.add('visible');
 
     try {
-        const r    = await fetch('/api/generer-paris', { signal: AbortSignal.timeout(120000) });
+        const r = await fetch('/api/generer-paris', { signal: AbortSignal.timeout(120000) });
         const data = await r.json();
         if (data.status === 'ok') {
             label.textContent = `✅ ${data.paris} paris générés`;
@@ -437,12 +541,20 @@ async function regenerer() {
             spinner.style.display = 'none';
             overlay.classList.remove('visible');
         }
-    } catch (e) {
-        label.textContent   = '❌ Timeout ou erreur réseau';
-        btn.disabled        = false;
+    } catch(e) {
+        label.textContent = '❌ Timeout ou erreur réseau';
+        btn.disabled = false;
         spinner.style.display = 'none';
         overlay.classList.remove('visible');
     }
+}
+
+/* ── Vérifier paris ─────────────────────────────────────── */
+async function verifierParis() {
+    const r = await fetch('/api/verifier-paris');
+    const d = await r.json();
+    alert(`✅ ${d.gagne}/${d.verifie} paris gagnés pour le ${d.date}`);
+    location.reload();
 }
 </script>
 

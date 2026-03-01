@@ -58,13 +58,24 @@
         .rang { color: #2a3a50; }
         .stat-mini { color: #aaa; font-size: 12px; }
 
+        .bottom-nav { display: none; }
+        .more-menu { display: none; position: fixed; bottom: 60px; left: 0; right: 0; background: #0D1321; border-top: 1px solid #1a2540; z-index: 150; flex-direction: column; }
+        .more-menu.open { display: flex; }
+        .more-menu a { display: flex; align-items: center; gap: 12px; padding: 14px 24px; color: #4a6080; text-decoration: none; font-size: 14px; border-bottom: 1px solid #0a1020; }
+        .more-menu a:last-child { border-bottom: none; }
+        .more-overlay { display: none; position: fixed; inset: 0; z-index: 140; }
+        .more-overlay.open { display: block; }
+
         @media (max-width: 768px) {
-            .sidebar { transform: translateX(-100%); }
-            .sidebar.open { transform: translateX(0); }
-            .sidebar-overlay.open { display: block; }
-            .burger { display: block; }
-            .main { margin-left: 0; padding: 20px 15px; padding-top: 60px; }
-            .region-tab { font-size: 12px; padding: 8px 12px; }
+            .sidebar { display: none; }
+            .burger { display: none !important; }
+            .main { margin-left: 0; padding: 16px 14px; padding-bottom: 80px; }
+            .region-tab { font-size: 13px; padding: 10px 14px; min-height: 44px; }
+            .enfeu-grid { grid-template-columns: 1fr 1fr; }
+            .bottom-nav { display: flex; position: fixed; bottom: 0; left: 0; right: 0; height: 58px; background: #0D1321; border-top: 1px solid #1a2540; z-index: 200; }
+            .bottom-nav a, .bottom-nav button { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: #4a6080; text-decoration: none; font-size: 10px; border: none; background: none; cursor: pointer; padding: 6px 4px; min-height: 44px; transition: color 0.2s; }
+            .bottom-nav a.active, .bottom-nav button.active { color: #00D4FF; }
+            .bottom-nav .bn-icon { font-size: 20px; line-height: 1; }
         }
 
         /* ── Cards "En feu" ─────────────────────────────────────── */
@@ -86,8 +97,11 @@
 </head>
 <body>
 
-<button class="burger" onclick="toggleSidebar()">☰</button>
-<div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar()"></div>
+<div class="more-overlay" id="more-overlay" onclick="closeMoreMenu()"></div>
+<div class="more-menu" id="more-menu">
+    <a href="/alertes">🔔 Alertes</a>
+    <a href="/resultats">✅ Résultats & Formules</a>
+</div>
 
 <div class="sidebar" id="sidebar">
     <div class="logo">
@@ -264,7 +278,23 @@ function loadProchainMatchs() {
     });
 }
 loadProchainMatchs();
+function closeMoreMenu() {
+    document.getElementById('more-menu').classList.remove('open');
+    document.getElementById('more-overlay').classList.remove('open');
+}
+function toggleMoreMenu() {
+    document.getElementById('more-menu').classList.toggle('open');
+    document.getElementById('more-overlay').classList.toggle('open');
+}
 </script>
+
+<nav class="bottom-nav">
+    <a href="/matchs"><span class="bn-icon">🎯</span>Matchs</a>
+    <a href="/pepites" class="active"><span class="bn-icon">⚽</span>Pépites</a>
+    <a href="/classements"><span class="bn-icon">🏆</span>Class.</a>
+    <a href="/paris"><span class="bn-icon">🎰</span>Paris</a>
+    <button onclick="toggleMoreMenu()"><span class="bn-icon">☰</span>Plus</button>
+</nav>
 
 </body>
 </html>

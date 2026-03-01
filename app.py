@@ -974,7 +974,7 @@ def api_verifier_paris():
     # Récupérer les paris du jour cible (hors résumé)
     c.execute("""
         SELECT * FROM paris_jour
-        WHERE date = ? AND categorie IN ('safe','cool','fun')
+        WHERE date = ? AND categorie IN ('safe','tentant','cool','fun')
     """, (cible,))
     paris_cible = c.fetchall()
 
@@ -1110,13 +1110,19 @@ def paris():
         probabilite INTEGER, raisonnement TEXT, timestamp TEXT
     )""")
     today = date.today().strftime("%Y-%m-%d")
+    # Migration colonne probabilite_hiddenscout
+    try:
+        c.execute("ALTER TABLE paris_jour ADD COLUMN probabilite_hiddenscout INTEGER DEFAULT NULL")
+        conn.commit()
+    except Exception:
+        pass
     try:
         c.execute("""
             SELECT * FROM paris_jour
-            WHERE date = ? AND categorie IN ('safe','cool','fun')
+            WHERE date = ? AND categorie IN ('safe','tentant','fun','cool')
             ORDER BY CASE categorie
-                WHEN 'safe' THEN 1 WHEN 'cool' THEN 2 WHEN 'fun' THEN 3 END,
-                probabilite DESC
+                WHEN 'safe' THEN 1 WHEN 'tentant' THEN 2 WHEN 'cool' THEN 2 WHEN 'fun' THEN 3 END,
+                COALESCE(probabilite_hiddenscout, probabilite) DESC
         """, (today,))
         paris_today = [dict(r) for r in c.fetchall()]
         c.execute("SELECT description FROM paris_jour WHERE date = ? AND categorie = 'resume'", (today,))
@@ -1176,13 +1182,14 @@ def paris():
     conn.close()
     return render_template("paris.html",
         safe_paris=[p for p in paris_today if p["categorie"] == "safe"],
-        cool_paris=[p for p in paris_today if p["categorie"] == "cool"],
+        tentant_paris=[p for p in paris_today if p["categorie"] in ("tentant", "cool")],
         fun_paris=[p for p in paris_today if p["categorie"] == "fun"],
         resume=resume,
         derniere_gen=derniere_gen,
         date_today=today,
         historique=historique,
         has_paris=bool(paris_today),
+        aucun_pari_solide=bool(paris_today) is False,
         paris_histo=paris_histo,
         histo_stats=histo_stats,
     )
