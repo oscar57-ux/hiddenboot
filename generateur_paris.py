@@ -319,6 +319,33 @@ Génère entre 4 et 10 paris bien répartis entre les catégories disponibles.""
         count += 1
 
     conn_pg.commit()
+
+    # ── Sauvegarde automatique dans paris_historique ──────────────────────────
+    heure_gen = now_ts[11:16]  # "HH:MM"
+    for p in paris_valides:
+        try:
+            cote_h = float(p.get("cote", 1.5))
+        except (TypeError, ValueError):
+            cote_h = 1.5
+        proba_h = int(p.get("probabilite_hiddenscout", p.get("probabilite", 60)) or 60)
+        c_pg.execute(
+            f"""INSERT INTO paris_historique
+               (date, match, ligue, categorie, type_pari, description,
+                cote, probabilite_hiddenscout, heure_generation, gagne)
+               VALUES ({ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},NULL)
+               ON CONFLICT (date, match, type_pari) DO UPDATE SET
+                   categorie = EXCLUDED.categorie,
+                   description = EXCLUDED.description,
+                   cote = EXCLUDED.cote,
+                   probabilite_hiddenscout = EXCLUDED.probabilite_hiddenscout,
+                   heure_generation = EXCLUDED.heure_generation""",
+            (
+                today, p.get("match", ""), p.get("ligue", ""),
+                p["categorie"], p.get("type_pari", ""), p.get("description", ""),
+                cote_h, proba_h, heure_gen,
+            ),
+        )
+    conn_pg.commit()
     conn.close()
     conn_pg.close()
     return count

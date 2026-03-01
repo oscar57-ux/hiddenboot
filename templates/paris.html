@@ -109,14 +109,23 @@
         .ph-stat { background: #0D1321; border: 1px solid #1a2540; border-radius: 10px; padding: 14px; text-align: center; }
         .ph-stat .label { color: #4a6080; font-size: 11px; text-transform: uppercase; }
         .ph-stat .value { font-size: 22px; font-weight: 700; color: #00D4FF; margin-top: 5px; }
+        .ph-date-group { margin-bottom: 20px; }
+        .ph-date-header { font-size: 12px; font-weight: 700; color: #4a6080; text-transform: uppercase; letter-spacing: 1px; padding: 6px 0 8px; border-bottom: 1px solid #1a2540; margin-bottom: 8px; }
         .ph-table { background: #0D1321; border: 1px solid #1a2540; border-radius: 12px; overflow: hidden; overflow-x: auto; }
-        .ph-table table { width: 100%; border-collapse: collapse; min-width: 520px; }
+        .ph-table table { width: 100%; border-collapse: collapse; min-width: 560px; }
         .ph-table th { padding: 10px 14px; text-align: left; color: #2a3a50; font-size: 11px; text-transform: uppercase; border-bottom: 1px solid #1a2540; }
-        .ph-table td { padding: 9px 14px; border-bottom: 1px solid #0a1020; font-size: 13px; }
+        .ph-table td { padding: 9px 14px; border-bottom: 1px solid #0a1020; font-size: 13px; vertical-align: middle; }
         .ph-table tr:last-child td { border-bottom: none; }
         .ph-badge-g { display:inline-block;background:rgba(0,255,135,0.12);border:1px solid #00ff87;color:#00ff87;font-size:11px;padding:2px 8px;border-radius:10px; }
         .ph-badge-p { display:inline-block;background:rgba(255,68,68,0.12);border:1px solid #ff4444;color:#ff4444;font-size:11px;padding:2px 8px;border-radius:10px; }
+        .ph-badge-w { display:inline-block;background:rgba(255,165,0,0.1);border:1px solid rgba(255,165,0,0.3);color:#FFA500;font-size:11px;padding:2px 8px;border-radius:10px; }
+        .ph-cat { font-size: 14px; line-height: 1; }
+        .ph-proba { font-size: 12px; font-weight: 700; }
+        .ph-proba.safe    { color: #00ff87; }
+        .ph-proba.tentant { color: #FFA500; }
+        .ph-proba.fun     { color: #ff4444; }
         .btn-verifier { min-height: 40px; padding: 0 16px; border-radius: 8px; border: 1px solid #00D4FF; background: rgba(0,212,255,0.08); color: #00D4FF; cursor: pointer; font-size: 13px; }
+        .btn-verifier:disabled { opacity: 0.5; cursor: not-allowed; }
 
         /* ── Loading overlay ──────────────────────────────────── */
         .loading-overlay { display: none; position: fixed; inset: 0; background: rgba(8,12,20,0.9); z-index: 300; flex-direction: column; align-items: center; justify-content: center; gap: 20px; }
@@ -421,7 +430,6 @@
     {% endif %}
 
     <!-- ── Historique ✅/❌ résultats ───────────────────────── -->
-    {% if paris_histo is defined %}
     <div class="paris-histo">
         <h3>📊 Historique des paris — résultats réels</h3>
 
@@ -434,36 +442,48 @@
         </div>
         {% endif %}
 
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-            <div style="font-size:13px;color:#4a6080">{{ paris_histo|length }} entrées vérifiées</div>
-            <button class="btn-verifier" onclick="verifierParis()">🔄 Vérifier hier</button>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+            <div style="font-size:13px;color:#4a6080">
+                {{ paris_histo|length }} paris sauvegardés
+                {% if histo_stats.total > 0 %} · {{ histo_stats.total }} vérifiés{% endif %}
+            </div>
+            <button class="btn-verifier" id="btn-verifier" onclick="verifierParis()">🔄 Vérifier hier</button>
         </div>
 
         {% if paris_histo %}
-        <div class="ph-table">
-            <table>
-                <tr><th>Date</th><th>Match</th><th>Type</th><th>Cote</th><th>Score</th><th>Résultat</th></tr>
-                {% for p in paris_histo %}
-                <tr>
-                    <td style="color:#4a6080;white-space:nowrap">{{ p.date }}</td>
-                    <td style="font-weight:600">{{ p.match }}</td>
-                    <td style="color:#00D4FF">{{ p.type_pari }}</td>
-                    <td style="font-weight:700;color:{% if p.categorie=='safe' %}#00ff87{% elif p.categorie in ('tentant','cool') %}#FFA500{% else %}#ff4444{% endif %}">{{ p.cote }}</td>
-                    <td style="font-family:monospace">{{ p.score_reel or '—' }}</td>
-                    <td>
-                        {% if p.gagne == 1 %}<span class="ph-badge-g">✅ Gagné</span>
-                        {% elif p.gagne == 0 %}<span class="ph-badge-p">❌ Perdu</span>
-                        {% else %}<span style="color:#4a6080">—</span>{% endif %}
-                    </td>
-                </tr>
-                {% endfor %}
-            </table>
-        </div>
+        {% set ns = namespace(cur_date='') %}
+        {% for p in paris_histo %}
+        {% if p.date != ns.cur_date %}
+            {% if ns.cur_date != '' %}</div>{% endif %}
+            {% set ns.cur_date = p.date %}
+            <div class="ph-date-group">
+            <div class="ph-date-header">📅 {{ p.date }}{% if p.heure_generation %} · généré à {{ p.heure_generation }}{% endif %}</div>
+            <div class="ph-table"><table>
+            <tr><th>Cat.</th><th>Match</th><th>Type pari</th><th>Proba</th><th>Cote</th><th>Score</th><th>Résultat</th></tr>
+        {% endif %}
+            <tr>
+                <td class="ph-cat">{% if p.categorie=='safe' %}🟢{% elif p.categorie in ('tentant','cool') %}🟡{% else %}🔴{% endif %}</td>
+                <td style="font-weight:600;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ p.match }}</td>
+                <td style="color:#00D4FF;font-size:12px">{{ p.type_pari }}</td>
+                <td><span class="ph-proba {{ p.categorie if p.categorie in ('safe','tentant','fun') else 'fun' }}">{{ p.probabilite_hiddenscout or '—' }}%</span></td>
+                <td style="font-weight:700;color:{% if p.categorie=='safe' %}#00ff87{% elif p.categorie in ('tentant','cool') %}#FFA500{% else %}#ff4444{% endif %}">{{ p.cote }}</td>
+                <td style="font-family:monospace;color:#4a6080">{{ p.score_reel or '—' }}</td>
+                <td>
+                    {% if p.gagne == 1 %}<span class="ph-badge-g">✅ Gagné</span>
+                    {% elif p.gagne == 0 %}<span class="ph-badge-p">❌ Perdu</span>
+                    {% else %}<span class="ph-badge-w">⏳ Attente</span>{% endif %}
+                </td>
+            </tr>
+        {% endfor %}
+        {% if paris_histo %}</table></div></div>{% endif %}
+
         {% else %}
-        <div style="text-align:center;color:#4a6080;padding:30px;font-size:13px">Aucun pari vérifié. Clique sur "Vérifier hier" après chaque journée.</div>
+        <div style="text-align:center;color:#4a6080;padding:30px;font-size:13px">
+            Aucun pari sauvegardé.<br>
+            <span style="font-size:12px">Les paris sont sauvegardés automatiquement à chaque génération.</span>
+        </div>
         {% endif %}
     </div>
-    {% endif %}
 
 </div><!-- /main -->
 
@@ -552,10 +572,17 @@ async function regenerer() {
 
 /* ── Vérifier paris ─────────────────────────────────────── */
 async function verifierParis() {
-    const r = await fetch('/api/verifier-paris');
-    const d = await r.json();
-    alert(`✅ ${d.gagne}/${d.verifie} paris gagnés pour le ${d.date}`);
-    location.reload();
+    const btn = document.getElementById('btn-verifier');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Vérification…'; }
+    try {
+        const r = await fetch('/api/verifier-paris');
+        const d = await r.json();
+        alert(`Vérification terminée : ${d.gagne}/${d.verifie} paris gagnés pour le ${d.date}`);
+        location.reload();
+    } catch(e) {
+        alert('Erreur lors de la vérification');
+        if (btn) { btn.disabled = false; btn.textContent = '🔄 Vérifier hier'; }
+    }
 }
 </script>
 

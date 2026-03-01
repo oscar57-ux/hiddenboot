@@ -238,9 +238,20 @@ def init_pg_tables():
                 id SERIAL PRIMARY KEY,
                 date TEXT, match TEXT, ligue TEXT, categorie TEXT,
                 type_pari TEXT, description TEXT, cote REAL,
+                probabilite_hiddenscout INTEGER DEFAULT NULL,
+                heure_generation TEXT DEFAULT NULL,
                 score_reel TEXT, gagne INTEGER DEFAULT NULL,
                 UNIQUE(date, match, type_pari)
             )""")
+            # Migrations colonnes pour table existante
+            for col_sql in [
+                "ALTER TABLE paris_historique ADD COLUMN IF NOT EXISTS probabilite_hiddenscout INTEGER DEFAULT NULL",
+                "ALTER TABLE paris_historique ADD COLUMN IF NOT EXISTS heure_generation TEXT DEFAULT NULL",
+            ]:
+                try:
+                    c.execute(col_sql)
+                except Exception:
+                    pass
             c.execute("""CREATE TABLE IF NOT EXISTS predictions_buteurs (
                 id SERIAL PRIMARY KEY,
                 joueur_id INTEGER, nom TEXT, equipe TEXT, ligue TEXT, ligue_id INTEGER,
@@ -1237,23 +1248,22 @@ def paris():
     histo_stats = {"total": 0, "gagne": 0, "taux": 0, "roi": 0}
     try:
         c.execute("""
-            SELECT * FROM paris_historique ORDER BY date DESC, id DESC LIMIT 100
+            SELECT * FROM paris_historique ORDER BY date DESC, id DESC LIMIT 200
         """)
         paris_histo = [dict(r) for r in c.fetchall()]
+        # ROI réel : gain net = (cote-1) si gagné, -1 si perdu
         c.execute("""
             SELECT COUNT(*) as total,
                    SUM(CASE WHEN gagne=1 THEN 1 ELSE 0 END) as n_gagne,
-                   SUM(CASE WHEN gagne=1 THEN cote ELSE 0 END) as gains,
-                   COUNT(*) as mises
+                   SUM(CASE WHEN gagne=1 THEN cote - 1 ELSE -1 END) as net_profit
             FROM paris_historique WHERE gagne IS NOT NULL
         """)
         gs = c.fetchone()
         if gs and gs["total"]:
             n_g = gs["n_gagne"] or 0
             tot = gs["total"] or 1
-            gains_f = float(gs["gains"] or 0)
-            mises_f = float(gs["mises"] or 0)
-            roi = round((gains_f - mises_f) / mises_f * 100, 1) if mises_f > 0 else 0
+            net = float(gs["net_profit"] or 0)
+            roi = round(net / tot * 100, 1)
             histo_stats = {"total": tot, "gagne": n_g, "taux": round(n_g/tot*100), "roi": roi}
     except Exception:
         pass
