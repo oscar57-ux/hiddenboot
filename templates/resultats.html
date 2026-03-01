@@ -219,6 +219,12 @@
 
     <!-- Tab Résultats -->
     <div class="tab-content active" id="tab-resultats">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">
+            <div style="font-size:13px;color:#4a6080" id="filtre65-label">Affichage : <strong style="color:#00D4FF">forte conviction ≥65%</strong></div>
+            <button class="seuil-btns" style="display:inline-flex;gap:0" onclick="toggleFiltre65()">
+                <button id="toggle65-btn" style="padding:5px 12px;border-radius:20px;border:1px solid #00D4FF;background:rgba(0,212,255,0.1);color:#00D4FF;font-size:12px;cursor:pointer">Voir tous les matchs</button>
+            </button>
+        </div>
         <div id="resultats-content"><div class="loading"><div class="loader-radar"><div class="ring"></div><div class="ring"></div><div class="ring"></div><div class="center"></div></div><p>Chargement...</p></div></div>
     </div>
 
@@ -256,9 +262,9 @@
             <div class="buteur-stat-card"><div class="label">Taux réussite 65%+</div><div class="value" id="bstat-65">—</div><div class="sub" id="bstat-65-sub"></div></div>
         </div>
         <div class="seuil-btns" id="buteur-seuil-btns">
-            <button class="active" onclick="filtrerButeurs(20, this)">20%+</button>
+            <button onclick="filtrerButeurs(20, this)">20%+</button>
             <button onclick="filtrerButeurs(30, this)">30%+</button>
-            <button onclick="filtrerButeurs(40, this)">40%+</button>
+            <button class="active" onclick="filtrerButeurs(40, this)">40%+</button>
             <button onclick="filtrerButeurs(65, this)">65%+</button>
         </div>
         <div id="buteurs-content"><div class="loading"><div class="loader-radar"><div class="ring"></div><div class="ring"></div><div class="ring"></div><div class="center"></div></div><p>Chargement...</p></div></div>
@@ -326,7 +332,8 @@ let refreshInterval = null;
 let lastCheckTime = null;
 let timerInterval = null;
 let currentSeuil = 0;
-let currentButeurSeuil = 20;
+let currentButeurSeuil = 40;
+let filtre65Actif = true; // filtre 65% par défaut sur l'onglet Résultats
 let _cachedHistorique = null;
 let _cachedButeurs = null;
 
@@ -449,16 +456,50 @@ function renderStatsCards(stats) {
     document.getElementById('stat-attente').textContent = stats.en_attente || 0;
 }
 
+function toggleFiltre65() {
+    filtre65Actif = !filtre65Actif;
+    const btn = document.getElementById('toggle65-btn');
+    const lbl = document.getElementById('filtre65-label');
+    if (filtre65Actif) {
+        btn.textContent = 'Voir tous les matchs';
+        btn.style.borderColor = '#00D4FF'; btn.style.color = '#00D4FF';
+        lbl.innerHTML = 'Affichage : <strong style="color:#00D4FF">forte conviction ≥65%</strong>';
+    } else {
+        btn.textContent = 'Filtrer ≥65%';
+        btn.style.borderColor = '#4a6080'; btn.style.color = '#4a6080';
+        lbl.innerHTML = 'Affichage : <strong style="color:#4a6080">tous les matchs</strong>';
+    }
+    if (_cachedHistorique) renderResultats(_cachedHistorique.derniers || []);
+}
+
 function renderResultats(matchs) {
     const el = document.getElementById('resultats-content');
     const dateLabel = formatDateLabel(currentDate);
-    if (!matchs.length) {
-        el.innerHTML = `<div class="empty-state">Aucune prédiction vérifiée pour ${dateLabel}.</div>`;
+    // Appliquer filtre 65% si actif
+    const affichés = filtre65Actif
+        ? matchs.filter(m => Math.max(m.pct_home || 0, m.pct_away || 0) >= 65)
+        : matchs;
+    // Recalculer stats selon filtre
+    if (filtre65Actif && _cachedHistorique) {
+        const total65 = affichés.length;
+        const correct65 = affichés.filter(m => m.prediction_correcte === 1).length;
+        const prec65 = total65 > 0 ? Math.round(correct65 / total65 * 100) : 0;
+        document.getElementById('stat-total').textContent = total65;
+        document.getElementById('stat-correct').textContent = correct65;
+        const el2 = document.getElementById('stat-precision');
+        el2.textContent = prec65 + '%';
+        el2.className = 'value ' + (prec65 >= 60 ? 'good' : prec65 >= 50 ? '' : 'bad');
+    }
+    if (!affichés.length) {
+        const msg = filtre65Actif
+            ? `Aucune prédiction à forte conviction (≥65%) vérifiée pour ${dateLabel}.`
+            : `Aucune prédiction vérifiée pour ${dateLabel}.`;
+        el.innerHTML = `<div class="empty-state">${msg}</div>`;
         return;
     }
     let html = '<div class="table-block"><table>';
     html += '<tr><th>Date</th><th>Ligue</th><th>Match</th><th>Prédiction</th><th>Score</th><th>✓</th></tr>';
-    matchs.forEach(m => {
+    affichés.forEach(m => {
         const dr = DRAPEAUX[m.ligue_id] || '';
         const favori = m.pct_home > m.pct_away ? m.home : m.away;
         const pctFav = Math.max(m.pct_home||0, m.pct_away||0);

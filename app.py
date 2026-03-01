@@ -119,7 +119,7 @@ def calculer_proba_poisson(stats_home, stats_away, moy_ligue=1.35):
 
 def calculer_proba_buteur_mc(ratio_buts, buts_encaisses_adv=1.35, forme_str="",
                               est_domicile=True, part_buts=0.30, moy_ligue=1.35,
-                              n_sims=10000):
+                              n_sims=10000, buts_saison=0, buts_recents=0):
     """
     Monte Carlo Poisson : probabilité qu'un buteur marque dans ce match.
     lambda_buteur = taux × facteur_opposition × (1 + 0.3×forme_norm) × facteur_domicile × part_buts
@@ -135,12 +135,24 @@ def calculer_proba_buteur_mc(ratio_buts, buts_encaisses_adv=1.35, forme_str="",
     # Cap à 1.2 : 1 - e^(-1.2) ≈ 70 %, évite les probas irréalistes
     lambda_base = max(0.01, min(1.2, lambda_base))
 
+    if lambda_base < 0.05:
+        print(f"[lambda_warn] lambda={lambda_base:.4f} ratio={ratio_buts:.3f} part={part_buts:.3f} opp={buts_encaisses_adv:.2f}")
+
     rng = np.random.default_rng(42)
     lambdas = lambda_base * rng.normal(loc=1.0, scale=0.15, size=n_sims)
     lambdas = np.clip(lambdas, 0.01, 5.0)
     probas = 1.0 - np.exp(-lambdas)
 
     mean_pct = min(70.0, round(float(np.mean(probas)) * 100, 1))
+
+    # Planchers minimum selon le profil du joueur
+    plancher = 0.0
+    if buts_saison > 3:
+        plancher = max(plancher, 5.0)
+    if buts_recents >= 3:
+        plancher = max(plancher, 10.0)
+    mean_pct = max(mean_pct, plancher)
+
     return (
         mean_pct,
         round(float(np.percentile(probas, 2.5)) * 100),
@@ -257,7 +269,15 @@ def pepites():
             score = calculer_score_joueur(j["buts"], j["passes"] or 0, j["note"] or 0, j["matchs"] or 1, j["joueur_id"])
             joueurs.append({**dict(j), "score": score, "drapeau": DRAPEAUX_LIGUES.get(j["ligue_id"], "")})
         joueurs.sort(key=lambda x: x["score"], reverse=True)
-        resultats[region] = joueurs[:50]
+        joueurs = joueurs[:50]
+        # Normaliser scores 0-100 dans la région
+        if joueurs:
+            s_max = joueurs[0]["score"]
+            s_min = joueurs[-1]["score"]
+            s_range = s_max - s_min if s_max > s_min else 1
+            for j2 in joueurs:
+                j2["score"] = min(100, round((j2["score"] - s_min) / s_range * 100))
+        resultats[region] = joueurs
     c.execute("""
         SELECT j.id as joueur_id, j.nom, j.nationalite, j.poste,
                j.matchs, j.buts, j.passes, j.note, j.ratio,
@@ -275,7 +295,14 @@ def pepites():
         score = calculer_score_joueur(j["buts"], j["passes"] or 0, j["note"] or 0, j["matchs"] or 1, j["joueur_id"])
         joueurs_mondial.append({**dict(j), "score": score, "drapeau": DRAPEAUX_LIGUES.get(j["ligue_id"], "")})
     joueurs_mondial.sort(key=lambda x: x["score"], reverse=True)
-    resultats["🌐 Top Mondial"] = joueurs_mondial[:50]
+    joueurs_mondial = joueurs_mondial[:50]
+    if joueurs_mondial:
+        s_max = joueurs_mondial[0]["score"]
+        s_min = joueurs_mondial[-1]["score"]
+        s_range = s_max - s_min if s_max > s_min else 1
+        for jm in joueurs_mondial:
+            jm["score"] = min(100, round((jm["score"] - s_min) / s_range * 100))
+    resultats["🌐 Top Mondial"] = joueurs_mondial
 
     joueurs_en_feu = []
     try:
@@ -830,6 +857,7 @@ def api_buteurs_equipe(equipe_id):
         except Exception:
             pass
 
+        buts_recents_j = sum(r["buts"] or 0 for r in forme_recente) if forme_recente else 0
         pct_but, ci_bas, ci_haut = calculer_proba_buteur_mc(
             ratio_buts=max(0.01, ratio),
             buts_encaisses_adv=be_adv,
@@ -837,6 +865,8 @@ def api_buteurs_equipe(equipe_id):
             est_domicile=est_domicile,
             part_buts=part,
             moy_ligue=moy_ligue,
+            buts_saison=buts,
+            buts_recents=buts_recents_j,
         )
 
         score = calculer_score_joueur(buts, passes, j["note"] or 0, matchs_j, j["joueur_id"])
@@ -917,6 +947,156 @@ def api_prochain_match(equipe_id):
     })
 
 
+@app.route("/api/verifier-paris")
+def api_verifier_paris():
+    """Vérifie les paris de la veille (ou ?date=) via les scores réels en DB."""
+    conn = get_db()
+    c = conn.cursor()
+    # Créer la table historique si besoin
+    c.execute("""CREATE TABLE IF NOT EXISTS paris_historique (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date TEXT, match TEXT, ligue TEXT, categorie TEXT,
+        type_pari TEXT, description TEXT, cote REAL,
+        score_reel TEXT,
+        gagne INTEGER DEFAULT NULL,
+        UNIQUE(date, match, type_pari)
+    )""")
+    conn.commit()
+
+    from datetime import timedelta
+    date_param = request.args.get("date", "").strip()
+    try:
+        datetime.strptime(date_param, "%Y-%m-%d")
+        cible = date_param
+    except (ValueError, TypeError):
+        cible = (date.today() - timedelta(days=1)).strftime("%Y-%m-%d")
+
+    # Récupérer les paris du jour cible (hors résumé)
+    c.execute("""
+        SELECT * FROM paris_jour
+        WHERE date = ? AND categorie IN ('safe','cool','fun')
+    """, (cible,))
+    paris_cible = c.fetchall()
+
+    verifie = 0
+    gagne = 0
+    for pari in paris_cible:
+        match_str = pari["match"] or ""
+        # Tenter de trouver le résultat dans predictions
+        # Format match: "Home vs Away" ou "Home - Away"
+        sep = " vs " if " vs " in match_str else " - "
+        parts = match_str.split(sep, 1)
+        if len(parts) != 2:
+            continue
+        home_q, away_q = parts[0].strip(), parts[1].strip()
+        c.execute("""
+            SELECT score_home, score_away, statut FROM predictions
+            WHERE date = ? AND statut = 'termine'
+              AND (home LIKE ? OR home LIKE ?)
+              AND (away LIKE ? OR away LIKE ?)
+            LIMIT 1
+        """, (cible,
+              f"%{home_q[:10]}%", f"{home_q[:10]}%",
+              f"%{away_q[:10]}%", f"{away_q[:10]}%"))
+        res = c.fetchone()
+        if not res:
+            continue
+
+        sh = res["score_home"] or 0
+        sa = res["score_away"] or 0
+        score_reel = f"{sh}-{sa}"
+        total = sh + sa
+        type_pari = (pari["type_pari"] or "").lower()
+
+        gagne_pari = None
+        if "domicile" in type_pari or "victoire 1" in type_pari or type_pari in ("1", "home"):
+            gagne_pari = 1 if sh > sa else 0
+        elif "extérieur" in type_pari or "exterieur" in type_pari or type_pari in ("2", "away"):
+            gagne_pari = 1 if sa > sh else 0
+        elif "nul" in type_pari or type_pari == "x":
+            gagne_pari = 1 if sh == sa else 0
+        elif "2.5" in type_pari:
+            if "plus" in type_pari or "over" in type_pari or "+" in type_pari:
+                gagne_pari = 1 if total > 2 else 0
+            elif "moins" in type_pari or "under" in type_pari:
+                gagne_pari = 1 if total < 3 else 0
+        elif "1.5" in type_pari:
+            if "plus" in type_pari or "over" in type_pari or "+" in type_pari:
+                gagne_pari = 1 if total > 1 else 0
+        elif "btts" in type_pari or "les deux" in type_pari:
+            gagne_pari = 1 if sh > 0 and sa > 0 else 0
+        elif "double chance" in type_pari:
+            if "1x" in type_pari:
+                gagne_pari = 1 if sh >= sa else 0
+            elif "x2" in type_pari:
+                gagne_pari = 1 if sa >= sh else 0
+            elif "12" in type_pari:
+                gagne_pari = 1 if sh != sa else 0
+
+        if gagne_pari is not None:
+            try:
+                c.execute("""INSERT OR IGNORE INTO paris_historique
+                    (date, match, ligue, categorie, type_pari, description, cote, score_reel, gagne)
+                    VALUES (?,?,?,?,?,?,?,?,?)
+                """, (cible, pari["match"], pari["ligue"], pari["categorie"],
+                      pari["type_pari"], pari["description"], pari["cote"],
+                      score_reel, gagne_pari))
+            except Exception:
+                pass
+            verifie += 1
+            gagne += gagne_pari
+
+    conn.commit()
+    conn.close()
+    return jsonify({"verifie": verifie, "gagne": gagne, "date": cible})
+
+
+@app.route("/api/paris-historique")
+def api_paris_historique():
+    conn = get_db()
+    c = conn.cursor()
+    try:
+        c.execute("""CREATE TABLE IF NOT EXISTS paris_historique (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            date TEXT, match TEXT, ligue TEXT, categorie TEXT,
+            type_pari TEXT, description TEXT, cote REAL,
+            score_reel TEXT, gagne INTEGER DEFAULT NULL,
+            UNIQUE(date, match, type_pari)
+        )""")
+        c.execute("""
+            SELECT * FROM paris_historique
+            ORDER BY date DESC, categorie ASC
+            LIMIT 200
+        """)
+        rows = [dict(r) for r in c.fetchall()]
+        c.execute("""
+            SELECT COUNT(*) as total,
+                   SUM(CASE WHEN gagne=1 THEN 1 ELSE 0 END) as gagne,
+                   SUM(CASE WHEN gagne=1 THEN cote ELSE 0 END) as gains,
+                   COUNT(*) as mises
+            FROM paris_historique WHERE gagne IS NOT NULL
+        """)
+        gs = c.fetchone()
+    except Exception:
+        rows = []
+        gs = None
+    conn.close()
+    total = gs["total"] or 0 if gs else 0
+    n_gagne = gs["gagne"] or 0 if gs else 0
+    gains = float(gs["gains"] or 0) if gs else 0
+    mises = float(gs["mises"] or 0) if gs else 0
+    roi = round((gains - mises) / mises * 100, 1) if mises > 0 else 0
+    return jsonify({
+        "paris": rows,
+        "stats": {
+            "total": total,
+            "gagne": n_gagne,
+            "taux": round(n_gagne / total * 100) if total > 0 else 0,
+            "roi": roi,
+        }
+    })
+
+
 @app.route("/paris")
 def paris():
     from datetime import timedelta
@@ -961,6 +1141,38 @@ def paris():
         resume = None
         derniere_gen = None
         historique = []
+    # Historique paris ✅/❌
+    paris_histo = []
+    histo_stats = {"total": 0, "gagne": 0, "taux": 0, "roi": 0}
+    try:
+        c.execute("""CREATE TABLE IF NOT EXISTS paris_historique (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            date TEXT, match TEXT, ligue TEXT, categorie TEXT,
+            type_pari TEXT, description TEXT, cote REAL,
+            score_reel TEXT, gagne INTEGER DEFAULT NULL,
+            UNIQUE(date, match, type_pari)
+        )""")
+        c.execute("""
+            SELECT * FROM paris_historique ORDER BY date DESC, id DESC LIMIT 100
+        """)
+        paris_histo = [dict(r) for r in c.fetchall()]
+        c.execute("""
+            SELECT COUNT(*) as total,
+                   SUM(CASE WHEN gagne=1 THEN 1 ELSE 0 END) as n_gagne,
+                   SUM(CASE WHEN gagne=1 THEN cote ELSE 0 END) as gains,
+                   COUNT(*) as mises
+            FROM paris_historique WHERE gagne IS NOT NULL
+        """)
+        gs = c.fetchone()
+        if gs and gs["total"]:
+            n_g = gs["n_gagne"] or 0
+            tot = gs["total"] or 1
+            gains_f = float(gs["gains"] or 0)
+            mises_f = float(gs["mises"] or 0)
+            roi = round((gains_f - mises_f) / mises_f * 100, 1) if mises_f > 0 else 0
+            histo_stats = {"total": tot, "gagne": n_g, "taux": round(n_g/tot*100), "roi": roi}
+    except Exception:
+        pass
     conn.close()
     return render_template("paris.html",
         safe_paris=[p for p in paris_today if p["categorie"] == "safe"],
@@ -971,6 +1183,8 @@ def paris():
         date_today=today,
         historique=historique,
         has_paris=bool(paris_today),
+        paris_histo=paris_histo,
+        histo_stats=histo_stats,
     )
 
 
@@ -1201,6 +1415,7 @@ def sauvegarder_predictions():
                     except Exception:
                         pass
 
+                    buts_rec_b = sum(r["buts"] for r in forme_recente_b) if forme_recente_b else 0
                     pct_b, ci_bas_b, ci_haut_b = calculer_proba_buteur_mc(
                         ratio_buts=max(0.01, ratio_j),
                         buts_encaisses_adv=be_adv_b,
@@ -1208,6 +1423,8 @@ def sauvegarder_predictions():
                         est_domicile=est_home_b,
                         part_buts=part_j,
                         moy_ligue=moy_ligue_b,
+                        buts_saison=buts_j,
+                        buts_recents=buts_rec_b,
                     )
 
                     if pct_b >= 20:
