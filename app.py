@@ -349,6 +349,9 @@ def api_matchs_jour():
     c = conn.cursor()
     c.execute("SELECT id FROM api_ligues")
     ligues_suivies = set(row["id"] for row in c.fetchall())
+    # Fallback : si la table api_ligues est vide, utiliser les IDs du dictionnaire DRAPEAUX_LIGUES
+    if not ligues_suivies:
+        ligues_suivies = set(DRAPEAUX_LIGUES.keys())
 
     def get_stats_equipe(equipe_id):
         c.execute("""

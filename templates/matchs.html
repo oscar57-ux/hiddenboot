@@ -585,6 +585,8 @@ function loadMatchs() {
                 const label = d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
                 document.getElementById('matchs-container').innerHTML =
                     `<div class="loading"><p>Aucun match dans nos ligues pour le ${label}</p></div>`;
+                document.getElementById('buteurs-container').innerHTML =
+                    `<div class="loading"><p style="color:#4a6080">Aucun buteur disponible — pas de matchs pour le ${label}</p></div>`;
                 return;
             }
             allMatchs = data.ligues;
