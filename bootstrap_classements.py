@@ -1,9 +1,10 @@
+import os
 import requests
 import sqlite3
 import time
 from datetime import datetime
 
-API_KEY = "f0841753cabc35b8ecca13ee835435d1"
+API_KEY = os.environ.get("API_SPORTS_KEY", "")
 headers = {"x-apisports-key": API_KEY}
 
 def api_get(endpoint, params={}):

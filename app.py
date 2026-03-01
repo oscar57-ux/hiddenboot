@@ -8,6 +8,8 @@ import numpy as np
 
 app = Flask(__name__)
 
+API_SPORTS_KEY = os.environ.get("API_SPORTS_KEY", "")
+
 DRAPEAUX_LIGUES = {
     61: "fr", 62: "fr",
     39: "gb-eng", 40: "gb-eng",
@@ -335,7 +337,7 @@ def api_matchs_jour():
             today = date.today().strftime("%Y-%m-%d")
     else:
         today = date.today().strftime("%Y-%m-%d")
-    API_KEY = "f0841753cabc35b8ecca13ee835435d1"
+    API_KEY = API_SPORTS_KEY
     api_headers = {"x-apisports-key": API_KEY}
     response = req.get(
         "https://v3.football.api-sports.io/fixtures",
@@ -815,7 +817,7 @@ def api_prochain_match(equipe_id):
     """Retourne le prochain match d'une équipe (dans les 7 jours) via l'API externe."""
     import requests as req
     from datetime import datetime, timedelta
-    API_KEY = "f0841753cabc35b8ecca13ee835435d1"
+    API_KEY = API_SPORTS_KEY
     try:
         response = req.get(
             "https://v3.football.api-sports.io/fixtures",
@@ -959,7 +961,7 @@ def sauvegarder_predictions():
     """A appeler chaque jour avant les matchs pour sauvegarder les prédictions"""
     import requests as req
     today = date.today().strftime("%Y-%m-%d")
-    API_KEY = "f0841753cabc35b8ecca13ee835435d1"
+    API_KEY = API_SPORTS_KEY
     api_headers = {"x-apisports-key": API_KEY}
 
     response = req.get(
@@ -1065,7 +1067,7 @@ def verifier_resultats():
     from datetime import datetime, timedelta
 
     hier = (date.today() - timedelta(days=1)).strftime("%Y-%m-%d")
-    API_KEY = "f0841753cabc35b8ecca13ee835435d1"
+    API_KEY = API_SPORTS_KEY
     api_headers = {"x-apisports-key": API_KEY}
 
     response = req.get(
