@@ -1,5 +1,5 @@
 flask
 requests
-selenium
 numpy
-webdriver-manager
+anthropic
+apscheduler

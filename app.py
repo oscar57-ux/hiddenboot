@@ -864,6 +864,92 @@ def api_prochain_match(equipe_id):
     })
 
 
+@app.route("/paris")
+def paris():
+    from datetime import timedelta
+    conn = get_db()
+    c = conn.cursor()
+    # Créer la table si elle n'existe pas encore
+    c.execute("""CREATE TABLE IF NOT EXISTS paris_jour (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date TEXT, categorie TEXT, match TEXT, ligue TEXT,
+        type_pari TEXT, description TEXT, cote REAL,
+        probabilite INTEGER, raisonnement TEXT, timestamp TEXT
+    )""")
+    today = date.today().strftime("%Y-%m-%d")
+    try:
+        c.execute("""
+            SELECT * FROM paris_jour
+            WHERE date = ? AND categorie IN ('safe','cool','fun')
+            ORDER BY CASE categorie
+                WHEN 'safe' THEN 1 WHEN 'cool' THEN 2 WHEN 'fun' THEN 3 END,
+                probabilite DESC
+        """, (today,))
+        paris_today = [dict(r) for r in c.fetchall()]
+        c.execute("SELECT description FROM paris_jour WHERE date = ? AND categorie = 'resume'", (today,))
+        row = c.fetchone()
+        resume = row["description"] if row else None
+        c.execute("SELECT MAX(timestamp) AS ts FROM paris_jour WHERE date = ?", (today,))
+        row = c.fetchone()
+        derniere_gen = row["ts"] if row and row["ts"] else None
+        sept_j = (date.today() - timedelta(days=7)).strftime("%Y-%m-%d")
+        c.execute("""
+            SELECT date,
+                SUM(CASE WHEN categorie='safe' THEN 1 ELSE 0 END) AS n_safe,
+                SUM(CASE WHEN categorie='cool' THEN 1 ELSE 0 END) AS n_cool,
+                SUM(CASE WHEN categorie='fun'  THEN 1 ELSE 0 END) AS n_fun
+            FROM paris_jour
+            WHERE date >= ? AND date < ? AND categorie IN ('safe','cool','fun')
+            GROUP BY date ORDER BY date DESC
+        """, (sept_j, today))
+        historique = [dict(r) for r in c.fetchall()]
+    except Exception:
+        paris_today = []
+        resume = None
+        derniere_gen = None
+        historique = []
+    conn.close()
+    return render_template("paris.html",
+        safe_paris=[p for p in paris_today if p["categorie"] == "safe"],
+        cool_paris=[p for p in paris_today if p["categorie"] == "cool"],
+        fun_paris=[p for p in paris_today if p["categorie"] == "fun"],
+        resume=resume,
+        derniere_gen=derniere_gen,
+        date_today=today,
+        historique=historique,
+        has_paris=bool(paris_today),
+    )
+
+
+@app.route("/api/paris-jour")
+def api_paris_jour():
+    today = date.today().strftime("%Y-%m-%d")
+    conn = get_db()
+    c = conn.cursor()
+    try:
+        c.execute("""
+            SELECT * FROM paris_jour WHERE date = ?
+            ORDER BY CASE categorie
+                WHEN 'safe' THEN 1 WHEN 'cool' THEN 2 WHEN 'fun' THEN 3 ELSE 4 END,
+                probabilite DESC
+        """, (today,))
+        paris = [dict(r) for r in c.fetchall()]
+    except Exception:
+        paris = []
+    conn.close()
+    return jsonify({"paris": paris, "date": today})
+
+
+@app.route("/api/generer-paris")
+def api_generer_paris():
+    try:
+        from generateur_paris import generer_paris
+        n = generer_paris()
+        return jsonify({"status": "ok", "paris": n, "message": f"{n} paris générés"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
 @app.route("/resultats")
 def resultats():
     return render_template("resultats.html")
@@ -1112,6 +1198,25 @@ def historique_predictions():
         "derniers": [dict(r) for r in derniers],
         "en_attente": [dict(r) for r in en_attente]
     })
+
+# ── APScheduler : génération automatique des paris à midi (Europe/Paris) ──────
+try:
+    from apscheduler.schedulers.background import BackgroundScheduler
+    from generateur_paris import generer_paris as _generer_paris
+    _scheduler = BackgroundScheduler(daemon=True)
+    _scheduler.add_job(
+        _generer_paris,
+        "cron",
+        hour=12, minute=0,
+        timezone="Europe/Paris",
+        id="generer_paris_midi",
+        replace_existing=True,
+    )
+    _scheduler.start()
+    print("✅ APScheduler démarré — génération paris chaque jour à 12h00 Europe/Paris")
+except Exception as _sched_err:
+    print(f"⚠️  APScheduler non démarré : {_sched_err}")
+
 
 if __name__ == "__main__":
     app.run(debug=False, host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
