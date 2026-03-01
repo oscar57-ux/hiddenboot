@@ -130,17 +130,19 @@ def calculer_proba_buteur_mc(ratio_buts, buts_encaisses_adv=1.35, forme_str="",
     facteur_dom = 1.15 if est_domicile else 1.0
 
     lambda_base = taux * facteur_opp * (1 + 0.3 * forme_norm) * facteur_dom * part_buts
-    lambda_base = max(0.01, min(2.0, lambda_base))
+    # Cap à 1.2 : 1 - e^(-1.2) ≈ 70 %, évite les probas irréalistes
+    lambda_base = max(0.01, min(1.2, lambda_base))
 
     rng = np.random.default_rng(42)
     lambdas = lambda_base * rng.normal(loc=1.0, scale=0.15, size=n_sims)
     lambdas = np.clip(lambdas, 0.01, 5.0)
     probas = 1.0 - np.exp(-lambdas)
 
+    mean_pct = min(70.0, round(float(np.mean(probas)) * 100, 1))
     return (
-        round(float(np.mean(probas)) * 100, 1),
+        mean_pct,
         round(float(np.percentile(probas, 2.5)) * 100),
-        round(float(np.percentile(probas, 97.5)) * 100),
+        min(70, round(float(np.percentile(probas, 97.5)) * 100)),
     )
 
 
@@ -277,13 +279,15 @@ def pepites():
     try:
         c.execute("""
             WITH derniers AS (
-                SELECT joueur_id, buts,
+                SELECT joueur_id, buts, passes,
                        ROW_NUMBER() OVER (PARTITION BY joueur_id ORDER BY date DESC) AS rn
                 FROM joueurs_forme
             )
             SELECT d.joueur_id, SUM(d.buts) AS buts_recents,
+                   SUM(d.passes) AS passes_recentes,
                    j.nom, j.poste, j.matchs,
                    j.buts, j.passes, j.note, j.ratio,
+                   j.equipe_id,
                    e.nom AS equipe, l.nom AS ligue, l.id AS ligue_id
             FROM derniers d
             JOIN api_joueurs j ON d.joueur_id = j.id
@@ -296,8 +300,19 @@ def pepites():
             LIMIT 50
         """)
         for j in c.fetchall():
+            c2 = conn.cursor()
+            c2.execute("""
+                SELECT buts, passes FROM joueurs_forme
+                WHERE joueur_id = ? ORDER BY date DESC LIMIT 5
+            """, (j["joueur_id"],))
+            forme = [{"buts": r["buts"] or 0, "passes": r["passes"] or 0} for r in c2.fetchall()]
             score = calculer_score_joueur(j["buts"], j["passes"] or 0, j["note"] or 0, j["matchs"] or 1, j["joueur_id"])
-            joueurs_en_feu.append({**dict(j), "score": score, "drapeau": DRAPEAUX_LIGUES.get(j["ligue_id"], "")})
+            joueurs_en_feu.append({
+                **dict(j),
+                "score": score,
+                "drapeau": DRAPEAUX_LIGUES.get(j["ligue_id"], ""),
+                "forme": forme,
+            })
     except Exception:
         pass
 
@@ -643,6 +658,9 @@ def alertes():
 @app.route("/api/equipe/<int:equipe_id>/buteurs")
 def api_buteurs_equipe(equipe_id):
     adversaire_id = request.args.get("adversaire_id", type=int)
+    # Noms d'équipes transmis par le frontend pour fallback si l'ID ne matche pas
+    equipe_nom = request.args.get("equipe_nom", "").strip()
+    adv_nom    = request.args.get("adv_nom", "").strip()
     # Accepte is_home (nouveau) ou domicile (compatibilité)
     is_home_raw = request.args.get("is_home", request.args.get("domicile", "1"))
     est_domicile = is_home_raw == "1"
@@ -659,6 +677,16 @@ def api_buteurs_equipe(equipe_id):
             FROM classements WHERE equipe_id = ?
         """, (adversaire_id,))
         adv = c.fetchone()
+        # Fallback par nom si l'ID fixture ne correspond pas à notre table
+        if not adv and adv_nom:
+            c.execute("""
+                SELECT cl.buts_contre, cl.victoires, cl.nuls, cl.defaites, cl.ligue_id
+                FROM classements cl
+                JOIN api_equipes e ON cl.equipe_id = e.id
+                WHERE e.nom LIKE ?
+                LIMIT 1
+            """, (f"%{adv_nom}%",))
+            adv = c.fetchone()
         if adv:
             matchs_adv = max(1, (adv["victoires"] or 0) + (adv["nuls"] or 0) + (adv["defaites"] or 0))
             be_adv = (adv["buts_contre"] or 0) / matchs_adv
@@ -670,14 +698,21 @@ def api_buteurs_equipe(equipe_id):
             if moy_row and moy_row["moy"]:
                 moy_ligue = max(0.5, moy_row["moy"])
 
-    # Buts totaux de l'équipe (pour calculer la part par joueur)
-    c.execute("""
-        SELECT buts_pour FROM classements WHERE equipe_id = ?
-    """, (equipe_id,))
+    # Buts totaux de l'équipe saison (pour calculer la part par joueur)
+    c.execute("SELECT buts_pour FROM classements WHERE equipe_id = ?", (equipe_id,))
     eq_row = c.fetchone()
+    # Fallback par nom si l'ID fixture ne correspond pas
+    if not eq_row and equipe_nom:
+        c.execute("""
+            SELECT cl.buts_pour FROM classements cl
+            JOIN api_equipes e ON cl.equipe_id = e.id
+            WHERE e.nom LIKE ?
+            LIMIT 1
+        """, (f"%{equipe_nom}%",))
+        eq_row = c.fetchone()
     total_buts_equipe = max(1, eq_row["buts_pour"] or 1) if eq_row else 1
 
-    # Tous les joueurs de l'équipe avec leur équipe et ligue
+    # Joueurs de l'équipe ayant joué ≥ 5 matchs (stats saison depuis api_joueurs)
     c.execute("""
         SELECT j.id as joueur_id, j.nom, j.poste, j.matchs,
                j.buts, j.passes, j.note, j.ratio,
@@ -685,10 +720,23 @@ def api_buteurs_equipe(equipe_id):
         FROM api_joueurs j
         JOIN api_equipes e ON j.equipe_id = e.id
         JOIN api_ligues l ON j.ligue_id = l.id
-        WHERE j.equipe_id = ?
+        WHERE j.equipe_id = ? AND j.matchs >= 5
         ORDER BY j.buts DESC
     """, (equipe_id,))
     joueurs = c.fetchall()
+    # Fallback par nom d'équipe si l'ID fixture ne matche pas api_joueurs
+    if not joueurs and equipe_nom:
+        c.execute("""
+            SELECT j.id as joueur_id, j.nom, j.poste, j.matchs,
+                   j.buts, j.passes, j.note, j.ratio,
+                   e.nom as equipe, l.nom as ligue, l.id as ligue_id
+            FROM api_joueurs j
+            JOIN api_equipes e ON j.equipe_id = e.id
+            JOIN api_ligues l ON j.ligue_id = l.id
+            WHERE e.nom LIKE ? AND j.matchs >= 5
+            ORDER BY j.buts DESC
+        """, (f"%{equipe_nom}%",))
+        joueurs = c.fetchall()
 
     result = []
     for j in joueurs:
@@ -697,9 +745,10 @@ def api_buteurs_equipe(equipe_id):
         matchs_j = max(1, j["matchs"] or 1)
         ratio = float(j["ratio"]) if j["ratio"] else (buts / matchs_j)
 
-        # Part des buts de l'équipe scorés par ce joueur
+        # Part des buts de l'équipe scorés par ce joueur (buts_joueur / buts_equipe_saison)
+        # Cap à 0.50 : même le meilleur buteur ne peut pas scorer 100% des buts de son équipe
         # Minimum 3% pour les joueurs sans buts (permet la différenciation par forme)
-        part = min(0.85, buts / total_buts_equipe) if buts > 0 else 0.03
+        part = min(0.50, buts / total_buts_equipe) if buts > 0 else 0.03
 
         # 5 derniers matchs depuis joueurs_forme : forme string + données pour les dots
         forme_str = ""
@@ -760,6 +809,60 @@ def api_buteurs_equipe(equipe_id):
     result.sort(key=lambda x: x["pct_but"], reverse=True)
     conn.close()
     return jsonify({"joueurs": result[:15], "equipe_id": equipe_id})
+
+@app.route("/api/prochain-match/<int:equipe_id>")
+def api_prochain_match(equipe_id):
+    """Retourne le prochain match d'une équipe (dans les 7 jours) via l'API externe."""
+    import requests as req
+    from datetime import datetime, timedelta
+    API_KEY = "f0841753cabc35b8ecca13ee835435d1"
+    try:
+        response = req.get(
+            "https://v3.football.api-sports.io/fixtures",
+            headers={"x-apisports-key": API_KEY},
+            params={"team": equipe_id, "next": 1, "timezone": "Europe/Paris"},
+            timeout=5
+        )
+        data = response.json()
+    except Exception:
+        return jsonify({"match": None})
+
+    matches = data.get("response", [])
+    if not matches:
+        return jsonify({"match": None})
+
+    m = matches[0]
+    try:
+        dt = datetime.fromisoformat(m["fixture"]["date"])
+    except Exception:
+        return jsonify({"match": None})
+
+    # Ignorer si le match est dans plus de 7 jours
+    now = datetime.now(dt.tzinfo)
+    if (dt - now).total_seconds() < 0 or (dt - now).total_seconds() > 7 * 86400:
+        return jsonify({"match": None})
+
+    home_id  = m["teams"]["home"]["id"]
+    home_nom = m["teams"]["home"]["name"]
+    away_nom = m["teams"]["away"]["name"]
+    is_home  = (home_id == equipe_id)
+    adversaire = away_nom if is_home else home_nom
+
+    JOURS_FR = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"]
+    MOIS_FR  = ["jan", "fév", "mars", "avr", "mai", "juin",
+                "juil", "août", "sep", "oct", "nov", "déc"]
+    date_label = f"{JOURS_FR[dt.weekday()]} {dt.day} {MOIS_FR[dt.month - 1]}"
+    heure = f"{dt.hour:02d}h{dt.minute:02d}"
+
+    return jsonify({
+        "match": {
+            "date_label": date_label,
+            "heure": heure,
+            "adversaire": adversaire,
+            "is_home": is_home,
+        }
+    })
+
 
 @app.route("/resultats")
 def resultats():

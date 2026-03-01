@@ -66,6 +66,22 @@
             .main { margin-left: 0; padding: 20px 15px; padding-top: 60px; }
             .region-tab { font-size: 12px; padding: 8px 12px; }
         }
+
+        /* ── Cards "En feu" ─────────────────────────────────────── */
+        .enfeu-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 12px; }
+        .enfeu-card { background: #0D1321; border: 1px solid #1a2540; border-radius: 12px; padding: 15px; transition: background 0.15s; }
+        .enfeu-card:hover { background: rgba(0,212,255,0.02); }
+        .enfeu-top { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+        .enfeu-photo { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; background: #1a2540; flex-shrink: 0; border: 2px solid #1a2540; }
+        .enfeu-info { flex: 1; min-width: 0; }
+        .enfeu-nom { font-weight: 700; font-size: 14px; color: #e0e8f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .enfeu-club { color: #4a6080; font-size: 11px; margin-top: 2px; display: flex; align-items: center; gap: 4px; }
+        .enfeu-stats-row { display: flex; gap: 14px; font-size: 12px; color: #aaa; margin: 6px 0; flex-wrap: wrap; }
+        .enfeu-prochain { font-size: 11px; margin: 5px 0; min-height: 16px; }
+        .enfeu-dots { display: flex; gap: 5px; margin: 7px 0; align-items: center; }
+        .enfeu-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+        .enfeu-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 9px; padding-top: 9px; border-top: 1px solid #0a1020; }
+        @media (max-width: 600px) { .enfeu-grid { grid-template-columns: 1fr; } }
     </style>
 </head>
 <body>
@@ -106,50 +122,61 @@
     </div>
 
     <div class="region-content active" id="region-enfeu">
-        <div class="table-block">
-            <table>
-                <tr>
-                    <th>#</th>
-                    <th>Joueur</th>
-                    <th>Poste</th>
-                    <th>Équipe</th>
-                    <th>Ligue</th>
-                    <th>⚽ Saison</th>
-                    <th>🔥 5M</th>
-                    <th>Score</th>
-                </tr>
-                {% for j in joueurs_en_feu %}
-                <tr>
-                    <td class="{% if loop.index == 1 %}rang-1{% elif loop.index == 2 %}rang-2{% elif loop.index == 3 %}rang-3{% else %}rang{% endif %}">
-                        {% if loop.index == 1 %}🥇{% elif loop.index == 2 %}🥈{% elif loop.index == 3 %}🥉{% else %}{{ loop.index }}{% endif %}
-                    </td>
-                    <td>
-                        <div class="joueur-info">
-                            <img class="joueur-photo"
-                                 src="https://media.api-sports.io/football/players/{{ j.joueur_id }}.png"
-                                 onerror="this.src='https://via.placeholder.com/32/1a2540/4a6080?text=?'">
-                            <div>
-                                <div class="joueur-nom">{{ j.nom }}</div>
-                            </div>
-                        </div>
-                    </td>
-                    <td class="stat-mini">{{ j.poste }}</td>
-                    <td>{{ j.equipe }}</td>
-                    <td>
-                        <span class="ligue-badge">
+        {% if joueurs_en_feu %}
+        <div class="enfeu-grid">
+            {% for j in joueurs_en_feu %}
+            <div class="enfeu-card">
+                <div class="enfeu-top">
+                    <div style="font-size:20px;width:26px;text-align:center;flex-shrink:0">
+                        {% if loop.index == 1 %}🥇{% elif loop.index == 2 %}🥈{% elif loop.index == 3 %}🥉{% else %}<span style="color:#2a3a50;font-size:14px">{{ loop.index }}</span>{% endif %}
+                    </div>
+                    <img class="enfeu-photo"
+                         src="https://media.api-sports.io/football/players/{{ j.joueur_id }}.png"
+                         onerror="this.src='https://via.placeholder.com/44/1a2540/4a6080?text=?'">
+                    <div class="enfeu-info">
+                        <div class="enfeu-nom">{{ j.nom }}</div>
+                        <div class="enfeu-club">
                             {% if j.drapeau %}<span class="fi fi-{{ j.drapeau }}"></span>{% endif %}
-                            {{ j.ligue }}
-                        </span>
-                    </td>
-                    <td class="buts">⚽ {{ j.buts }}</td>
-                    <td style="color:#ff6b35;font-weight:700">🔥 {{ j.buts_recents }}</td>
-                    <td class="score">{{ j.score }}</td>
-                </tr>
-                {% else %}
-                <tr><td colspan="8" style="text-align:center;color:#4a6080;padding:20px">Pas encore de données de forme disponibles</td></tr>
-                {% endfor %}
-            </table>
+                            {{ j.equipe }}
+                        </div>
+                    </div>
+                    <span style="background:rgba(255,107,53,0.15);border:1px solid #ff6b35;color:#ff6b35;font-size:10px;padding:2px 7px;border-radius:10px;flex-shrink:0;white-space:nowrap">🔥 {{ j.buts_recents }}/5M</span>
+                </div>
+
+                <div class="enfeu-stats-row">
+                    <span>⚽ <strong style="color:#e0e8f0">{{ j.buts }}</strong> buts saison</span>
+                    <span>🅰️ {{ j.passes or 0 }}</span>
+                    <span style="color:#2a3a50">{{ j.matchs or 0 }} J</span>
+                </div>
+
+                <!-- Prochain match — chargé en asynchrone -->
+                <div class="enfeu-prochain" data-equipe-id="{{ j.equipe_id }}">
+                    <span style="color:#2a3a50">📅 Chargement…</span>
+                </div>
+
+                <!-- Pastilles de forme (5 derniers matchs) -->
+                <div class="enfeu-dots">
+                    {% for m in j.forme %}
+                    <span class="enfeu-dot"
+                          style="background:{% if m.buts > 0 %}#00D4FF{% elif m.passes > 0 %}#FFA500{% else %}#ff4444{% endif %}"
+                          title="{% if m.buts > 0 %}⚽ {{ m.buts }} but{% if m.buts > 1 %}s{% endif %}{% elif m.passes > 0 %}🅰️ {{ m.passes }} passe{% else %}Pas de contribution{% endif %}"></span>
+                    {% endfor %}
+                    {% if not j.forme %}<span style="color:#2a3a50;font-size:10px">—</span>{% endif %}
+                </div>
+
+                <div class="enfeu-footer">
+                    <span class="ligue-badge">
+                        {% if j.drapeau %}<span class="fi fi-{{ j.drapeau }}"></span>{% endif %}
+                        {{ j.ligue }}
+                    </span>
+                    <span class="score" style="font-size:13px">Score {{ j.score }}</span>
+                </div>
+            </div>
+            {% endfor %}
         </div>
+        {% else %}
+        <div style="text-align:center;color:#4a6080;padding:40px">Pas encore de données de forme disponibles</div>
+        {% endif %}
     </div>
 
     {% for region, joueurs in regions.items() %}
@@ -215,6 +242,27 @@ function showRegion(id, e) {
     document.getElementById('region-' + id).classList.add('active');
     if (e && e.target) e.target.classList.add('active');
 }
+
+/* ── Prochain match pour chaque joueur En feu ─────────────── */
+function loadProchainMatchs() {
+    document.querySelectorAll('.enfeu-prochain[data-equipe-id]').forEach(el => {
+        const equipeId = el.dataset.equipeId;
+        if (!equipeId) return;
+        fetch('/api/prochain-match/' + equipeId)
+            .then(r => r.json())
+            .then(data => {
+                if (data.match) {
+                    const m = data.match;
+                    const loc = m.is_home ? '🏠' : '✈️';
+                    el.innerHTML = `📅 <span style="color:#e0e8f0">Prochain : <strong>${m.date_label}</strong> ${loc} vs <strong>${m.adversaire}</strong> — ${m.heure}</span>`;
+                } else {
+                    el.innerHTML = '<span style="color:#2a3a50">Pas de match cette semaine</span>';
+                }
+            })
+            .catch(() => { el.textContent = ''; });
+    });
+}
+loadProchainMatchs();
 </script>
 
 </body>

@@ -142,10 +142,13 @@
     </div>
 
     <div class="stats-grid" id="stats-globales">
-        <div class="stat-card"><div class="label">Total prédictions</div><div class="value" id="stat-total">—</div></div>
-        <div class="stat-card"><div class="label">Correctes</div><div class="value good" id="stat-correct">—</div></div>
-        <div class="stat-card"><div class="label">Précision globale</div><div class="value" id="stat-precision">—</div></div>
+        <div class="stat-card"><div class="label">Prédictions ≥65%</div><div class="value" id="stat-total">—</div></div>
+        <div class="stat-card"><div class="label">Correctes (≥65%)</div><div class="value good" id="stat-correct">—</div></div>
+        <div class="stat-card"><div class="label">Précision forte conviction</div><div class="value" id="stat-precision">—</div></div>
         <div class="stat-card"><div class="label">En attente</div><div class="value" id="stat-attente">—</div></div>
+    </div>
+    <div class="msg-info" style="margin-bottom:20px">
+        📌 <span>Précision calculée uniquement sur les prédictions à forte conviction (≥65%)</span> — les matchs trop incertains sont exclus de l'historique et des statistiques.
     </div>
 
     <div class="tabs">
@@ -290,24 +293,30 @@ async function chargerHistorique() {
         const r = await fetch('/api/historique-predictions');
         const data = await r.json();
 
-        // Stats globales
-        document.getElementById('stat-total').textContent = data.stats.total;
-        document.getElementById('stat-correct').textContent = data.stats.correct;
-        document.getElementById('stat-precision').textContent = data.stats.precision + '%';
-        document.getElementById('stat-attente').textContent = data.stats.en_attente;
+        // Filtrage forte conviction ≥65% (évite les matchs trop incertains)
+        const confiants = (data.derniers || []).filter(m => Math.max(m.pct_home || 0, m.pct_away || 0) >= 65);
+        const total65   = confiants.length;
+        const correct65 = confiants.filter(m => m.prediction_correcte === 1).length;
+        const prec65    = total65 > 0 ? Math.round(correct65 / total65 * 100) : 0;
 
-        const precColor = data.stats.precision >= 60 ? '#00ff87' : data.stats.precision >= 50 ? '#00D4FF' : '#ff4444';
+        // Stats globales — basées sur les prédictions ≥65%
+        document.getElementById('stat-total').textContent     = total65;
+        document.getElementById('stat-correct').textContent   = correct65;
+        document.getElementById('stat-precision').textContent = prec65 + '%';
+        document.getElementById('stat-attente').textContent   = data.stats.en_attente;
+
+        const precColor = prec65 >= 60 ? '#00ff87' : prec65 >= 50 ? '#00D4FF' : '#ff4444';
         document.getElementById('stat-precision').style.color = precColor;
 
-        // Derniers résultats
-        if (data.derniers.length === 0) {
-            document.getElementById('derniers-content').innerHTML = '<div class="msg-info">Aucun résultat vérifié pour l\'instant. Lance "Vérifier résultats d\'hier" !</div>';
+        // Derniers résultats — uniquement les ≥65%
+        if (confiants.length === 0) {
+            document.getElementById('derniers-content').innerHTML = '<div class="msg-info">Aucune prédiction à forte conviction (≥65%) vérifiée pour l\'instant.</div>';
         } else {
             let html = '<div class="table-block"><table>';
             html += '<tr><th>Date</th><th>Ligue</th><th>Match</th><th>Prédiction</th><th>Résultat</th><th>✓</th></tr>';
-            data.derniers.forEach(m => {
+            confiants.forEach(m => {
                 const drapeau = DRAPEAUX[m.ligue_id] || '';
-                const favori = m.pct_home > m.pct_away ? m.home : m.away;
+                const favori  = m.pct_home > m.pct_away ? m.home : m.away;
                 const pctFavori = Math.max(m.pct_home, m.pct_away);
                 const badge = m.prediction_correcte === 1
                     ? '<span class="badge-ok">✅ Correct</span>'
@@ -331,7 +340,7 @@ async function chargerHistorique() {
                             <div class="pct-home-mini" style="width:${m.pct_home}%"></div>
                             <div class="pct-away-mini"></div>
                         </div>
-                        <div style="font-size:11px;color:#4a6080;margin-top:3px">Favori: ${favori} (${pctFavori}%)</div>
+                        <div style="font-size:11px;color:#4a6080;margin-top:3px">Favori: ${favori} (<span style="color:#00ff87;font-weight:700">${pctFavori}%</span>)</div>
                     </td>
                     <td class="score-reel">${m.score_home} - ${m.score_away}</td>
                     <td>${badge}</td>

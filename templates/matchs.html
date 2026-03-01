@@ -421,9 +421,11 @@ function loadButeursForAll() {
 
     pendingButeurs.forEach(({ homeId, awayId, sectionId, matchCtx }) => {
         const section = document.getElementById(sectionId);
+        const homeNom = encodeURIComponent(matchCtx.home || '');
+        const awayNom = encodeURIComponent(matchCtx.away || '');
         Promise.all([
-            fetch(`/api/equipe/${homeId}/buteurs?adversaire_id=${awayId}&is_home=1`).then(r => r.json()),
-            fetch(`/api/equipe/${awayId}/buteurs?adversaire_id=${homeId}&is_home=0`).then(r => r.json())
+            fetch(`/api/equipe/${homeId}/buteurs?adversaire_id=${awayId}&is_home=1&equipe_nom=${homeNom}&adv_nom=${awayNom}`).then(r => r.json()),
+            fetch(`/api/equipe/${awayId}/buteurs?adversaire_id=${homeId}&is_home=0&equipe_nom=${awayNom}&adv_nom=${homeNom}`).then(r => r.json())
         ]).then(([homeData, awayData]) => {
             // Inline : top 3
             if (section) {
