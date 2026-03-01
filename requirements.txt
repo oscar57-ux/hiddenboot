@@ -3,3 +3,4 @@ requests
 numpy
 anthropic
 apscheduler
+psycopg2-binary

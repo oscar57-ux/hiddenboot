@@ -171,6 +171,89 @@ def get_db():
     conn.row_factory = sqlite3.Row
     return conn
 
+
+def get_pg():
+    """Connexion PostgreSQL (Railway). Fallback SQLite si DATABASE_URL absent."""
+    import psycopg2, psycopg2.extras
+    db_url = os.environ.get("DATABASE_URL", "")
+    if not db_url:
+        # Fallback local (dev sans Railway)
+        conn = sqlite3.connect("botfoot.db")
+        conn.row_factory = sqlite3.Row
+        return conn
+    if db_url.startswith("postgres://"):
+        db_url = db_url.replace("postgres://", "postgresql://", 1)
+    if "sslmode" not in db_url:
+        sep = "&" if "?" in db_url else "?"
+        db_url += f"{sep}sslmode=require"
+    conn = psycopg2.connect(db_url)
+    conn.cursor_factory = psycopg2.extras.RealDictCursor
+    return conn
+
+
+def _is_pg(conn):
+    """Vrai si la connexion est PostgreSQL (psycopg2)."""
+    try:
+        import psycopg2
+        return isinstance(conn, psycopg2.extensions.connection)
+    except Exception:
+        return False
+
+
+def _ph(conn):
+    """Retourne le placeholder correct selon le type de connexion."""
+    return "%s" if _is_pg(conn) else "?"
+
+
+def init_pg_tables():
+    """Crée les tables persistantes dans PostgreSQL si elles n'existent pas."""
+    try:
+        conn = get_pg()
+        c = conn.cursor()
+        if _is_pg(conn):
+            c.execute("""CREATE TABLE IF NOT EXISTS predictions (
+                id SERIAL PRIMARY KEY,
+                fixture_id INTEGER UNIQUE,
+                date TEXT, ligue TEXT, ligue_id INTEGER,
+                home TEXT, away TEXT,
+                pct_home INTEGER, pct_nul INTEGER DEFAULT 0, pct_away INTEGER,
+                score_home INTEGER, score_away INTEGER,
+                statut TEXT DEFAULT 'en_attente',
+                prediction_correcte INTEGER DEFAULT NULL,
+                date_maj TEXT
+            )""")
+            c.execute("""CREATE TABLE IF NOT EXISTS paris_jour (
+                id SERIAL PRIMARY KEY,
+                date TEXT, categorie TEXT, match TEXT, ligue TEXT,
+                type_pari TEXT, description TEXT, cote REAL,
+                probabilite INTEGER, raisonnement TEXT, timestamp TEXT,
+                probabilite_hiddenscout INTEGER DEFAULT NULL
+            )""")
+            c.execute("""CREATE TABLE IF NOT EXISTS paris_historique (
+                id SERIAL PRIMARY KEY,
+                date TEXT, match TEXT, ligue TEXT, categorie TEXT,
+                type_pari TEXT, description TEXT, cote REAL,
+                score_reel TEXT, gagne INTEGER DEFAULT NULL,
+                UNIQUE(date, match, type_pari)
+            )""")
+            c.execute("""CREATE TABLE IF NOT EXISTS predictions_buteurs (
+                id SERIAL PRIMARY KEY,
+                joueur_id INTEGER, nom TEXT, equipe TEXT, ligue TEXT, ligue_id INTEGER,
+                fixture_id INTEGER, date TEXT,
+                match_home TEXT, match_away TEXT, est_home INTEGER,
+                probabilite REAL, intervalle_bas INTEGER, intervalle_haut INTEGER,
+                forme_snapshot TEXT,
+                a_marque INTEGER DEFAULT NULL, buts_reels INTEGER DEFAULT NULL,
+                statut TEXT DEFAULT 'en_attente',
+                UNIQUE(joueur_id, fixture_id)
+            )""")
+            conn.commit()
+            print("[pg] tables PostgreSQL initialisées")
+        conn.close()
+    except Exception as e:
+        print(f"[pg] erreur init_pg_tables: {e}")
+
+
 def calculer_score_joueur(buts, passes, note, matchs, joueur_id=None):
     ratio = buts / matchs if matchs > 0 else 0
     bonus_titulaire = 3 if matchs >= 15 else 0
@@ -954,18 +1037,9 @@ def api_prochain_match(equipe_id):
 @app.route("/api/verifier-paris")
 def api_verifier_paris():
     """Vérifie les paris de la veille (ou ?date=) via les scores réels en DB."""
-    conn = get_db()
+    conn = get_pg()
     c = conn.cursor()
-    # Créer la table historique si besoin
-    c.execute("""CREATE TABLE IF NOT EXISTS paris_historique (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        date TEXT, match TEXT, ligue TEXT, categorie TEXT,
-        type_pari TEXT, description TEXT, cote REAL,
-        score_reel TEXT,
-        gagne INTEGER DEFAULT NULL,
-        UNIQUE(date, match, type_pari)
-    )""")
-    conn.commit()
+    ph = _ph(conn)
 
     from datetime import timedelta
     date_param = request.args.get("date", "").strip()
@@ -976,9 +1050,9 @@ def api_verifier_paris():
         cible = (date.today() - timedelta(days=1)).strftime("%Y-%m-%d")
 
     # Récupérer les paris du jour cible (hors résumé)
-    c.execute("""
+    c.execute(f"""
         SELECT * FROM paris_jour
-        WHERE date = ? AND categorie IN ('safe','tentant','cool','fun')
+        WHERE date = {ph} AND categorie IN ('safe','tentant','cool','fun')
     """, (cible,))
     paris_cible = c.fetchall()
 
@@ -993,11 +1067,11 @@ def api_verifier_paris():
         if len(parts) != 2:
             continue
         home_q, away_q = parts[0].strip(), parts[1].strip()
-        c.execute("""
+        c.execute(f"""
             SELECT score_home, score_away, statut FROM predictions
-            WHERE date = ? AND statut = 'termine'
-              AND (home LIKE ? OR home LIKE ?)
-              AND (away LIKE ? OR away LIKE ?)
+            WHERE date = {ph} AND statut = 'termine'
+              AND (home LIKE {ph} OR home LIKE {ph})
+              AND (away LIKE {ph} OR away LIKE {ph})
             LIMIT 1
         """, (cible,
               f"%{home_q[:10]}%", f"{home_q[:10]}%",
@@ -1039,9 +1113,10 @@ def api_verifier_paris():
 
         if gagne_pari is not None:
             try:
-                c.execute("""INSERT OR IGNORE INTO paris_historique
+                c.execute(f"""INSERT INTO paris_historique
                     (date, match, ligue, categorie, type_pari, description, cote, score_reel, gagne)
-                    VALUES (?,?,?,?,?,?,?,?,?)
+                    VALUES ({ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph})
+                    ON CONFLICT (date, match, type_pari) DO NOTHING
                 """, (cible, pari["match"], pari["ligue"], pari["categorie"],
                       pari["type_pari"], pari["description"], pari["cote"],
                       score_reel, gagne_pari))
@@ -1057,16 +1132,9 @@ def api_verifier_paris():
 
 @app.route("/api/paris-historique")
 def api_paris_historique():
-    conn = get_db()
+    conn = get_pg()
     c = conn.cursor()
     try:
-        c.execute("""CREATE TABLE IF NOT EXISTS paris_historique (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            date TEXT, match TEXT, ligue TEXT, categorie TEXT,
-            type_pari TEXT, description TEXT, cote REAL,
-            score_reel TEXT, gagne INTEGER DEFAULT NULL,
-            UNIQUE(date, match, type_pari)
-        )""")
         c.execute("""
             SELECT * FROM paris_historique
             ORDER BY date DESC, categorie ASC
@@ -1104,45 +1172,33 @@ def api_paris_historique():
 @app.route("/paris")
 def paris():
     from datetime import timedelta
-    conn = get_db()
+    conn = get_pg()
     c = conn.cursor()
-    # Créer la table si elle n'existe pas encore
-    c.execute("""CREATE TABLE IF NOT EXISTS paris_jour (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        date TEXT, categorie TEXT, match TEXT, ligue TEXT,
-        type_pari TEXT, description TEXT, cote REAL,
-        probabilite INTEGER, raisonnement TEXT, timestamp TEXT
-    )""")
+    ph = _ph(conn)
     today = date.today().strftime("%Y-%m-%d")
-    # Migration colonne probabilite_hiddenscout
     try:
-        c.execute("ALTER TABLE paris_jour ADD COLUMN probabilite_hiddenscout INTEGER DEFAULT NULL")
-        conn.commit()
-    except Exception:
-        pass
-    try:
-        c.execute("""
+        c.execute(f"""
             SELECT * FROM paris_jour
-            WHERE date = ? AND categorie IN ('safe','tentant','fun','cool')
+            WHERE date = {ph} AND categorie IN ('safe','tentant','fun','cool')
             ORDER BY CASE categorie
                 WHEN 'safe' THEN 1 WHEN 'tentant' THEN 2 WHEN 'cool' THEN 2 WHEN 'fun' THEN 3 END,
                 COALESCE(probabilite_hiddenscout, probabilite) DESC
         """, (today,))
         paris_today = [dict(r) for r in c.fetchall()]
-        c.execute("SELECT description FROM paris_jour WHERE date = ? AND categorie = 'resume'", (today,))
+        c.execute(f"SELECT description FROM paris_jour WHERE date = {ph} AND categorie = 'resume'", (today,))
         row = c.fetchone()
         resume = row["description"] if row else None
-        c.execute("SELECT MAX(timestamp) AS ts FROM paris_jour WHERE date = ?", (today,))
+        c.execute(f"SELECT MAX(timestamp) AS ts FROM paris_jour WHERE date = {ph}", (today,))
         row = c.fetchone()
         derniere_gen = row["ts"] if row and row["ts"] else None
         sept_j = (date.today() - timedelta(days=7)).strftime("%Y-%m-%d")
-        c.execute("""
+        c.execute(f"""
             SELECT date,
                 SUM(CASE WHEN categorie='safe' THEN 1 ELSE 0 END) AS n_safe,
                 SUM(CASE WHEN categorie='cool' THEN 1 ELSE 0 END) AS n_cool,
                 SUM(CASE WHEN categorie='fun'  THEN 1 ELSE 0 END) AS n_fun
             FROM paris_jour
-            WHERE date >= ? AND date < ? AND categorie IN ('safe','cool','fun')
+            WHERE date >= {ph} AND date < {ph} AND categorie IN ('safe','cool','fun')
             GROUP BY date ORDER BY date DESC
         """, (sept_j, today))
         historique = [dict(r) for r in c.fetchall()]
@@ -1155,13 +1211,6 @@ def paris():
     paris_histo = []
     histo_stats = {"total": 0, "gagne": 0, "taux": 0, "roi": 0}
     try:
-        c.execute("""CREATE TABLE IF NOT EXISTS paris_historique (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            date TEXT, match TEXT, ligue TEXT, categorie TEXT,
-            type_pari TEXT, description TEXT, cote REAL,
-            score_reel TEXT, gagne INTEGER DEFAULT NULL,
-            UNIQUE(date, match, type_pari)
-        )""")
         c.execute("""
             SELECT * FROM paris_historique ORDER BY date DESC, id DESC LIMIT 100
         """)
@@ -1202,11 +1251,12 @@ def paris():
 @app.route("/api/paris-jour")
 def api_paris_jour():
     today = date.today().strftime("%Y-%m-%d")
-    conn = get_db()
+    conn = get_pg()
     c = conn.cursor()
+    ph = _ph(conn)
     try:
-        c.execute("""
-            SELECT * FROM paris_jour WHERE date = ?
+        c.execute(f"""
+            SELECT * FROM paris_jour WHERE date = {ph}
             ORDER BY CASE categorie
                 WHEN 'safe' THEN 1 WHEN 'cool' THEN 2 WHEN 'fun' THEN 3 ELSE 4 END,
                 probabilite DESC
@@ -1247,31 +1297,12 @@ def sauvegarder_predictions():
     )
     data = response.json()
 
+    # SQLite pour les données bootstrap (classements, joueurs, etc.)
     conn = get_db()
     c = conn.cursor()
-
-    c.execute('''CREATE TABLE IF NOT EXISTS predictions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        fixture_id INTEGER UNIQUE,
-        date TEXT,
-        ligue TEXT,
-        ligue_id INTEGER,
-        home TEXT,
-        away TEXT,
-        pct_home INTEGER,
-        pct_nul INTEGER DEFAULT 0,
-        pct_away INTEGER,
-        score_home INTEGER,
-        score_away INTEGER,
-        statut TEXT DEFAULT "en_attente",
-        prediction_correcte INTEGER DEFAULT NULL,
-        date_maj TEXT
-    )''')
-    # Migration si la colonne pct_nul n'existe pas encore
-    try:
-        c.execute("ALTER TABLE predictions ADD COLUMN pct_nul INTEGER DEFAULT 0")
-    except Exception:
-        pass
+    # PostgreSQL pour les données persistantes (predictions, buteurs)
+    conn_pg = get_pg()
+    c_pg = conn_pg.cursor()
 
     c.execute("SELECT id FROM api_ligues")
     ligues_suivies = set(row["id"] for row in c.fetchall())
@@ -1307,6 +1338,7 @@ def sauvegarder_predictions():
     """)
     moy_buts_par_ligue = {row["ligue_id"]: max(0.5, row["moy"] or 1.35) for row in c.fetchall()}
 
+    ph = _ph(conn_pg)
     total = 0
     for match in data.get("response", []):
         ligue_id = match["league"]["id"]
@@ -1322,9 +1354,10 @@ def sauvegarder_predictions():
         fixture_id = match["fixture"]["id"]
 
         try:
-            c.execute('''INSERT OR IGNORE INTO predictions
+            c_pg.execute(f'''INSERT INTO predictions
                 (fixture_id, date, ligue, ligue_id, home, away, pct_home, pct_nul, pct_away, statut, date_maj)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, "en_attente", ?)''',
+                VALUES ({ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},'en_attente',{ph})
+                ON CONFLICT (fixture_id) DO NOTHING''',
                 (fixture_id, today, match["league"]["name"], ligue_id,
                  match["teams"]["home"]["name"], match["teams"]["away"]["name"],
                  pct_home, pct_nul, pct_away, datetime.now().strftime("%Y-%m-%d %H:%M")))
@@ -1332,26 +1365,10 @@ def sauvegarder_predictions():
         except Exception:
             pass
 
-    conn.commit()
+    conn_pg.commit()
 
     # ── Sauvegarde des buteurs prédits ─────────────────────────────────────────
     try:
-        c.execute("""CREATE TABLE IF NOT EXISTS predictions_buteurs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            joueur_id INTEGER, nom TEXT, equipe TEXT, ligue TEXT, ligue_id INTEGER,
-            fixture_id INTEGER, date TEXT,
-            match_home TEXT, match_away TEXT,
-            est_home INTEGER,
-            probabilite REAL, intervalle_bas INTEGER, intervalle_haut INTEGER,
-            forme_snapshot TEXT,
-            a_marque INTEGER DEFAULT NULL, buts_reels INTEGER DEFAULT NULL,
-            statut TEXT DEFAULT 'en_attente',
-            UNIQUE(joueur_id, fixture_id)
-        )""")
-        conn.commit()
-
-        c2 = conn.cursor()
-        # Recharger la liste des matchs d'aujourd'hui déjà filtrés
         for match in data.get("response", []):
             ligue_id = match["league"]["id"]
             if ligue_id not in ligues_suivies:
@@ -1363,37 +1380,37 @@ def sauvegarder_predictions():
             fixture_id = match["fixture"]["id"]
             ligue_nom_b = match["league"]["name"]
 
-            # Moyenne buts ligue
-            c2.execute("""
+            # Moyenne buts ligue (SQLite)
+            c.execute("""
                 SELECT CAST(SUM(buts_pour) AS REAL) / MAX(1, SUM(victoires + nuls + defaites)) AS moy
                 FROM classements WHERE ligue_id = ?
             """, (ligue_id,))
-            moy_row2 = c2.fetchone()
+            moy_row2 = c.fetchone()
             moy_ligue_b = max(0.5, (moy_row2["moy"] or 1.35) if moy_row2 and moy_row2["moy"] else 1.35)
 
             for (eq_id, adv_id, est_home_b, eq_name_b) in [
                 (home_id, away_id, True, home_name),
                 (away_id, home_id, False, away_name),
             ]:
-                # Stats défensives adversaire
-                c2.execute("""
+                # Stats défensives adversaire (SQLite)
+                c.execute("""
                     SELECT buts_contre, victoires, nuls, defaites
                     FROM classements WHERE equipe_id = ?
                 """, (adv_id,))
-                adv_row = c2.fetchone()
+                adv_row = c.fetchone()
                 if adv_row:
                     matchs_adv = max(1, (adv_row["victoires"] or 0) + (adv_row["nuls"] or 0) + (adv_row["defaites"] or 0))
                     be_adv_b = (adv_row["buts_contre"] or 0) / matchs_adv
                 else:
                     be_adv_b = moy_ligue_b
 
-                # Buts totaux équipe
-                c2.execute("SELECT buts_pour FROM classements WHERE equipe_id = ?", (eq_id,))
-                eq_row2 = c2.fetchone()
+                # Buts totaux équipe (SQLite)
+                c.execute("SELECT buts_pour FROM classements WHERE equipe_id = ?", (eq_id,))
+                eq_row2 = c.fetchone()
                 total_buts_eq = max(1, eq_row2["buts_pour"] or 1) if eq_row2 else 1
 
-                # Joueurs (matchs >= 5)
-                c2.execute("""
+                # Joueurs (matchs >= 5) (SQLite)
+                c.execute("""
                     SELECT j.id as joueur_id, j.nom, j.matchs, j.buts, j.passes, j.note, j.ratio,
                            e.nom as equipe
                     FROM api_joueurs j
@@ -1401,7 +1418,7 @@ def sauvegarder_predictions():
                     WHERE j.equipe_id = ? AND j.matchs >= 5
                     ORDER BY j.buts DESC
                 """, (eq_id,))
-                joueurs_b = c2.fetchall()
+                joueurs_b = c.fetchall()
 
                 for jb in joueurs_b:
                     buts_j = jb["buts"] or 0
@@ -1412,11 +1429,11 @@ def sauvegarder_predictions():
                     forme_str_b = ""
                     forme_recente_b = []
                     try:
-                        c2.execute("""
+                        c.execute("""
                             SELECT buts, passes, note, date FROM joueurs_forme
                             WHERE joueur_id = ? ORDER BY date DESC LIMIT 5
                         """, (jb["joueur_id"],))
-                        fr = c2.fetchall()
+                        fr = c.fetchall()
                         forme_recente_b = [{"buts": r["buts"] or 0, "passes": r["passes"] or 0, "note": round(float(r["note"] or 0), 1)} for r in fr]
                         if fr:
                             forme_str_b = "".join(
@@ -1441,11 +1458,12 @@ def sauvegarder_predictions():
                     if pct_b >= 20:
                         import json as _json
                         try:
-                            c.execute("""INSERT OR IGNORE INTO predictions_buteurs
+                            c_pg.execute(f"""INSERT INTO predictions_buteurs
                                 (joueur_id, nom, equipe, ligue, ligue_id, fixture_id, date,
                                  match_home, match_away, est_home, probabilite, intervalle_bas,
                                  intervalle_haut, forme_snapshot, statut)
-                                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,'en_attente')
+                                VALUES ({ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},'en_attente')
+                                ON CONFLICT (joueur_id, fixture_id) DO NOTHING
                             """, (
                                 jb["joueur_id"], jb["nom"], jb["equipe"] or eq_name_b,
                                 ligue_nom_b, ligue_id, fixture_id, today,
@@ -1455,11 +1473,12 @@ def sauvegarder_predictions():
                             ))
                         except Exception:
                             pass
-        conn.commit()
+        conn_pg.commit()
     except Exception as _be:
         print(f"[sauvegarder] erreur buteurs: {_be}")
 
     conn.close()
+    conn_pg.close()
     return jsonify({"sauvegarde": total, "date": today})
 
 @app.route("/api/verifier-resultats")
@@ -1485,8 +1504,9 @@ def verifier_resultats():
     )
     data = response.json()
 
-    conn = get_db()
+    conn = get_pg()
     c = conn.cursor()
+    ph = _ph(conn)
     total_verifie = 0
     total_correct = 0
 
@@ -1509,7 +1529,7 @@ def verifier_resultats():
             vrai_vainqueur = "nul"
 
         # Récupérer notre prédiction
-        c.execute("SELECT pct_home, pct_nul, pct_away FROM predictions WHERE fixture_id = ?", (fixture_id,))
+        c.execute(f"SELECT pct_home, pct_nul, pct_away FROM predictions WHERE fixture_id = {ph}", (fixture_id,))
         pred = c.fetchone()
 
         if not pred:
@@ -1527,13 +1547,13 @@ def verifier_resultats():
         total_verifie += 1
         total_correct += correct
 
-        c.execute('''UPDATE predictions SET
-            score_home = ?,
-            score_away = ?,
-            statut = "termine",
-            prediction_correcte = ?,
-            date_maj = ?
-            WHERE fixture_id = ?''',
+        c.execute(f'''UPDATE predictions SET
+            score_home = {ph},
+            score_away = {ph},
+            statut = 'termine',
+            prediction_correcte = {ph},
+            date_maj = {ph}
+            WHERE fixture_id = {ph}''',
             (goals_home, goals_away, correct,
              datetime.now().strftime("%Y-%m-%d %H:%M"), fixture_id))
 
@@ -1550,11 +1570,11 @@ def verifier_resultats():
 
 @app.route("/api/historique-predictions")
 def historique_predictions():
-    conn = get_db()
+    conn = get_pg()
     c = conn.cursor()
 
     seuil = max(0, min(100, int(request.args.get("seuil", 0) or 0)))
-    seuil_sql = f"AND MAX(pct_home, pct_away) >= {seuil}" if seuil > 0 else ""
+    seuil_sql = f"AND GREATEST(pct_home, pct_away) >= {seuil}" if seuil > 0 else ""
 
     date_param = request.args.get("date", "").strip()
     try:
@@ -1695,26 +1715,13 @@ def api_predictions_buteurs():
     except (ValueError, TypeError):
         date_param = date.today().strftime("%Y-%m-%d")
 
-    conn = get_db()
+    conn = get_pg()
     c = conn.cursor()
+    ph = _ph(conn)
 
-    # Créer la table si elle n'existe pas encore
-    c.execute("""CREATE TABLE IF NOT EXISTS predictions_buteurs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        joueur_id INTEGER, nom TEXT, equipe TEXT, ligue TEXT, ligue_id INTEGER,
-        fixture_id INTEGER, date TEXT,
-        match_home TEXT, match_away TEXT,
-        est_home INTEGER,
-        probabilite REAL, intervalle_bas INTEGER, intervalle_haut INTEGER,
-        forme_snapshot TEXT,
-        a_marque INTEGER DEFAULT NULL, buts_reels INTEGER DEFAULT NULL,
-        statut TEXT DEFAULT 'en_attente',
-        UNIQUE(joueur_id, fixture_id)
-    )""")
-
-    c.execute("""
+    c.execute(f"""
         SELECT * FROM predictions_buteurs
-        WHERE date = ?
+        WHERE date = {ph}
         ORDER BY probabilite DESC
     """, (date_param,))
     rows = c.fetchall()
@@ -1771,14 +1778,15 @@ def api_verifier_buteurs():
     except (ValueError, TypeError):
         date_param = date.today().strftime("%Y-%m-%d")
 
-    conn = get_db()
+    conn = get_pg()
     c = conn.cursor()
+    ph = _ph(conn)
 
     # Récupérer les fixture_ids distincts en attente pour cette date
     try:
-        c.execute("""
+        c.execute(f"""
             SELECT DISTINCT fixture_id FROM predictions_buteurs
-            WHERE date = ? AND statut = 'en_attente'
+            WHERE date = {ph} AND statut = 'en_attente'
         """, (date_param,))
         fixture_ids = [r["fixture_id"] for r in c.fetchall()]
     except Exception:
@@ -1845,19 +1853,19 @@ def api_verifier_buteurs():
                     buts_par_joueur[jid] = goals
 
         # Mettre à jour nos prédictions pour ce fixture
-        c.execute("""
+        c.execute(f"""
             SELECT id, joueur_id FROM predictions_buteurs
-            WHERE fixture_id = ? AND statut = 'en_attente'
+            WHERE fixture_id = {ph} AND statut = 'en_attente'
         """, (fid,))
         preds = c.fetchall()
         for pred in preds:
             jid = pred["joueur_id"]
             buts_reels = buts_par_joueur.get(jid, 0)
             a_marque = 1 if buts_reels > 0 else 0
-            c.execute("""
+            c.execute(f"""
                 UPDATE predictions_buteurs SET
-                    a_marque = ?, buts_reels = ?, statut = 'termine'
-                WHERE id = ?
+                    a_marque = {ph}, buts_reels = {ph}, statut = 'termine'
+                WHERE id = {ph}
             """, (a_marque, buts_reels, pred["id"]))
             total_verifie += 1
             total_marque += a_marque
@@ -1891,9 +1899,10 @@ def _job_verifier_resultats_auto():
     global _last_verify_time
     today = date.today().strftime("%Y-%m-%d")
     try:
-        conn = get_db()
+        conn = get_pg()
         c = conn.cursor()
-        c.execute("SELECT COUNT(*) as n FROM predictions WHERE date = ? AND statut = 'en_attente'", (today,))
+        ph = _ph(conn)
+        c.execute(f"SELECT COUNT(*) as n FROM predictions WHERE date = {ph} AND statut = 'en_attente'", (today,))
         row = c.fetchone()
         conn.close()
         if not row or (row["n"] or 0) == 0:
@@ -1908,6 +1917,8 @@ def _job_verifier_resultats_auto():
     except Exception as e:
         print(f"[scheduler] erreur verification: {e}")
 
+
+init_pg_tables()
 
 try:
     from apscheduler.schedulers.background import BackgroundScheduler

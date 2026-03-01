@@ -52,15 +52,45 @@ def get_db():
     return conn
 
 
-def _get_matchs_depuis_predictions(c, today):
+def get_pg():
+    """Connexion PostgreSQL (Railway). Fallback SQLite si DATABASE_URL absent."""
+    import psycopg2, psycopg2.extras
+    db_url = os.environ.get("DATABASE_URL", "")
+    if not db_url:
+        conn = sqlite3.connect("botfoot.db")
+        conn.row_factory = sqlite3.Row
+        return conn
+    if db_url.startswith("postgres://"):
+        db_url = db_url.replace("postgres://", "postgresql://", 1)
+    if "sslmode" not in db_url:
+        sep = "&" if "?" in db_url else "?"
+        db_url += f"{sep}sslmode=require"
+    conn = psycopg2.connect(db_url)
+    conn.cursor_factory = psycopg2.extras.RealDictCursor
+    return conn
+
+
+def _is_pg(conn):
     try:
-        c.execute("""
+        import psycopg2
+        return isinstance(conn, psycopg2.extensions.connection)
+    except Exception:
+        return False
+
+
+def _ph(conn):
+    return "%s" if _is_pg(conn) else "?"
+
+
+def _get_matchs_depuis_predictions(c_pg, ph, today):
+    try:
+        c_pg.execute(f"""
             SELECT home, away, ligue, ligue_id, pct_home, pct_nul, pct_away
             FROM predictions
-            WHERE date = ? AND statut = 'en_attente'
+            WHERE date = {ph} AND statut = 'en_attente'
             ORDER BY ligue, home
         """, (today,))
-        return [dict(r) for r in c.fetchall()]
+        return [dict(r) for r in c_pg.fetchall()]
     except Exception:
         return []
 
@@ -126,28 +156,21 @@ def generer_paris() -> int:
     today = date.today().strftime("%Y-%m-%d")
     now_ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+    # SQLite pour les données bootstrap (api_ligues)
     conn = get_db()
     c = conn.cursor()
+    # PostgreSQL pour les données persistantes (predictions, paris_jour)
+    conn_pg = get_pg()
+    c_pg = conn_pg.cursor()
+    ph = _ph(conn_pg)
 
-    c.execute("""CREATE TABLE IF NOT EXISTS paris_jour (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        date TEXT, categorie TEXT, match TEXT, ligue TEXT,
-        type_pari TEXT, description TEXT, cote REAL,
-        probabilite INTEGER, raisonnement TEXT, timestamp TEXT
-    )""")
-    # Migration colonne probabilite_hiddenscout si absente
-    try:
-        c.execute("ALTER TABLE paris_jour ADD COLUMN probabilite_hiddenscout INTEGER DEFAULT NULL")
-    except Exception:
-        pass
-    conn.commit()
-
-    # 1. Matchs
-    matchs = _get_matchs_depuis_predictions(c, today)
+    # 1. Matchs — d'abord depuis predictions (PG), sinon depuis l'API (SQLite pour les ligues)
+    matchs = _get_matchs_depuis_predictions(c_pg, ph, today)
     if not matchs:
         matchs = _get_matchs_depuis_api(c, today)
     if not matchs:
         conn.close()
+        conn_pg.close()
         return 0
 
     # 2. Construire le prompt — probabilité HiddenScout bien visible
@@ -261,14 +284,14 @@ Génère entre 4 et 10 paris bien répartis entre les catégories disponibles.""
             buteurs_par_match[match_key] += 1
 
     # 6. Effacer et réinsérer
-    c.execute("DELETE FROM paris_jour WHERE date = ?", (today,))
+    c_pg.execute(f"DELETE FROM paris_jour WHERE date = {ph}", (today,))
 
     resume = parsed.get("resume", "")
     if resume:
-        c.execute(
-            """INSERT INTO paris_jour
+        c_pg.execute(
+            f"""INSERT INTO paris_jour
                (date, categorie, match, ligue, type_pari, description, cote, probabilite, raisonnement, timestamp)
-               VALUES (?, 'resume', '', '', '', ?, 0, 0, '', ?)""",
+               VALUES ({ph},'resume','','','',{ph},0,0,'',{ph})""",
             (today, resume, now_ts),
         )
 
@@ -280,11 +303,11 @@ Génère entre 4 et 10 paris bien répartis entre les catégories disponibles.""
             cote = 1.5
         proba_hs = int(p.get("probabilite_hiddenscout", p.get("probabilite", 60)) or 60)
 
-        c.execute(
-            """INSERT INTO paris_jour
+        c_pg.execute(
+            f"""INSERT INTO paris_jour
                (date, categorie, match, ligue, type_pari, description, cote,
                 probabilite, probabilite_hiddenscout, raisonnement, timestamp)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               VALUES ({ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph})""",
             (
                 today, p["categorie"],
                 p.get("match", ""), p.get("ligue", ""),
@@ -295,6 +318,7 @@ Génère entre 4 et 10 paris bien répartis entre les catégories disponibles.""
         )
         count += 1
 
-    conn.commit()
+    conn_pg.commit()
     conn.close()
+    conn_pg.close()
     return count
