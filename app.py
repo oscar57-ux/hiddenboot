@@ -173,9 +173,9 @@ def get_db():
 
 
 def get_pg():
-    """Connexion PostgreSQL (Railway). Fallback SQLite si DATABASE_URL absent."""
+    """Connexion PostgreSQL (Railway). Fallback SQLite si aucune DATABASE_URL."""
     import psycopg2, psycopg2.extras
-    db_url = os.environ.get("DATABASE_URL", "")
+    db_url = os.environ.get("DATABASE_PUBLIC_URL") or os.environ.get("DATABASE_URL", "")
     if not db_url:
         # Fallback local (dev sans Railway)
         conn = sqlite3.connect("botfoot.db")
