@@ -177,7 +177,7 @@ def get_pg():
     import psycopg2, psycopg2.extras
     db_url = os.environ.get("DATABASE_PUBLIC_URL") or os.environ.get("DATABASE_URL", "")
     if not db_url:
-        # Fallback local (dev sans Railway)
+        print("[get_pg] Aucune DATABASE_PUBLIC_URL ni DATABASE_URL — fallback SQLite")
         conn = sqlite3.connect("botfoot.db")
         conn.row_factory = sqlite3.Row
         return conn
@@ -186,9 +186,14 @@ def get_pg():
     if "sslmode" not in db_url:
         sep = "&" if "?" in db_url else "?"
         db_url += f"{sep}sslmode=require"
-    conn = psycopg2.connect(db_url)
-    conn.cursor_factory = psycopg2.extras.RealDictCursor
-    return conn
+    try:
+        conn = psycopg2.connect(db_url)
+        conn.cursor_factory = psycopg2.extras.RealDictCursor
+        print(f"[get_pg] Connexion PostgreSQL OK — url: {db_url[:30]}...")
+        return conn
+    except Exception as e:
+        print(f"[get_pg] ERREUR connexion PostgreSQL: {e} — url: {db_url[:30]}...")
+        raise
 
 
 def _is_pg(conn):
@@ -442,20 +447,40 @@ def matchs():
 @app.route("/api/debug")
 def api_debug():
     """Endpoint de diagnostic pour vérifier l'état sur Railway."""
-    import sqlite3 as _sq
+    pub_url = os.environ.get("DATABASE_PUBLIC_URL", "")
+    priv_url = os.environ.get("DATABASE_URL", "")
+    db_url = pub_url or priv_url
     info = {
         "api_key_set": bool(API_SPORTS_KEY),
         "api_key_prefix": API_SPORTS_KEY[:6] + "..." if API_SPORTS_KEY else "VIDE",
+        "DATABASE_PUBLIC_URL_set": bool(pub_url),
+        "DATABASE_URL_set": bool(priv_url),
+        "db_url_found": bool(db_url),
+        "db_url_prefix": db_url[:30] if db_url else "AUCUNE",
     }
+    # SQLite bootstrap
     try:
         conn = get_db()
         c = conn.cursor()
         c.execute("SELECT COUNT(*) n FROM api_ligues"); info["api_ligues"] = c.fetchone()[0]
         c.execute("SELECT COUNT(*) n FROM classements"); info["classements"] = c.fetchone()[0]
         conn.close()
-        info["db"] = "ok"
+        info["sqlite"] = "ok"
     except Exception as e:
-        info["db"] = str(e)
+        info["sqlite"] = str(e)
+    # PostgreSQL persistant
+    try:
+        conn_pg = get_pg()
+        info["db_type"] = "postgresql" if _is_pg(conn_pg) else "sqlite"
+        c_pg = conn_pg.cursor()
+        ph = _ph(conn_pg)
+        c_pg.execute("SELECT COUNT(*) as n FROM predictions")
+        info["predictions_count"] = c_pg.fetchone()["n"]
+        conn_pg.close()
+        info["pg"] = "ok"
+    except Exception as e:
+        info["db_type"] = "error"
+        info["pg"] = str(e)
     try:
         import requests as req
         r = req.get(
