@@ -467,7 +467,11 @@ async function chargerHistorique() {
 
         renderResultats(derniers, aucunePred);
         renderEnAttente(en_attente, aucunePred);
-    } catch(e) { console.error(e); }
+    } catch(e) {
+        console.error(e);
+        document.getElementById('resultats-content').innerHTML = '<div class="empty-state">Erreur de chargement.</div>';
+        document.getElementById('attente-content').innerHTML   = '<div class="empty-state">Erreur de chargement.</div>';
+    }
 }
 
 function renderResultats(matchs, aucunePred) {
@@ -566,7 +570,11 @@ async function chargerStats() {
 
         renderChart(data.par_jour || []);
         renderLiguesStats(data.par_ligue || []);
-    } catch(e) { console.error(e); }
+    } catch(e) {
+        console.error(e);
+        const banner = document.getElementById('stats-banner');
+        if (banner) banner.innerHTML = '<div class="empty-state">Erreur de chargement des statistiques.</div>';
+    }
 }
 
 function renderChart(parJour) {

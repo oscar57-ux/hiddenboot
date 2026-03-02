@@ -1103,6 +1103,7 @@ def api_verifier_paris():
         if len(parts) != 2:
             continue
         home_q, away_q = parts[0].strip(), parts[1].strip()
+        print(f"[verifier-paris] lookup '{home_q[:15]}' vs '{away_q[:15]}' pour {cible}")
         c.execute(f"""
             SELECT score_home, score_away, statut FROM predictions
             WHERE date = {ph} AND statut = 'termine'
@@ -1114,6 +1115,7 @@ def api_verifier_paris():
               f"%{away_q[:10]}%", f"{away_q[:10]}%"))
         res = c.fetchone()
         if not res:
+            print(f"[verifier-paris] aucun résultat trouvé pour '{home_q}' vs '{away_q}'")
             continue
 
         sh = res["score_home"] or 0
@@ -1148,16 +1150,19 @@ def api_verifier_paris():
                 gagne_pari = 1 if sh != sa else 0
 
         if gagne_pari is not None:
+            print(f"[verifier-paris] '{pari['match']}' type='{type_pari}' → {score_reel} → gagne={gagne_pari}")
             try:
                 c.execute(f"""INSERT INTO paris_historique
                     (date, match, ligue, categorie, type_pari, description, cote, score_reel, gagne)
                     VALUES ({ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph})
-                    ON CONFLICT (date, match, type_pari) DO NOTHING
+                    ON CONFLICT (date, match, type_pari) DO UPDATE SET
+                        score_reel = EXCLUDED.score_reel,
+                        gagne = EXCLUDED.gagne
                 """, (cible, pari["match"], pari["ligue"], pari["categorie"],
                       pari["type_pari"], pari["description"], pari["cote"],
                       score_reel, gagne_pari))
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[verifier-paris] ERREUR INSERT: {e}")
             verifie += 1
             gagne += gagne_pari
 

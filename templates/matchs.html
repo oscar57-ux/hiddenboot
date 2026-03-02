@@ -85,7 +85,7 @@
         .buteurs-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; align-items: start; }
         .buteurs-col { display: flex; flex-direction: row; gap: 4px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
         .buteurs-col::-webkit-scrollbar { display: none; }
-        .buteurs-home { justify-content: flex-end; }
+        .buteurs-home { justify-content: flex-end; flex-direction: row-reverse; }
         .buteurs-away { justify-content: flex-start; }
         .j-row { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; width: 76px; gap: 3px; padding: 5px 4px; border-radius: 8px; border: 1px solid #1a2540; }
         .j-photo { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; background: #1a2540; flex-shrink: 0; border: 1px solid #1a2540; }
@@ -94,7 +94,7 @@
         .j-stats { font-size: 9px; color: #4a6080; margin: 1px 0 2px; }
         .j-dots { display: flex; gap: 3px; margin: 2px 0; align-items: center; justify-content: center; }
         .j-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
-        .j-pct { font-size: 11px; font-weight: 700; line-height: 1.2; text-align: center; display: block; }
+        .j-pct { font-size: 14px; font-weight: 700; line-height: 1.2; text-align: center; display: block; }
         @keyframes dots-bounce { 0%, 60%, 100% { transform: translateY(0); opacity: 0.3; } 30% { transform: translateY(-7px); opacity: 1; } }
         .loader-dots { display: flex; gap: 5px; justify-content: center; margin: 5px auto; }
         .loader-dots span { width: 6px; height: 6px; border-radius: 50%; background: #00D4FF; animation: dots-bounce 1.2s ease-in-out infinite; }
@@ -584,6 +584,7 @@ function afficherMatchs() {
 }
 
 /* ── Chargement des matchs ────────────────────────────────── */
+let _matchsRetried = false;
 function loadMatchs() {
     document.getElementById('matchs-container').innerHTML =
         '<div class="loading"><div class="loader-radar"><div class="ring"></div><div class="ring"></div><div class="ring"></div><div class="center"></div></div><p>Chargement des matchs...</p></div>';
@@ -593,6 +594,12 @@ function loadMatchs() {
         .then(r => r.json())
         .then(data => {
             if (!data.ligues || Object.keys(data.ligues).length === 0) {
+                if (!_matchsRetried) {
+                    _matchsRetried = true;
+                    setTimeout(loadMatchs, 3000);
+                    return;
+                }
+                _matchsRetried = false;
                 const d = new Date(currentDate + 'T12:00:00');
                 const label = d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
                 document.getElementById('matchs-container').innerHTML =
@@ -601,6 +608,7 @@ function loadMatchs() {
                     `<div class="loading"><p style="color:#4a6080">Aucun buteur disponible — pas de matchs pour le ${label}</p></div>`;
                 return;
             }
+            _matchsRetried = false;
             allMatchs = data.ligues;
             afficherMatchs();
         })
