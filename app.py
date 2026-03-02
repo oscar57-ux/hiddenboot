@@ -1072,50 +1072,50 @@ def api_prochain_match(equipe_id):
 
 @app.route("/api/verifier-paris")
 def api_verifier_paris():
-    """Vérifie les paris de la veille (ou ?date=) via les scores réels en DB."""
+    """Vérifie TOUS les paris non résolus dans paris_historique (gagne IS NULL), toutes dates."""
     conn = get_pg()
     c = conn.cursor()
     ph = _ph(conn)
 
-    from datetime import timedelta
-    date_param = request.args.get("date", "").strip()
-    try:
-        datetime.strptime(date_param, "%Y-%m-%d")
-        cible = date_param
-    except (ValueError, TypeError):
-        cible = (date.today() - timedelta(days=1)).strftime("%Y-%m-%d")
-
-    # Récupérer les paris du jour cible (hors résumé)
-    c.execute(f"""
-        SELECT * FROM paris_jour
-        WHERE date = {ph} AND categorie IN ('safe','tentant','cool','fun')
-    """, (cible,))
-    paris_cible = c.fetchall()
+    # 1. Tous les paris non vérifiés, toutes dates
+    c.execute("""
+        SELECT date, match, ligue, categorie, type_pari, description, cote
+        FROM paris_historique
+        WHERE gagne IS NULL
+        ORDER BY date DESC
+        LIMIT 300
+    """)
+    paris_non_verifies = [dict(r) for r in c.fetchall()]
+    print(f"[verifier-paris] {len(paris_non_verifies)} paris à vérifier (gagne=NULL)")
 
     verifie = 0
-    gagne = 0
-    for pari in paris_cible:
+    gagne_count = 0
+    perdu_count = 0
+
+    for pari in paris_non_verifies:
         match_str = pari["match"] or ""
-        # Tenter de trouver le résultat dans predictions
-        # Format match: "Home vs Away" ou "Home - Away"
+        date_pari = pari["date"]
+
         sep = " vs " if " vs " in match_str else " - "
         parts = match_str.split(sep, 1)
         if len(parts) != 2:
             continue
         home_q, away_q = parts[0].strip(), parts[1].strip()
-        print(f"[verifier-paris] lookup '{home_q[:15]}' vs '{away_q[:15]}' pour {cible}")
+
+        print(f"[verifier-paris] lookup '{home_q[:15]}' vs '{away_q[:15]}' ({date_pari})")
+
+        # 2+3. Chercher dans predictions — statut='termine' = match FT confirmé
         c.execute(f"""
-            SELECT score_home, score_away, statut FROM predictions
+            SELECT score_home, score_away FROM predictions
             WHERE date = {ph} AND statut = 'termine'
-              AND (home LIKE {ph} OR home LIKE {ph})
-              AND (away LIKE {ph} OR away LIKE {ph})
+              AND home LIKE {ph}
+              AND away LIKE {ph}
             LIMIT 1
-        """, (cible,
-              f"%{home_q[:10]}%", f"{home_q[:10]}%",
-              f"%{away_q[:10]}%", f"{away_q[:10]}%"))
+        """, (date_pari, f"%{home_q[:10]}%", f"%{away_q[:10]}%"))
         res = c.fetchone()
+
         if not res:
-            print(f"[verifier-paris] aucun résultat trouvé pour '{home_q}' vs '{away_q}'")
+            print(f"[verifier-paris] pas de résultat FT pour '{home_q}' vs '{away_q}' ({date_pari})")
             continue
 
         sh = res["score_home"] or 0
@@ -1124,6 +1124,7 @@ def api_verifier_paris():
         total = sh + sa
         type_pari = (pari["type_pari"] or "").lower()
 
+        # 4. Logique de vérification
         gagne_pari = None
         if "domicile" in type_pari or "victoire 1" in type_pari or type_pari in ("1", "home"):
             gagne_pari = 1 if sh > sa else 0
@@ -1131,6 +1132,13 @@ def api_verifier_paris():
             gagne_pari = 1 if sa > sh else 0
         elif "nul" in type_pari or type_pari == "x":
             gagne_pari = 1 if sh == sa else 0
+        elif "double chance" in type_pari:
+            if "1x" in type_pari:
+                gagne_pari = 1 if sh >= sa else 0
+            elif "x2" in type_pari:
+                gagne_pari = 1 if sa >= sh else 0
+            elif "12" in type_pari:
+                gagne_pari = 1 if sh != sa else 0
         elif "2.5" in type_pari:
             if "plus" in type_pari or "over" in type_pari or "+" in type_pari:
                 gagne_pari = 1 if total > 2 else 0
@@ -1141,34 +1149,34 @@ def api_verifier_paris():
                 gagne_pari = 1 if total > 1 else 0
         elif "btts" in type_pari or "les deux" in type_pari:
             gagne_pari = 1 if sh > 0 and sa > 0 else 0
-        elif "double chance" in type_pari:
-            if "1x" in type_pari:
-                gagne_pari = 1 if sh >= sa else 0
-            elif "x2" in type_pari:
-                gagne_pari = 1 if sa >= sh else 0
-            elif "12" in type_pari:
-                gagne_pari = 1 if sh != sa else 0
 
         if gagne_pari is not None:
-            print(f"[verifier-paris] '{pari['match']}' type='{type_pari}' → {score_reel} → gagne={gagne_pari}")
+            print(f"[verifier-paris] '{pari['match']}' → {score_reel} → gagne={gagne_pari}")
             try:
-                c.execute(f"""INSERT INTO paris_historique
-                    (date, match, ligue, categorie, type_pari, description, cote, score_reel, gagne)
-                    VALUES ({ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph})
-                    ON CONFLICT (date, match, type_pari) DO UPDATE SET
-                        score_reel = EXCLUDED.score_reel,
-                        gagne = EXCLUDED.gagne
-                """, (cible, pari["match"], pari["ligue"], pari["categorie"],
-                      pari["type_pari"], pari["description"], pari["cote"],
-                      score_reel, gagne_pari))
+                c.execute(f"""
+                    UPDATE paris_historique
+                    SET score_reel = {ph}, gagne = {ph}
+                    WHERE date = {ph} AND match = {ph} AND type_pari = {ph}
+                """, (score_reel, gagne_pari, date_pari, pari["match"], pari["type_pari"]))
             except Exception as e:
-                print(f"[verifier-paris] ERREUR INSERT: {e}")
+                print(f"[verifier-paris] ERREUR UPDATE: {e}")
+                continue
             verifie += 1
-            gagne += gagne_pari
+            if gagne_pari == 1:
+                gagne_count += 1
+            else:
+                perdu_count += 1
 
     conn.commit()
+    en_attente = len(paris_non_verifies) - verifie
     conn.close()
-    return jsonify({"verifie": verifie, "gagne": gagne, "date": cible})
+    # 5. Résumé
+    return jsonify({
+        "verifie": verifie,
+        "gagne": gagne_count,
+        "perdu": perdu_count,
+        "en_attente": en_attente,
+    })
 
 
 @app.route("/api/paris-historique")

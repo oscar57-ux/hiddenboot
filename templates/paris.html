@@ -576,7 +576,7 @@ async function verifierParis() {
     try {
         const r = await fetch('/api/verifier-paris');
         const d = await r.json();
-        alert(`Vérification terminée : ${d.gagne}/${d.verifie} paris gagnés pour le ${d.date}`);
+        alert(`Vérification terminée :\n✅ Gagnés : ${d.gagne}\n❌ Perdus : ${d.perdu}\n⏳ En attente (pas FT) : ${d.en_attente}`);
         location.reload();
     } catch(e) {
         alert('Erreur lors de la vérification');
