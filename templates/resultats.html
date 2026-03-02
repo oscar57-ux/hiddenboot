@@ -196,6 +196,7 @@
             <span class="ri-sep">|</span>
             Dernière vérif : <span class="ri-val" id="last-verify-label">—</span>
         </div>
+        <button id="btn-save-now" onclick="sauvegarderMaintenant()" style="margin-left:auto;background:#1a2540;border:1px solid #00D4FF;color:#00D4FF;border-radius:8px;padding:6px 14px;font-size:12px;cursor:pointer">💾 Sauvegarder maintenant</button>
     </div>
 
     <!-- Dashboard stats — toujours visible -->
@@ -467,9 +468,9 @@ async function chargerHistorique() {
         renderResultats(derniers, aucunePred);
         renderEnAttente(en_attente, aucunePred);
     } catch(e) {
-        console.error(e);
-        document.getElementById('resultats-content').innerHTML = '<div class="empty-state">Erreur de chargement.</div>';
-        document.getElementById('attente-content').innerHTML   = '<div class="empty-state">Erreur de chargement.</div>';
+        console.error('[chargerHistorique]', e);
+        document.getElementById('resultats-content').innerHTML = '<div class="empty-state">Aucune prédiction sauvegardée pour cette date.</div>';
+        document.getElementById('attente-content').innerHTML   = '<div class="empty-state">Aucun match en attente.</div>';
     }
 }
 
@@ -570,9 +571,9 @@ async function chargerStats() {
         renderChart(data.par_jour || []);
         renderLiguesStats(data.par_ligue || []);
     } catch(e) {
-        console.error(e);
+        console.error('[chargerStats]', e);
         const banner = document.getElementById('stats-banner');
-        if (banner) banner.innerHTML = '<div class="empty-state">Erreur de chargement des statistiques.</div>';
+        if (banner) banner.innerHTML = '<div class="empty-state">Pas encore assez de données — les stats apparaîtront après quelques jours.</div>';
     }
 }
 
@@ -703,7 +704,10 @@ async function chargerButeurs() {
         renderStatsCards(total, correct, prec, attente);
 
         renderButeursPreds(data.predictions || [], seuil);
-    } catch(e) { el.innerHTML = '<div class="empty-state">Erreur de chargement.</div>'; }
+    } catch(e) {
+        console.error('[chargerButeurs]', e);
+        el.innerHTML = '<div class="empty-state">Aucune prédiction buteur pour cette date.</div>';
+    }
 }
 
 function renderButeursPreds(predictions, seuil) {
@@ -781,6 +785,21 @@ updateCardsLabelsMatch();
 chargerHistorique();
 pollSchedulerStatus();
 setInterval(pollSchedulerStatus, 30000);
+
+async function sauvegarderMaintenant() {
+    const btn = document.getElementById('btn-save-now');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Sauvegarde…'; }
+    try {
+        const r = await fetch('/api/sauvegarder-predictions');
+        const d = await r.json();
+        if (btn) { btn.textContent = `✅ ${d.sauvegarde || 0} prédictions`; }
+        setTimeout(() => { if (btn) { btn.disabled = false; btn.textContent = '💾 Sauvegarder maintenant'; } }, 3000);
+        chargerHistorique();
+    } catch(e) {
+        console.error('[sauvegarderMaintenant]', e);
+        if (btn) { btn.disabled = false; btn.textContent = '❌ Erreur — réessayer'; }
+    }
+}
 
 function closeMoreMenu() {
     document.getElementById('more-menu').classList.remove('open');

@@ -227,6 +227,7 @@ def init_pg_tables():
                 prediction_correcte INTEGER DEFAULT NULL,
                 date_maj TEXT
             )""")
+            print("[pg] table 'predictions' OK")
             c.execute("""CREATE TABLE IF NOT EXISTS paris_jour (
                 id SERIAL PRIMARY KEY,
                 date TEXT, categorie TEXT, match TEXT, ligue TEXT,
@@ -234,6 +235,7 @@ def init_pg_tables():
                 probabilite INTEGER, raisonnement TEXT, timestamp TEXT,
                 probabilite_hiddenscout INTEGER DEFAULT NULL
             )""")
+            print("[pg] table 'paris_jour' OK")
             c.execute("""CREATE TABLE IF NOT EXISTS paris_historique (
                 id SERIAL PRIMARY KEY,
                 date TEXT, match TEXT, ligue TEXT, categorie TEXT,
@@ -243,6 +245,7 @@ def init_pg_tables():
                 score_reel TEXT, gagne INTEGER DEFAULT NULL,
                 UNIQUE(date, match, type_pari)
             )""")
+            print("[pg] table 'paris_historique' OK")
             # Migrations colonnes pour table existante
             for col_sql in [
                 "ALTER TABLE paris_historique ADD COLUMN IF NOT EXISTS probabilite_hiddenscout INTEGER DEFAULT NULL",
@@ -263,11 +266,15 @@ def init_pg_tables():
                 statut TEXT DEFAULT 'en_attente',
                 UNIQUE(joueur_id, fixture_id)
             )""")
+            print("[pg] table 'predictions_buteurs' OK")
             conn.commit()
-            print("[pg] tables PostgreSQL initialisées")
+            print("[pg] ✅ init_pg_tables terminé — toutes les tables PostgreSQL OK")
+        else:
+            print("[pg] fallback SQLite — init_pg_tables ignoré")
         conn.close()
     except Exception as e:
-        print(f"[pg] erreur init_pg_tables: {e}")
+        print(f"[pg] ❌ erreur init_pg_tables: {e}")
+        import traceback; traceback.print_exc()
 
 
 def calculer_score_joueur(buts, passes, note, matchs, joueur_id=None):
@@ -1334,7 +1341,9 @@ def resultats():
 def sauvegarder_predictions():
     """A appeler chaque jour avant les matchs pour sauvegarder les prédictions"""
     import requests as req
-    today = date.today().strftime("%Y-%m-%d")
+    from zoneinfo import ZoneInfo
+    today = datetime.now(ZoneInfo("Europe/Paris")).strftime("%Y-%m-%d")
+    print(f"[sauvegarder] date Paris = {today}")
     API_KEY = API_SPORTS_KEY
     api_headers = {"x-apisports-key": API_KEY}
 
@@ -1618,117 +1627,130 @@ def verifier_resultats():
 
 @app.route("/api/historique-predictions")
 def historique_predictions():
-    conn = get_pg()
-    c = conn.cursor()
-
-    seuil = max(0, min(100, int(request.args.get("seuil", 0) or 0)))
-    seuil_sql = f"AND GREATEST(pct_home, pct_away) >= {seuil}" if seuil > 0 else ""
-
-    date_param = request.args.get("date", "").strip()
+    _vide = {
+        "stats": {"total": 0, "correct": 0, "precision": 0, "en_attente": 0},
+        "par_ligue": [], "derniers": [], "en_attente": [], "par_jour": [],
+        "date": request.args.get("date", ""), "seuil": 0,
+    }
+    conn = None
     try:
-        datetime.strptime(date_param, "%Y-%m-%d")
-        date_filtre = date_param
-    except (ValueError, TypeError):
-        date_filtre = None
+        conn = get_pg()
+        c = conn.cursor()
 
-    # Stats globales (matchs terminés + seuil)
-    c.execute(f"""
-        SELECT
-            COUNT(*) as total,
-            SUM(CASE WHEN prediction_correcte = 1 THEN 1 ELSE 0 END) as correct,
-            SUM(CASE WHEN statut = 'en_attente' THEN 1 ELSE 0 END) as en_attente
-        FROM predictions
-        WHERE statut = 'termine' {seuil_sql}
-    """)
-    stats_row = c.fetchone()
-    c.execute("SELECT COUNT(*) as n FROM predictions WHERE statut = 'en_attente'")
-    attente_row = c.fetchone()
+        seuil = max(0, min(100, int(request.args.get("seuil", 0) or 0)))
+        seuil_sql = f"AND GREATEST(pct_home, pct_away) >= {seuil}" if seuil > 0 else ""
 
-    # Précision par ligue (terminés + seuil)
-    c.execute(f"""
-        SELECT ligue, ligue_id,
-               COUNT(*) as total,
-               SUM(CASE WHEN prediction_correcte = 1 THEN 1 ELSE 0 END) as correct
-        FROM predictions
-        WHERE statut = 'termine' {seuil_sql}
-        GROUP BY ligue
-        ORDER BY correct * 100 / COUNT(*) DESC
-    """)
-    par_ligue = c.fetchall()
+        date_param = request.args.get("date", "").strip()
+        try:
+            datetime.strptime(date_param, "%Y-%m-%d")
+            date_filtre = date_param
+        except (ValueError, TypeError):
+            date_filtre = None
 
-    # Derniers matchs vérifiés (terminés + seuil + date si fourni)
-    date_sql_derniers = f"AND date = '{date_filtre}'" if date_filtre else ""
-    c.execute(f"""
-        SELECT * FROM predictions
-        WHERE statut = 'termine' {seuil_sql} {date_sql_derniers}
-        ORDER BY date DESC, fixture_id DESC
-        LIMIT 100
-    """)
-    derniers = c.fetchall()
+        # Stats globales (matchs terminés + seuil)
+        c.execute(f"""
+            SELECT
+                COUNT(*) as total,
+                SUM(CASE WHEN prediction_correcte = 1 THEN 1 ELSE 0 END) as correct
+            FROM predictions
+            WHERE statut = 'termine' {seuil_sql}
+        """)
+        stats_row = c.fetchone()
+        c.execute("SELECT COUNT(*) as n FROM predictions WHERE statut = 'en_attente'")
+        attente_row = c.fetchone()
 
-    # En attente (sans seuil + date si fourni)
-    date_sql_attente = f"AND date = '{date_filtre}'" if date_filtre else ""
-    c.execute(f"""
-        SELECT * FROM predictions
-        WHERE statut = 'en_attente' {date_sql_attente}
-        ORDER BY date DESC
-        LIMIT 100
-    """)
-    en_attente = c.fetchall()
+        # Précision par ligue (terminés + seuil)
+        c.execute(f"""
+            SELECT ligue, ligue_id,
+                   COUNT(*) as total,
+                   SUM(CASE WHEN prediction_correcte = 1 THEN 1 ELSE 0 END) as correct
+            FROM predictions
+            WHERE statut = 'termine' {seuil_sql}
+            GROUP BY ligue, ligue_id
+            ORDER BY correct * 100 / NULLIF(COUNT(*), 0) DESC NULLS LAST
+        """)
+        par_ligue = c.fetchall()
 
-    # Par jour — 30 derniers jours, terminés + seuil
-    c.execute(f"""
-        SELECT date,
-               COUNT(*) as total,
-               SUM(CASE WHEN prediction_correcte = 1 THEN 1 ELSE 0 END) as correct
-        FROM predictions
-        WHERE statut = 'termine' {seuil_sql}
-        GROUP BY date
-        ORDER BY date DESC
-        LIMIT 30
-    """)
-    par_jour_rows = c.fetchall()
-    par_jour = []
-    for r in par_jour_rows:
-        total_j = r["total"] or 0
-        correct_j = r["correct"] or 0
-        par_jour.append({
-            "date": r["date"],
-            "total": total_j,
-            "correct": correct_j,
-            "precision": round(correct_j / total_j * 100) if total_j > 0 else 0,
+        # Derniers matchs vérifiés (terminés + seuil + date si fourni)
+        date_sql_derniers = f"AND date = '{date_filtre}'" if date_filtre else ""
+        c.execute(f"""
+            SELECT * FROM predictions
+            WHERE statut = 'termine' {seuil_sql} {date_sql_derniers}
+            ORDER BY date DESC, fixture_id DESC
+            LIMIT 100
+        """)
+        derniers = c.fetchall()
+
+        # En attente (sans seuil + date si fourni)
+        date_sql_attente = f"AND date = '{date_filtre}'" if date_filtre else ""
+        c.execute(f"""
+            SELECT * FROM predictions
+            WHERE statut = 'en_attente' {date_sql_attente}
+            ORDER BY date DESC
+            LIMIT 100
+        """)
+        en_attente = c.fetchall()
+
+        # Par jour — 30 derniers jours, terminés + seuil
+        c.execute(f"""
+            SELECT date,
+                   COUNT(*) as total,
+                   SUM(CASE WHEN prediction_correcte = 1 THEN 1 ELSE 0 END) as correct
+            FROM predictions
+            WHERE statut = 'termine' {seuil_sql}
+            GROUP BY date
+            ORDER BY date DESC
+            LIMIT 30
+        """)
+        par_jour_rows = c.fetchall()
+        par_jour = []
+        for r in par_jour_rows:
+            total_j = r["total"] or 0
+            correct_j = r["correct"] or 0
+            par_jour.append({
+                "date": r["date"],
+                "total": total_j,
+                "correct": correct_j,
+                "precision": round(correct_j / total_j * 100) if total_j > 0 else 0,
+            })
+        par_jour.reverse()
+
+        total_s = stats_row["total"] or 0
+        correct_s = stats_row["correct"] or 0
+        precision_globale = round(correct_s / total_s * 100) if total_s > 0 else 0
+
+        return jsonify({
+            "stats": {
+                "total": total_s,
+                "correct": correct_s,
+                "precision": precision_globale,
+                "en_attente": attente_row["n"] or 0,
+            },
+            "par_ligue": [
+                {
+                    "ligue": r["ligue"],
+                    "ligue_id": r["ligue_id"],
+                    "total": r["total"],
+                    "correct": r["correct"] or 0,
+                    "precision": round((r["correct"] or 0) / r["total"] * 100) if r["total"] else 0,
+                }
+                for r in par_ligue
+            ],
+            "derniers": [dict(r) for r in derniers],
+            "en_attente": [dict(r) for r in en_attente],
+            "par_jour": par_jour,
+            "date": date_filtre or "",
+            "seuil": seuil,
         })
-    par_jour.reverse()
-
-    conn.close()
-
-    total_s = stats_row["total"] or 0
-    correct_s = stats_row["correct"] or 0
-    precision_globale = round(correct_s / total_s * 100) if total_s > 0 else 0
-
-    return jsonify({
-        "stats": {
-            "total": total_s,
-            "correct": correct_s,
-            "precision": precision_globale,
-            "en_attente": attente_row["n"] or 0,
-        },
-        "par_ligue": [
-            {
-                "ligue": r["ligue"],
-                "ligue_id": r["ligue_id"],
-                "total": r["total"],
-                "correct": r["correct"] or 0,
-                "precision": round((r["correct"] or 0) / r["total"] * 100),
-            }
-            for r in par_ligue
-        ],
-        "derniers": [dict(r) for r in derniers],
-        "en_attente": [dict(r) for r in en_attente],
-        "par_jour": par_jour,
-        "date": date_filtre or "",
-        "seuil": seuil,
-    })
+    except Exception as e:
+        print(f"[historique-predictions] ❌ ERREUR: {e}")
+        import traceback; traceback.print_exc()
+        _vide["error"] = str(e)
+        return jsonify(_vide)
+    finally:
+        if conn:
+            try: conn.close()
+            except Exception: pass
 
 @app.route("/api/scheduler-status")
 def scheduler_status():
@@ -1763,58 +1785,65 @@ def api_predictions_buteurs():
     except (ValueError, TypeError):
         date_param = date.today().strftime("%Y-%m-%d")
 
-    conn = get_pg()
-    c = conn.cursor()
-    ph = _ph(conn)
+    conn = None
+    try:
+        conn = get_pg()
+        c = conn.cursor()
+        ph = _ph(conn)
 
-    c.execute(f"""
-        SELECT * FROM predictions_buteurs
-        WHERE date = {ph}
-        ORDER BY probabilite DESC
-    """, (date_param,))
-    rows = c.fetchall()
+        c.execute(f"""
+            SELECT * FROM predictions_buteurs
+            WHERE date = {ph}
+            ORDER BY probabilite DESC
+        """, (date_param,))
+        rows = c.fetchall()
 
-    # Stats globales buteurs
-    c.execute("""
-        SELECT
-            COUNT(*) as total,
-            SUM(CASE WHEN statut = 'termine' AND a_marque = 1 THEN 1 ELSE 0 END) as marque,
-            SUM(CASE WHEN statut = 'termine' THEN 1 ELSE 0 END) as termine,
-            SUM(CASE WHEN probabilite >= 20 AND statut = 'termine' AND a_marque = 1 THEN 1 ELSE 0 END) as ok_20,
-            SUM(CASE WHEN probabilite >= 20 AND statut = 'termine' THEN 1 ELSE 0 END) as tot_20,
-            SUM(CASE WHEN probabilite >= 30 AND statut = 'termine' AND a_marque = 1 THEN 1 ELSE 0 END) as ok_30,
-            SUM(CASE WHEN probabilite >= 30 AND statut = 'termine' THEN 1 ELSE 0 END) as tot_30,
-            SUM(CASE WHEN probabilite >= 40 AND statut = 'termine' AND a_marque = 1 THEN 1 ELSE 0 END) as ok_40,
-            SUM(CASE WHEN probabilite >= 40 AND statut = 'termine' THEN 1 ELSE 0 END) as tot_40,
-            SUM(CASE WHEN probabilite >= 65 AND statut = 'termine' AND a_marque = 1 THEN 1 ELSE 0 END) as ok_65,
-            SUM(CASE WHEN probabilite >= 65 AND statut = 'termine' THEN 1 ELSE 0 END) as tot_65
-        FROM predictions_buteurs
-    """)
-    gs = c.fetchone()
-    conn.close()
+        # Stats globales buteurs (toutes dates)
+        c.execute("""
+            SELECT
+                COUNT(*) as total,
+                SUM(CASE WHEN statut = 'termine' AND a_marque = 1 THEN 1 ELSE 0 END) as marque,
+                SUM(CASE WHEN statut = 'termine' THEN 1 ELSE 0 END) as termine,
+                SUM(CASE WHEN probabilite >= 20 AND statut = 'termine' AND a_marque = 1 THEN 1 ELSE 0 END) as ok_20,
+                SUM(CASE WHEN probabilite >= 20 AND statut = 'termine' THEN 1 ELSE 0 END) as tot_20,
+                SUM(CASE WHEN probabilite >= 30 AND statut = 'termine' AND a_marque = 1 THEN 1 ELSE 0 END) as ok_30,
+                SUM(CASE WHEN probabilite >= 30 AND statut = 'termine' THEN 1 ELSE 0 END) as tot_30,
+                SUM(CASE WHEN probabilite >= 40 AND statut = 'termine' AND a_marque = 1 THEN 1 ELSE 0 END) as ok_40,
+                SUM(CASE WHEN probabilite >= 40 AND statut = 'termine' THEN 1 ELSE 0 END) as tot_40,
+                SUM(CASE WHEN probabilite >= 65 AND statut = 'termine' AND a_marque = 1 THEN 1 ELSE 0 END) as ok_65,
+                SUM(CASE WHEN probabilite >= 65 AND statut = 'termine' THEN 1 ELSE 0 END) as tot_65
+            FROM predictions_buteurs
+        """)
+        gs = c.fetchone()
 
-    def pct(ok, tot):
-        return round(ok / tot * 100) if tot and tot > 0 else None
+        def pct(ok, tot):
+            return round(ok / tot * 100) if tot and tot > 0 else None
 
-    predictions = [dict(r) for r in rows]
-
-    return jsonify({
-        "predictions": predictions,
-        "date": date_param,
-        "stats": {
-            "total": gs["total"] or 0,
-            "termine": gs["termine"] or 0,
-            "marque": gs["marque"] or 0,
-            "precision_20": pct(gs["ok_20"] or 0, gs["tot_20"] or 0),
-            "precision_30": pct(gs["ok_30"] or 0, gs["tot_30"] or 0),
-            "precision_40": pct(gs["ok_40"] or 0, gs["tot_40"] or 0),
-            "precision_65": pct(gs["ok_65"] or 0, gs["tot_65"] or 0),
-            "tot_20": gs["tot_20"] or 0,
-            "tot_30": gs["tot_30"] or 0,
-            "tot_40": gs["tot_40"] or 0,
-            "tot_65": gs["tot_65"] or 0,
-        }
-    })
+        return jsonify({
+            "predictions": [dict(r) for r in rows],
+            "date": date_param,
+            "stats": {
+                "total": gs["total"] or 0,
+                "termine": gs["termine"] or 0,
+                "marque": gs["marque"] or 0,
+                "precision_20": pct(gs["ok_20"] or 0, gs["tot_20"] or 0),
+                "precision_30": pct(gs["ok_30"] or 0, gs["tot_30"] or 0),
+                "precision_40": pct(gs["ok_40"] or 0, gs["tot_40"] or 0),
+                "precision_65": pct(gs["ok_65"] or 0, gs["tot_65"] or 0),
+                "tot_20": gs["tot_20"] or 0,
+                "tot_30": gs["tot_30"] or 0,
+                "tot_40": gs["tot_40"] or 0,
+                "tot_65": gs["tot_65"] or 0,
+            }
+        })
+    except Exception as e:
+        print(f"[predictions-buteurs] ❌ ERREUR: {e}")
+        import traceback; traceback.print_exc()
+        return jsonify({"predictions": [], "date": date_param, "stats": {}, "error": str(e)})
+    finally:
+        if conn:
+            try: conn.close()
+            except Exception: pass
 
 
 @app.route("/api/verifier-buteurs")
