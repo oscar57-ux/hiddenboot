@@ -225,8 +225,13 @@ def init_pg_tables():
                 score_home INTEGER, score_away INTEGER,
                 statut TEXT DEFAULT 'en_attente',
                 prediction_correcte INTEGER DEFAULT NULL,
-                date_maj TEXT
+                date_maj TEXT,
+                heure_match TEXT DEFAULT NULL
             )""")
+            try:
+                c.execute("ALTER TABLE predictions ADD COLUMN IF NOT EXISTS heure_match TEXT DEFAULT NULL")
+            except Exception:
+                pass
             print("[pg] table 'predictions' OK")
             c.execute("""CREATE TABLE IF NOT EXISTS paris_jour (
                 id SERIAL PRIMARY KEY,
@@ -1079,7 +1084,12 @@ def api_prochain_match(equipe_id):
 
 @app.route("/api/verifier-paris")
 def api_verifier_paris():
-    """Vérifie TOUS les paris non résolus dans paris_historique (gagne IS NULL), toutes dates."""
+    """Vérifie TOUS les paris non résolus (gagne IS NULL), avec contrôle temporel Paris."""
+    from zoneinfo import ZoneInfo
+    from datetime import timedelta
+    paris_tz = ZoneInfo("Europe/Paris")
+    now_paris = datetime.now(paris_tz)
+
     conn = get_pg()
     c = conn.cursor()
     ph = _ph(conn)
@@ -1093,11 +1103,13 @@ def api_verifier_paris():
         LIMIT 300
     """)
     paris_non_verifies = [dict(r) for r in c.fetchall()]
-    print(f"[verifier-paris] {len(paris_non_verifies)} paris à vérifier (gagne=NULL)")
+    print(f"[verifier-paris] {len(paris_non_verifies)} paris à vérifier (gagne=NULL) — heure Paris: {now_paris.strftime('%H:%M')}")
 
     verifie = 0
     gagne_count = 0
     perdu_count = 0
+    trop_tot_count = 0
+    sans_resultat_count = 0
 
     for pari in paris_non_verifies:
         match_str = pari["match"] or ""
@@ -1106,15 +1118,14 @@ def api_verifier_paris():
         sep = " vs " if " vs " in match_str else " - "
         parts = match_str.split(sep, 1)
         if len(parts) != 2:
+            sans_resultat_count += 1
             continue
         home_q, away_q = parts[0].strip(), parts[1].strip()
 
-        print(f"[verifier-paris] lookup '{home_q[:15]}' vs '{away_q[:15]}' ({date_pari})")
-
-        # 2+3. Chercher dans predictions — statut='termine' = match FT confirmé
+        # 2. Chercher dans predictions (heure_match + scores + statut)
         c.execute(f"""
-            SELECT score_home, score_away FROM predictions
-            WHERE date = {ph} AND statut = 'termine'
+            SELECT score_home, score_away, statut, heure_match FROM predictions
+            WHERE date = {ph}
               AND home LIKE {ph}
               AND away LIKE {ph}
             LIMIT 1
@@ -1122,7 +1133,35 @@ def api_verifier_paris():
         res = c.fetchone()
 
         if not res:
-            print(f"[verifier-paris] pas de résultat FT pour '{home_q}' vs '{away_q}' ({date_pari})")
+            print(f"[verifier-paris] pas de prediction pour '{home_q}' vs '{away_q}' ({date_pari})")
+            sans_resultat_count += 1
+            continue
+
+        # 3. Contrôle temporel — calculer heure_fin avec gestion dépassement minuit
+        heure_match = res["heure_match"] if res["heure_match"] else None
+        if heure_match:
+            try:
+                h, m = map(int, heure_match.split(":"))
+                match_date = datetime.strptime(date_pari, "%Y-%m-%d")
+                # Construire datetime Paris complet (avec timezone)
+                match_start = datetime(
+                    match_date.year, match_date.month, match_date.day, h, m,
+                    tzinfo=paris_tz
+                )
+                # +1h45 = fin estimée, gère automatiquement le dépassement de minuit
+                match_end = match_start + timedelta(minutes=105)
+                if now_paris < match_end:
+                    print(f"[verifier-paris] trop tôt : '{home_q}' fin estimée {match_end.strftime('%H:%M')} (Paris)")
+                    trop_tot_count += 1
+                    continue
+            except Exception as e:
+                print(f"[verifier-paris] erreur parsing heure_match '{heure_match}': {e}")
+                # On continue sans filtre temporel si parsing échoue
+
+        # 4. Vérifier que le match est FT dans notre DB
+        if res["statut"] != "termine":
+            print(f"[verifier-paris] pas encore FT : '{home_q}' vs '{away_q}' statut={res['statut']}")
+            sans_resultat_count += 1
             continue
 
         sh = res["score_home"] or 0
@@ -1131,7 +1170,7 @@ def api_verifier_paris():
         total = sh + sa
         type_pari = (pari["type_pari"] or "").lower()
 
-        # 4. Logique de vérification
+        # 5. Logique de vérification selon type_pari
         gagne_pari = None
         if "domicile" in type_pari or "victoire 1" in type_pari or type_pari in ("1", "home"):
             gagne_pari = 1 if sh > sa else 0
@@ -1173,16 +1212,21 @@ def api_verifier_paris():
                 gagne_count += 1
             else:
                 perdu_count += 1
+        else:
+            # Type de pari non reconnu
+            sans_resultat_count += 1
 
     conn.commit()
-    en_attente = len(paris_non_verifies) - verifie
     conn.close()
-    # 5. Résumé
+
+    # 6. Résumé clair
+    print(f"[verifier-paris] résumé: {verifie} vérifiés ({gagne_count}✅ {perdu_count}❌) | {trop_tot_count} trop tôt | {sans_resultat_count} sans résultat")
     return jsonify({
         "verifie": verifie,
         "gagne": gagne_count,
         "perdu": perdu_count,
-        "en_attente": en_attente,
+        "trop_tot": trop_tot_count,
+        "sans_resultat": sans_resultat_count,
     })
 
 
@@ -1410,14 +1454,22 @@ def sauvegarder_predictions():
         pct_home, pct_nul, pct_away = calculer_proba_poisson(stats_home, stats_away, moy_ligue)
         fixture_id = match["fixture"]["id"]
 
+        # Extraire heure du match en heure Paris
+        heure_match = None
+        try:
+            fdt = datetime.fromisoformat(match["fixture"]["date"]).astimezone(ZoneInfo("Europe/Paris"))
+            heure_match = fdt.strftime("%H:%M")
+        except Exception:
+            pass
+
         try:
             c_pg.execute(f'''INSERT INTO predictions
-                (fixture_id, date, ligue, ligue_id, home, away, pct_home, pct_nul, pct_away, statut, date_maj)
-                VALUES ({ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},'en_attente',{ph})
+                (fixture_id, date, ligue, ligue_id, home, away, pct_home, pct_nul, pct_away, statut, date_maj, heure_match)
+                VALUES ({ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},'en_attente',{ph},{ph})
                 ON CONFLICT (fixture_id) DO NOTHING''',
                 (fixture_id, today, match["league"]["name"], ligue_id,
                  match["teams"]["home"]["name"], match["teams"]["away"]["name"],
-                 pct_home, pct_nul, pct_away, datetime.now().strftime("%Y-%m-%d %H:%M")))
+                 pct_home, pct_nul, pct_away, datetime.now().strftime("%Y-%m-%d %H:%M"), heure_match))
             total += 1
         except Exception:
             pass
