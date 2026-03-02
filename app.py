@@ -1122,7 +1122,7 @@ def api_verifier_paris():
             continue
         home_q, away_q = parts[0].strip(), parts[1].strip()
 
-        # 2. Chercher dans predictions (heure_match + scores + statut)
+        # 2. Chercher dans predictions PostgreSQL (heure_match + scores + statut)
         c.execute(f"""
             SELECT score_home, score_away, statut, heure_match FROM predictions
             WHERE date = {ph}
@@ -1131,9 +1131,36 @@ def api_verifier_paris():
             LIMIT 1
         """, (date_pari, f"%{home_q[:10]}%", f"%{away_q[:10]}%"))
         res = c.fetchone()
+        if res:
+            res = dict(res)
+
+        # 2b. Fallback SQLite — anciens matchs avant migration PostgreSQL
+        if not res:
+            try:
+                conn_sq = get_db()
+                c_sq = conn_sq.cursor()
+                c_sq.execute("""
+                    SELECT score_home, score_away, statut FROM predictions
+                    WHERE date = ? AND statut = 'termine'
+                      AND home LIKE ?
+                      AND away LIKE ?
+                    LIMIT 1
+                """, (date_pari, f"%{home_q[:10]}%", f"%{away_q[:10]}%"))
+                row_sq = c_sq.fetchone()
+                conn_sq.close()
+                if row_sq:
+                    res = {
+                        "score_home": row_sq["score_home"],
+                        "score_away": row_sq["score_away"],
+                        "statut": "termine",
+                        "heure_match": None,  # pas dispo dans SQLite → pas de filtre temporel
+                    }
+                    print(f"[verifier-paris] SQLite fallback OK pour '{home_q}' vs '{away_q}' ({date_pari})")
+            except Exception as e_sq:
+                print(f"[verifier-paris] erreur SQLite fallback: {e_sq}")
 
         if not res:
-            print(f"[verifier-paris] pas de prediction pour '{home_q}' vs '{away_q}' ({date_pari})")
+            print(f"[verifier-paris] introuvable PG+SQLite : '{home_q}' vs '{away_q}' ({date_pari})")
             sans_resultat_count += 1
             continue
 
