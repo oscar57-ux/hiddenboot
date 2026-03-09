@@ -131,7 +131,8 @@ def calculer_proba_poisson(stats_home, stats_away, moy_ligue=1.35):
 
 def calculer_proba_buteur_mc(ratio_buts, buts_encaisses_adv=1.35, forme_str="",
                               est_domicile=True, part_buts=0.30, moy_ligue=1.35,
-                              n_sims=10000, buts_saison=0, buts_recents=0):
+                              n_sims=10000, buts_saison=0, buts_recents=0,
+                              matchs_joues=0):
     """
     Monte Carlo Poisson : probabilité qu'un buteur marque dans ce match.
     lambda_buteur = taux × facteur_opposition × (1 + 0.3×forme_norm) × facteur_domicile × part_buts
@@ -162,6 +163,12 @@ def calculer_proba_buteur_mc(ratio_buts, buts_encaisses_adv=1.35, forme_str="",
 
     # Planchers minimum selon le profil du joueur (renforcés)
     plancher = 0.0
+    # Plancher absolu pour joueurs à 0 but : évite 1-2% pour des titulaires réguliers
+    if buts_saison == 0 and buts_recents == 0:
+        if matchs_joues >= 10:
+            plancher = max(plancher, 8.0)   # titulaire régulier (≥10 matchs) sans but → 8% min
+        elif matchs_joues >= 5:
+            plancher = max(plancher, 5.0)   # remplaçant régulier (5-9 matchs) → 5% min
     if buts_saison > 3:
         plancher = max(plancher, 5.0)
     if buts_saison > 8:
@@ -171,7 +178,7 @@ def calculer_proba_buteur_mc(ratio_buts, buts_encaisses_adv=1.35, forme_str="",
     if buts_recents >= 4:
         plancher = max(plancher, 15.0)
     mean_pct = max(mean_pct, plancher)
-    print(f"[buteur] p={mean_pct:.1f}% plancher={plancher:.0f}% (saison={buts_saison} recents={buts_recents})")
+    print(f"[buteur] p={mean_pct:.1f}% plancher={plancher:.0f}% (saison={buts_saison} recents={buts_recents} matchs={matchs_joues})")
 
     return (
         mean_pct,
@@ -741,6 +748,19 @@ def api_matchs_jour():
             "forme_detail_home": get_forme_detail(home_name, forme_raw_home),
             "forme_detail_away": get_forme_detail(away_name, forme_raw_away),
             "drapeau": DRAPEAUX_LIGUES.get(ligue_id, ""),
+            "qualite_donnees": (
+                "haute" if stats_home and stats_away and
+                    min(
+                        stats_home.get("victoires", 0) + stats_home.get("nuls", 0) + stats_home.get("defaites", 0),
+                        stats_away.get("victoires", 0) + stats_away.get("nuls", 0) + stats_away.get("defaites", 0)
+                    ) >= 10
+                else "moyenne" if stats_home and stats_away and
+                    min(
+                        stats_home.get("victoires", 0) + stats_home.get("nuls", 0) + stats_home.get("defaites", 0),
+                        stats_away.get("victoires", 0) + stats_away.get("nuls", 0) + stats_away.get("defaites", 0)
+                    ) >= 5
+                else "faible"
+            ),
         })
     # Commit PG (auto-saves effectuées dans la boucle) + fermeture propre
     if conn_pg:
@@ -1069,6 +1089,7 @@ def api_buteurs_equipe(equipe_id):
             moy_ligue=moy_ligue,
             buts_saison=buts,
             buts_recents=buts_recents_j,
+            matchs_joues=matchs_j,
         )
 
         score = calculer_score_joueur(buts, passes, j["note"] or 0, matchs_j, j["joueur_id"])
@@ -1656,6 +1677,7 @@ def sauvegarder_predictions():
                         moy_ligue=moy_ligue_b,
                         buts_saison=buts_j,
                         buts_recents=buts_rec_b,
+                        matchs_joues=matchs_j,
                     )
 
                     if pct_b >= 20:
@@ -1813,7 +1835,7 @@ def historique_predictions():
             FROM predictions
             WHERE statut = 'termine' {seuil_sql}
             GROUP BY ligue, ligue_id
-            ORDER BY correct * 100 / NULLIF(COUNT(*), 0) DESC NULLS LAST
+            ORDER BY SUM(CASE WHEN prediction_correcte = 1 THEN 1 ELSE 0 END) * 100 / NULLIF(COUNT(*), 0) DESC NULLS LAST
         """)
         par_ligue = c.fetchall()
 

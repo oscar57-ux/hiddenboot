@@ -90,7 +90,17 @@ def _get_matchs_depuis_predictions(c_pg, ph, today):
             WHERE date = {ph} AND statut = 'en_attente'
             ORDER BY ligue, home
         """, (today,))
-        return [dict(r) for r in c_pg.fetchall()]
+        matchs = [dict(r) for r in c_pg.fetchall()]
+        # Exclure les matchs dont les probas sont les valeurs par défaut (45/25/30)
+        # → signifie qu'aucune donnée de classements n'était disponible (qualite_donnees = "faible")
+        avant = len(matchs)
+        matchs = [
+            m for m in matchs
+            if not (m["pct_home"] == 45 and m["pct_nul"] == 25 and m["pct_away"] == 30)
+        ]
+        if avant != len(matchs):
+            print(f"[generateur] {avant - len(matchs)} matchs exclus (données insuffisantes) — {len(matchs)} retenus")
+        return matchs
     except Exception:
         return []
 
