@@ -195,6 +195,7 @@ def _get_matchs_depuis_api(c, today):
 
 
 def _extraire_json(raw: str) -> dict | None:
+    raw = raw.replace("```json", "").replace("```", "").strip()
     raw = re.sub(r"```(?:json)?\s*", "", raw)
     raw = raw.replace("```", "").strip()
     start = raw.find("{")
@@ -711,6 +712,15 @@ def generer_paris() -> int:
         m["_det_away"] = det_a
 
     # 2. Construire le prompt enrichi avec toutes les données disponibles
+    try:
+        _cur = conn_pg.cursor()
+        _cur.execute(f"SELECT COUNT(*) AS n FROM cotes_winamax WHERE date = {ph}", (today,))
+        _row = _cur.fetchone()
+        nb_cotes_db = (_row["n"] if isinstance(_row, dict) else _row[0]) if _row else 0
+        print(f"[cotes] {nb_cotes_db} cotes disponibles en BDD pour {today}")
+    except Exception:
+        pass
+
     blocs = []
     for m in matchs[:30]:
         ph_dom  = m["pct_home"]

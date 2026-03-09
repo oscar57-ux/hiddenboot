@@ -465,6 +465,7 @@ def _save(cotes):
         log.info(f"  {co['home']} vs {co['away']} → {cotes_trouvees}")
     conn.commit()
     conn.close()
+    print(f"[scraper] {n} cotes insérées/mises à jour")
     log.info(f"{n} matchs avec cotes sauvegardés")
     return n
 
