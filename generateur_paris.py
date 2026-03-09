@@ -272,6 +272,40 @@ def _migrer_paris_jour(c_pg):
             pass
 
 
+# Schéma JSON du prompt Claude — défini hors f-string pour éviter
+# que Pylance interprète "value_bet": true comme du code Python invalide.
+_PROMPT_JSON_SCHEMA = """\
+{
+  "resume": "Résumé en 1 phrase de la journée",
+  "valeur_du_jour": "Meilleur value bet en 1 phrase",
+  "paris": [
+    {
+      "categorie": "safe|tentant|fun",
+      "match": "Equipe A vs Equipe B",
+      "ligue": "Nom ligue",
+      "heure": "18:00",
+      "type_pari": "Type concis",
+      "description": "Description courte et précise",
+      "probabilite_hiddenscout": 82,
+      "cote": 1.45,
+      "value_bet": true,
+      "forme_domicile": "WWDWW",
+      "forme_exterieur": "WDLWL",
+      "classement": "3ème vs 15ème",
+      "raisonnement": "Justification croisant proba + forme + classement"
+    }
+  ],
+  "combi_du_jour": {
+    "selections": ["Match A — type", "Match B — type", "Match C — type"],
+    "cote_combinee": 3.45,
+    "probabilite_jointe": 58,
+    "mise_suggeree": 3.20,
+    "gain_potentiel": 11.04,
+    "description": "Pourquoi ce combi est solide"
+  }
+}"""
+
+
 def _init_paris_combi_table(c_pg, pg):
     """Crée la table paris_combi si elle n'existe pas."""
     if pg:
@@ -714,35 +748,7 @@ RÈGLES STRICTES :
    mise_suggeree = 3.20, gain_potentiel = round(mise * cote_combinee, 2).
 
 Réponds UNIQUEMENT en JSON valide sans markdown :
-{{
-  "resume": "Résumé en 1 phrase de la journée",
-  "valeur_du_jour": "Meilleur value bet en 1 phrase",
-  "paris": [
-    {{
-      "categorie": "safe|tentant|fun",
-      "match": "Equipe A vs Equipe B",
-      "ligue": "Nom ligue",
-      "heure": "18:00",
-      "type_pari": "Type concis",
-      "description": "Description courte et précise",
-      "probabilite_hiddenscout": 82,
-      "cote": 1.45,
-      "value_bet": true,
-      "forme_domicile": "WWDWW",
-      "forme_exterieur": "WDLWL",
-      "classement": "3ème vs 15ème",
-      "raisonnement": "Justification croisant proba + forme + classement"
-    }}
-  ],
-  "combi_du_jour": {{
-    "selections": ["Match A — type", "Match B — type", "Match C — type"],
-    "cote_combinee": 3.45,
-    "probabilite_jointe": 58,
-    "mise_suggeree": 3.20,
-    "gain_potentiel": 11.04,
-    "description": "Pourquoi ce combi est solide"
-  }}
-}}
+{_PROMPT_JSON_SCHEMA}
 
 Génère entre 6 et 12 paris bien répartis entre les catégories disponibles."""
 

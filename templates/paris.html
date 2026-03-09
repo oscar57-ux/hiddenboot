@@ -284,49 +284,8 @@
     <div class="resume-box">💡 {{ resume }}</div>
     {% endif %}
 
-    {% if combi_du_jour %}
-    <!-- ── Combi du jour ─────────────────────────────────────── -->
-    <div class="combi-card">
-        <div class="combi-header">
-            <div class="combi-title">
-                🎯 Combi du jour
-                <span class="combi-badge-simu">Simulation</span>
-            </div>
-            <div class="combi-statut">
-                {% if combi_du_jour.resultat == 'gagne' %}✅ Gagné
-                {% elif combi_du_jour.resultat == 'perdu' %}❌ Perdu
-                {% else %}⏳ En attente{% endif %}
-            </div>
-        </div>
-
-        <div class="combi-sels">
-            {% for sel in combi_du_jour.selections %}
-            <div class="combi-sel">
-                <div>
-                    <div class="combi-sel-match">{{ sel.match }}</div>
-                    <div class="combi-sel-type">{{ sel.type_pari }} · {{ sel.ligue }}</div>
-                </div>
-                <div class="combi-sel-right">
-                    <span class="combi-sel-proba">{{ sel.probabilite_hiddenscout }}%</span>
-                    <span class="combi-sel-cote">{{ sel.cote }}</span>
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-
-        <div class="combi-footer">
-            <div class="combi-cote-totale">
-                <span class="combi-cote-label">Cote combinée</span>
-                <span class="combi-cote-val">{{ combi_du_jour.cote_combinee }}</span>
-                <span class="combi-prob-jointe">prob. jointe ≈ {{ combi_du_jour.probabilite_jointe }}%</span>
-            </div>
-            <div class="combi-mise-info">
-                <div class="combi-mise-line">Mise suggérée : <strong>{{ combi_du_jour.mise_suggeree }}€</strong></div>
-                <div class="combi-gain-line">Gain potentiel : {{ combi_du_jour.gain_potentiel }}€</div>
-            </div>
-        </div>
-    </div>
-    {% endif %}
+    <!-- ── Combi du jour (chargé via JS) ───────────────────────── -->
+    <div id="combi-container"></div>
 
     {% if has_paris %}
 
@@ -650,6 +609,57 @@ async function verifierParis() {
         if (btn) { btn.disabled = false; btn.textContent = '🔄 Vérifier hier'; }
     }
 }
+
+/* ── Combi du jour ───────────────────────────────────────── */
+async function loadCombiDuJour() {
+    try {
+        const r = await fetch('/api/combi-du-jour');
+        const data = await r.json();
+        const combi = data.combi;
+        const el = document.getElementById('combi-container');
+        if (!combi || !el) return;
+
+        const selsHtml = (combi.selections || []).map(sel => `
+            <div class="combi-sel">
+                <div>
+                    <div class="combi-sel-match">${sel.match}</div>
+                    <div class="combi-sel-type">${sel.type_pari} · <span style="color:#4a6080">${sel.ligue}</span></div>
+                </div>
+                <div class="combi-sel-right">
+                    <span class="combi-sel-proba">${sel.probabilite_hiddenscout}%</span>
+                    <span class="combi-sel-cote">${parseFloat(sel.cote).toFixed(2)}</span>
+                </div>
+            </div>`).join('');
+
+        const statut = combi.resultat === 'gagne' ? '✅ Gagné'
+                     : combi.resultat === 'perdu'  ? '❌ Perdu'
+                     : '⏳ En attente';
+
+        el.innerHTML = `
+            <div class="combi-card">
+                <div class="combi-header">
+                    <div class="combi-title">
+                        🎯 Combi du jour
+                        <span class="combi-badge-simu">Simulation</span>
+                    </div>
+                    <div class="combi-statut">${statut}</div>
+                </div>
+                <div class="combi-sels">${selsHtml}</div>
+                <div class="combi-footer">
+                    <div class="combi-cote-totale">
+                        <span class="combi-cote-label">Cote combinée</span>
+                        <span class="combi-cote-val">${parseFloat(combi.cote_combinee).toFixed(2)}</span>
+                        <span class="combi-prob-jointe">prob. jointe ≈ ${combi.probabilite_jointe}%</span>
+                    </div>
+                    <div class="combi-mise-info">
+                        <div class="combi-mise-line">Mise suggérée : <strong>${parseFloat(combi.mise_suggeree).toFixed(2)}€</strong></div>
+                        <div class="combi-gain-line">Gain potentiel : ${parseFloat(combi.gain_potentiel).toFixed(2)}€</div>
+                    </div>
+                </div>
+            </div>`;
+    } catch(e) { /* silencieux */ }
+}
+loadCombiDuJour();
 
 /* ── Dernière mise à jour cotes Winamax ──────────────────── */
 (async function() {
