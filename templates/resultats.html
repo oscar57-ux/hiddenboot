@@ -41,18 +41,14 @@
 
         /* ── STATS CARDS ── */
         .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 18px; }
+        .stats-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 20px; }
         .stat-card { background: #0D1321; border: 1px solid #1a2540; border-radius: 12px; padding: 18px; text-align: center; transition: border-color 0.2s; }
         .stat-card .label { color: #4a6080; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
         .stat-card .value { font-size: 28px; font-weight: 700; color: #00D4FF; margin-top: 6px; }
         .stat-card .value.good { color: #00ff87; }
         .stat-card .value.bad { color: #ff4444; }
-
-        /* ── SEUIL BUTTONS (shared) ── */
-        .seuil-bar { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 18px; align-items: center; }
-        .seuil-bar .sb-label { color: #4a6080; font-size: 12px; margin-right: 4px; }
-        .seuil-btn { padding: 6px 13px; border-radius: 20px; border: 1px solid #1a2540; background: #1a2540; color: #4a6080; font-size: 12px; cursor: pointer; transition: all 0.2s; }
-        .seuil-btn:hover { border-color: #00D4FF; color: #00D4FF; }
-        .seuil-btn.active { border-color: #00D4FF; background: rgba(0,212,255,0.1); color: #00D4FF; font-weight: 700; }
+        .stat-card .sublabel { font-size: 11px; color: #4a6080; margin-top: 4px; }
+        .badge-simulation { background: rgba(255,100,0,0.18); border: 1px solid #ff6400; color: #ff9040; font-size: 10px; padding: 1px 6px; border-radius: 4px; font-weight: 700; display: inline-block; margin-top: 4px; }
 
         /* ── TABS ── */
         .tabs { display: flex; gap: 0; margin-bottom: 20px; border-bottom: 1px solid #1a2540; overflow-x: auto; }
@@ -61,6 +57,15 @@
         .tab.active { color: #00D4FF; border-bottom: 2px solid #00D4FF; }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
+
+        /* ── FILTER BAR ── */
+        .filter-bar { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; padding: 12px 16px; background: #0D1321; border: 1px solid #1a2540; border-radius: 10px; }
+        .filter-group { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
+        .filter-label { color: #4a6080; font-size: 12px; margin-right: 3px; }
+        .filter-btn { padding: 5px 12px; border-radius: 20px; border: 1px solid #1a2540; background: #1a2540; color: #4a6080; font-size: 12px; cursor: pointer; transition: all 0.2s; }
+        .filter-btn:hover { border-color: #00D4FF; color: #00D4FF; }
+        .filter-btn.active { border-color: #00D4FF; background: rgba(0,212,255,0.1); color: #00D4FF; font-weight: 600; }
+        .filter-sep { width: 1px; height: 20px; background: #1a2540; margin: 0 4px; }
 
         /* ── TABLE ── */
         .table-block { background: #0D1321; border: 1px solid #1a2540; border-radius: 12px; overflow: hidden; overflow-x: auto; }
@@ -78,14 +83,37 @@
         .badge-attente { display: inline-block; background: rgba(255,165,0,0.15); border: 1px solid #FFA500; color: #FFA500; font-size: 11px; padding: 2px 8px; border-radius: 10px; }
         .ligue-badge { display: inline-flex; align-items: center; gap: 4px; background: #1a2540; padding: 2px 7px; border-radius: 4px; font-size: 11px; color: #4a6080; }
 
+        /* Confidence badges */
+        .badge-conf { display: inline-block; padding: 2px 7px; border-radius: 8px; font-size: 11px; font-weight: 700; }
+        .badge-conf-85 { background: rgba(0,255,135,0.15); border: 1px solid #00ff87; color: #00ff87; }
+        .badge-conf-75 { background: rgba(0,212,255,0.15); border: 1px solid #00D4FF; color: #00D4FF; }
+        .badge-conf-65 { background: rgba(255,165,0,0.15); border: 1px solid #FFA500; color: #FFA500; }
+        .badge-conf-55 { background: rgba(255,100,100,0.10); border: 1px solid rgba(255,100,100,0.4); color: #ff9090; }
+
+        /* Paris badges */
+        .badge-safe { background: rgba(0,255,135,0.15); border: 1px solid #00ff87; color: #00ff87; font-size: 11px; padding: 2px 7px; border-radius: 8px; font-weight: 700; }
+        .badge-tentant { background: rgba(255,165,0,0.15); border: 1px solid #FFA500; color: #FFA500; font-size: 11px; padding: 2px 7px; border-radius: 8px; font-weight: 700; }
+        .badge-fun { background: rgba(255,100,100,0.12); border: 1px solid rgba(255,100,100,0.4); color: #ff9090; font-size: 11px; padding: 2px 7px; border-radius: 8px; font-weight: 700; }
+        .gain-pos { color: #00ff87; font-weight: 700; }
+        .gain-neg { color: #ff4444; font-weight: 700; }
+
+        /* Row tinting */
+        .row-correct td { background: rgba(0,255,135,0.04) !important; }
+        .row-incorrect td { background: rgba(255,68,68,0.04) !important; }
+
         /* ── STATS TAB ── */
         .stats-info-banner { background: rgba(0,212,255,0.06); border: 1px solid #1a2540; border-radius: 10px; padding: 14px 20px; margin-bottom: 20px; font-size: 13px; color: #4a6080; }
         .stats-info-banner strong { color: #00D4FF; }
         .chart-wrap { background: #0D1321; border: 1px solid #1a2540; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
-        .chart-title { font-size: 13px; color: #4a6080; margin-bottom: 16px; }
-        .chart-canvas-wrap { position: relative; height: 200px; }
+        .chart-title { font-size: 13px; color: #4a6080; margin-bottom: 16px; font-weight: 600; }
+        .chart-canvas-wrap { position: relative; height: 220px; }
+        .chart-row { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 0; }
 
-        /* ── LIGUE PRECISION TABLE ── */
+        /* ── HEATMAP ── */
+        .heatmap-wrap { background: #0D1321; border: 1px solid #1a2540; border-radius: 12px; overflow: hidden; overflow-x: auto; margin-bottom: 20px; }
+        .heatmap-wrap table { min-width: 450px; }
+
+        /* ── LIGUE PRECISION (legacy) ── */
         .ligue-precision { background: #0D1321; border: 1px solid #1a2540; border-radius: 12px; overflow: hidden; }
         .ligue-row { display: flex; align-items: center; gap: 15px; padding: 11px 18px; border-bottom: 1px solid #0a1020; }
         .ligue-row:last-child { border-bottom: none; }
@@ -125,10 +153,11 @@
         .loader-radar .ring { position: absolute; inset: 0; border-radius: 50%; border: 2px solid #00D4FF; animation: radar-ring 2s ease-out infinite; }
         .loader-radar .ring:nth-child(2) { animation-delay: 0.65s; }
         .loader-radar .ring:nth-child(3) { animation-delay: 1.3s; }
-        .loader-radar .center { position: absolute; width: 9px; height: 9px; border-radius: 50%; background: #00D4FF; box-shadow: 0 0 8px #00D4FF; top: 50%; left: 50%; transform: translate(-50%, -50%); }
+        .loader-radar .center { position: absolute; width: 9px; height: 9px; border-radius: 50%; background: #00D4FF; box-shadow: 0 0 8px #00D4FF; top: 50%; left: 50%; transform: translate(-50%,-50%); }
         .msg-info { background: rgba(0,212,255,0.05); border: 1px solid #1a2540; border-radius: 8px; padding: 14px 18px; color: #4a6080; font-size: 13px; margin-bottom: 16px; }
         .msg-info span { color: #00D4FF; }
         .empty-state { text-align: center; padding: 50px; color: #4a6080; font-size: 13px; }
+        .section-title { font-size: 13px; font-weight: 600; color: #4a6080; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; }
 
         .bottom-nav { display: none; }
         .more-menu { display: none; position: fixed; bottom: 60px; left: 0; right: 0; background: #0D1321; border-top: 1px solid #1a2540; z-index: 150; flex-direction: column; }
@@ -138,9 +167,12 @@
         .more-overlay { display: none; position: fixed; inset: 0; z-index: 140; }
         .more-overlay.open { display: block; }
 
+        @media (max-width: 900px) {
+            .chart-row { grid-template-columns: 1fr; }
+            .stats-grid-3 { grid-template-columns: repeat(2, 1fr); }
+        }
         @media (max-width: 768px) {
             .sidebar { display: none; }
-            .burger { display: none !important; }
             .main { margin-left: 0; padding: 16px 14px; padding-bottom: 80px; }
             .stats-grid { grid-template-columns: repeat(2, 1fr); }
             .precision-bar { width: 70px; }
@@ -150,6 +182,7 @@
             .bottom-nav a, .bottom-nav button { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: #4a6080; text-decoration: none; font-size: 10px; border: none; background: none; cursor: pointer; padding: 6px 4px; min-height: 44px; transition: color 0.2s; }
             .bottom-nav a.active, .bottom-nav button.active { color: #00D4FF; }
             .bottom-nav .bn-icon { font-size: 20px; line-height: 1; }
+            .stats-grid-3 { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -178,11 +211,11 @@
 <div class="main">
     <div class="page-header">
         <h2>✅ Résultats &amp; Formules</h2>
-        <p>Prédictions vs résultats réels + suivi des buteurs prédits</p>
+        <p>Dashboard analytique · prédictions vs résultats · buteurs · paris</p>
     </div>
 
-    <!-- Navigation par date -->
-    <div class="date-nav">
+    <!-- Navigation par date (masquée pour onglets globaux) -->
+    <div class="date-nav" id="date-nav">
         <button class="date-nav-btn" onclick="changeDate(-1)">← Hier</button>
         <div class="date-display" id="date-display">—</div>
         <button class="date-nav-btn today-btn" onclick="goToToday()">Aujourd'hui</button>
@@ -199,7 +232,7 @@
         <button id="btn-save-now" onclick="sauvegarderMaintenant()" style="margin-left:auto;background:#1a2540;border:1px solid #00D4FF;color:#00D4FF;border-radius:8px;padding:6px 14px;font-size:12px;cursor:pointer">💾 Sauvegarder maintenant</button>
     </div>
 
-    <!-- Dashboard stats — toujours visible -->
+    <!-- KPI cards partagées (4) -->
     <div class="stats-grid" id="stats-globales">
         <div class="stat-card">
             <div class="label" id="sc-label-0">Prédictions terminées</div>
@@ -219,84 +252,190 @@
         </div>
     </div>
 
-    <!-- Filtre seuil partagé -->
-    <div class="seuil-bar">
-        <span class="sb-label">Seuil :</span>
-        <button class="seuil-btn active" onclick="setSeuil(0, this)">Tout</button>
-        <button class="seuil-btn" onclick="setSeuil(65, this)">65%+</button>
-        <button class="seuil-btn" onclick="setSeuil(70, this)">70%+</button>
-        <button class="seuil-btn" onclick="setSeuil(75, this)">75%+</button>
-        <button class="seuil-btn" onclick="setSeuil(80, this)">80%+</button>
-        <button class="seuil-btn" onclick="setSeuil(85, this)">85%+</button>
-        <button class="seuil-btn" onclick="setSeuil(90, this)">90%+</button>
-        <button class="seuil-btn" onclick="setSeuil(95, this)">95%+</button>
-    </div>
-
     <!-- Onglets -->
     <div class="tabs">
         <div class="tab active" onclick="showTab('resultats', this)">📋 Résultats</div>
         <div class="tab" onclick="showTab('attente', this)">⏳ En attente</div>
-        <div class="tab" onclick="showTab('stats', this)">📊 Statistiques</div>
+        <div class="tab" onclick="showTab('statistiques', this)">📊 Statistiques</div>
         <div class="tab" onclick="showTab('buteurs', this)">⚽ Buteurs</div>
+        <div class="tab" onclick="showTab('winamax', this)">🎰 Paris Winamax</div>
         <div class="tab" onclick="showTab('formules', this)">📐 Formules</div>
     </div>
 
-    <!-- Tab Résultats -->
+    <!-- ════ Tab Résultats ════ -->
     <div class="tab-content active" id="tab-resultats">
+        <div class="filter-bar">
+            <div class="filter-group">
+                <span class="filter-label">Résultat :</span>
+                <button class="filter-btn active" onclick="setFiltreResResultat('tous', this)">Tous</button>
+                <button class="filter-btn" onclick="setFiltreResResultat('corrects', this)">✅ Corrects</button>
+                <button class="filter-btn" onclick="setFiltreResResultat('rates', this)">❌ Ratés</button>
+            </div>
+            <div class="filter-sep"></div>
+            <div class="filter-group">
+                <span class="filter-label">Seuil :</span>
+                <button class="filter-btn active" onclick="setFiltreResSeuil(0, this)">Tout</button>
+                <button class="filter-btn" onclick="setFiltreResSeuil(55, this)">55%+</button>
+                <button class="filter-btn" onclick="setFiltreResSeuil(65, this)">65%+</button>
+                <button class="filter-btn" onclick="setFiltreResSeuil(75, this)">75%+</button>
+                <button class="filter-btn" onclick="setFiltreResSeuil(85, this)">85%+</button>
+            </div>
+        </div>
         <div id="resultats-content"><div class="loading"><div class="loader-radar"><div class="ring"></div><div class="ring"></div><div class="ring"></div><div class="center"></div></div><p>Chargement...</p></div></div>
     </div>
 
-    <!-- Tab En attente -->
+    <!-- ════ Tab En attente ════ -->
     <div class="tab-content" id="tab-attente">
+        <div class="filter-bar">
+            <div class="filter-group">
+                <span class="filter-label">Seuil :</span>
+                <button class="filter-btn active" onclick="setFiltreAttSeuil(0, this)">Tout</button>
+                <button class="filter-btn" onclick="setFiltreAttSeuil(55, this)">55%+</button>
+                <button class="filter-btn" onclick="setFiltreAttSeuil(65, this)">65%+</button>
+                <button class="filter-btn" onclick="setFiltreAttSeuil(75, this)">75%+</button>
+            </div>
+        </div>
         <div id="attente-content"><div class="loading"><div class="loader-radar"><div class="ring"></div><div class="ring"></div><div class="ring"></div><div class="center"></div></div><p>Chargement...</p></div></div>
     </div>
 
-    <!-- Tab Statistiques -->
-    <div class="tab-content" id="tab-stats">
-        <div id="stats-banner"></div>
-        <div class="chart-wrap">
-            <div class="chart-title">Précision sur les 30 derniers jours</div>
-            <div class="chart-canvas-wrap">
-                <canvas id="chart-precision"></canvas>
+    <!-- ════ Tab Statistiques ════ -->
+    <div class="tab-content" id="tab-statistiques">
+        <div id="stats-extra-kpi" class="stats-grid-3" style="display:none"></div>
+
+        <div class="chart-row">
+            <div class="chart-wrap">
+                <div class="chart-title">📈 Précision sur 30 jours</div>
+                <div class="chart-canvas-wrap"><canvas id="chart-30j"></canvas></div>
+            </div>
+            <div class="chart-wrap">
+                <div class="chart-title">📊 Précision par tranche de confiance</div>
+                <div class="chart-canvas-wrap"><canvas id="chart-tranches"></canvas></div>
             </div>
         </div>
-        <div id="stats-ligues-content"></div>
+
+        <div class="chart-wrap">
+            <div class="chart-title">📅 7 derniers jours — Matchs vs Buteurs</div>
+            <div class="chart-canvas-wrap" style="height:180px"><canvas id="chart-7j"></canvas></div>
+        </div>
+
+        <div class="section-title" style="margin-top:4px">Précision par ligue</div>
+        <div class="heatmap-wrap" id="heatmap-ligues">
+            <div class="loading"><div class="loader-radar"><div class="ring"></div><div class="ring"></div><div class="ring"></div><div class="center"></div></div><p>Chargement...</p></div>
+        </div>
     </div>
 
-    <!-- Tab Buteurs -->
+    <!-- ════ Tab Buteurs ════ -->
     <div class="tab-content" id="tab-buteurs">
+        <div class="filter-bar">
+            <div class="filter-group">
+                <span class="filter-label">Seuil proba :</span>
+                <button class="filter-btn active" onclick="setFiltreButSeuil(20, this)">20%+</button>
+                <button class="filter-btn" onclick="setFiltreButSeuil(30, this)">30%+</button>
+                <button class="filter-btn" onclick="setFiltreButSeuil(40, this)">40%+</button>
+                <button class="filter-btn" onclick="setFiltreButSeuil(50, this)">50%+</button>
+            </div>
+            <div class="filter-sep"></div>
+            <div class="filter-group">
+                <span class="filter-label">Résultat :</span>
+                <button class="filter-btn active" onclick="setFiltreButResultat('tous', this)">Tous</button>
+                <button class="filter-btn" onclick="setFiltreButResultat('marque', this)">A marqué</button>
+                <button class="filter-btn" onclick="setFiltreButResultat('rate', this)">N'a pas marqué</button>
+            </div>
+        </div>
         <div id="buteurs-content"><div class="loading"><div class="loader-radar"><div class="ring"></div><div class="ring"></div><div class="ring"></div><div class="center"></div></div><p>Chargement...</p></div></div>
     </div>
 
-    <!-- Tab Formules -->
+    <!-- ════ Tab Paris Winamax ════ -->
+    <div class="tab-content" id="tab-winamax">
+        <div id="winamax-kpi" class="stats-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:18px">
+            <div class="stat-card"><div class="label">Paris joués</div><div class="value" id="w-total">—</div></div>
+            <div class="stat-card"><div class="label">Gagnés</div><div class="value good" id="w-gagnes">—</div></div>
+            <div class="stat-card"><div class="label">Perdus</div><div class="value bad" id="w-perdus">—</div></div>
+            <div class="stat-card"><div class="label">ROI réel</div><div class="value" id="w-roi">—</div></div>
+        </div>
+        <div class="stat-card" id="w-bankroll-card" style="margin-bottom:18px;text-align:left;display:flex;align-items:center;gap:20px">
+            <div>
+                <div class="label">Bankroll simulée <span class="badge-simulation">SIMULATION</span></div>
+                <div class="value" id="w-bankroll" style="font-size:32px;margin-top:6px">100€</div>
+                <div class="sublabel">Départ : 100€ · Mise : 5€/pari</div>
+            </div>
+        </div>
+
+        <div class="chart-wrap" style="margin-bottom:20px">
+            <div class="chart-title">💰 Évolution bankroll (100€ de départ · 5€/pari)</div>
+            <div class="chart-canvas-wrap" style="height:200px"><canvas id="chart-bankroll"></canvas></div>
+        </div>
+
+        <div class="filter-bar">
+            <div class="filter-group">
+                <span class="filter-label">Catégorie :</span>
+                <button class="filter-btn active" onclick="setFiltreParisCategorie('tous', this)">Tous</button>
+                <button class="filter-btn" onclick="setFiltreParisCategorie('SAFE', this)">SAFE</button>
+                <button class="filter-btn" onclick="setFiltreParisCategorie('TENTANT', this)">TENTANT</button>
+                <button class="filter-btn" onclick="setFiltreParisCategorie('FUN', this)">FUN</button>
+            </div>
+            <div class="filter-sep"></div>
+            <div class="filter-group">
+                <span class="filter-label">Résultat :</span>
+                <button class="filter-btn active" onclick="setFiltreParisResultat('tous', this)">Tous</button>
+                <button class="filter-btn" onclick="setFiltreParisResultat('gagne', this)">✅</button>
+                <button class="filter-btn" onclick="setFiltreParisResultat('perdu', this)">❌</button>
+                <button class="filter-btn" onclick="setFiltreParisResultat('attente', this)">⏳</button>
+            </div>
+        </div>
+        <div id="paris-content"><div class="loading"><div class="loader-radar"><div class="ring"></div><div class="ring"></div><div class="ring"></div><div class="center"></div></div><p>Chargement...</p></div></div>
+    </div>
+
+    <!-- ════ Tab Formules ════ -->
     <div class="tab-content" id="tab-formules">
         <div style="display:grid;gap:15px;margin-top:5px">
+
             <div style="background:#0D1321;border:1px solid #1a2540;border-radius:12px;padding:20px">
                 <div style="color:#00D4FF;font-size:15px;font-weight:600;margin-bottom:12px">🎯 Poisson Double — Prédiction de match</div>
                 <div style="background:#080C14;border-radius:8px;padding:14px;font-family:monospace;font-size:13px;color:#e0e8f0;line-height:2;margin-bottom:10px">
-                    λ_A = (buts_A / moy_ligue) &times; (buts_encaissés_B / moy_ligue) &times; <span style="color:#00D4FF">1.3</span> &nbsp;(facteur domicile)<br>
-                    λ_B = (buts_B / moy_ligue) &times; (buts_encaissés_A / moy_ligue) &times; <span style="color:#4a6080">1.0</span><br>
-                    P(i buts - j buts) = Poisson(λ_A, i) &times; Poisson(λ_B, j) &nbsp;pour i,j &isin; [0..8]
+                    λ_A = (buts_A / moy)<sup><span style="color:#00D4FF">1.5</span></sup> &times; (buts_enc_B / moy)<sup><span style="color:#00D4FF">1.5</span></sup> &times; <span style="color:#00D4FF">1.3</span>&nbsp;(domicile)<br>
+                    λ_B = (buts_B / moy)<sup><span style="color:#00D4FF">1.5</span></sup> &times; (buts_enc_A / moy)<sup><span style="color:#00D4FF">1.5</span></sup> &times; <span style="color:#4a6080">1.0</span><br>
+                    Forme : score_w<span style="color:#00D4FF">0.7</span> → ajuste λ de <span style="color:#00D4FF">±30%</span><br>
+                    P(i-j) = Poisson(λ_A, i) &times; Poisson(λ_B, j)&nbsp; i,j &isin; [0..8]
                 </div>
-                <div style="color:#4a6080;font-size:12px;line-height:1.7">Le modèle de Poisson double prédit le nombre de buts de chaque équipe séparément, en tenant compte de leur force offensive, de la défense adverse et de la moyenne de buts de la ligue. L'avantage domicile est modélisé par un facteur ×1.3. La forme récente ajuste λ de ±20% (w=0.9).</div>
+                <div style="color:#4a6080;font-size:12px;line-height:1.7">
+                    L'amplification <strong style="color:#e0e8f0">^1.5</strong> crée des écarts prononcés entre équipes fortes et faibles. La forme pondérée (décroissance w=0.7, fenêtre 10 matchs) ajuste les lambdas de ±30%. L'avantage domicile est modélisé par ×1.3.
+                </div>
             </div>
+
             <div style="background:#0D1321;border:1px solid #1a2540;border-radius:12px;padding:20px">
                 <div style="color:#00D4FF;font-size:15px;font-weight:600;margin-bottom:12px">⚽ Monte Carlo Buteur — Probabilité de marquer</div>
                 <div style="background:#080C14;border-radius:8px;padding:14px;font-family:monospace;font-size:13px;color:#e0e8f0;line-height:2;margin-bottom:10px">
-                    λ = taux_conv &times; opposition &times; (1 + 0.3 &times; forme_w<span style="color:#00D4FF">0.9</span>) &times; domicile(<span style="color:#00D4FF">1.15</span>) &times; part_buts<br>
+                    bonus_part = 1 + min(<span style="color:#00D4FF">0.15</span>, part_buts &times; <span style="color:#00D4FF">0.5</span>)<br>
+                    λ = taux_conv &times; opposition &times; (1 + <span style="color:#00D4FF">0.3</span> &times; forme_w<span style="color:#00D4FF">0.7</span>) &times; domicile(<span style="color:#00D4FF">1.15</span>) &times; bonus_part<br>
                     P(but) = 1 &minus; e<sup>&minus;λ</sup><br>
-                    Monte Carlo : 10 000 simulations avec bruit &Nopf;(1, 0.15) &rarr; IC 95%
+                    Monte Carlo : <span style="color:#00D4FF">10 000</span> simulations &Nopf;(1, 0.15) &rarr; IC 95%
                 </div>
-                <div style="color:#4a6080;font-size:12px;line-height:1.7">Pour chaque buteur, λ intègre son taux de conversion saison, la défense de l'adversaire, sa forme récente (pondérée), l'avantage domicile et sa part des buts de l'équipe. Monte Carlo simule 10 000 matchs avec une légère variance aléatoire pour produire une probabilité et un intervalle de confiance à 95%.</div>
+                <div style="color:#4a6080;font-size:12px;line-height:1.7">
+                    La <code style="color:#e0e8f0">part_buts</code> est remplacée par un <strong style="color:#e0e8f0">bonus_part</strong> modeste (+0% à +15%) pour éviter de compter les buts deux fois. Cap à λ=1.2 (≈70% max). Les planchers garantissent un minimum réaliste selon le profil du joueur.
+                </div>
             </div>
+
             <div style="background:#0D1321;border:1px solid #1a2540;border-radius:12px;padding:20px">
                 <div style="color:#00D4FF;font-size:15px;font-weight:600;margin-bottom:12px">📈 Forme Pondérée</div>
                 <div style="background:#080C14;border-radius:8px;padding:14px;font-family:monospace;font-size:13px;color:#e0e8f0;line-height:2;margin-bottom:10px">
-                    Score = &Sigma;(résultat<sub>i</sub> &times; <span style="color:#00D4FF">0.9</span><sup>N&minus;1&minus;i</sup>) / &Sigma;(<span style="color:#00D4FF">0.9</span><sup>N&minus;1&minus;i</sup>)<br>
-                    W = <span style="color:#00D4FF">3</span> pts &nbsp;| D = <span style="color:#FFA500">1</span> pt &nbsp;| L = <span style="color:#ff4444">0</span> pt &nbsp;| Fenêtre : 10 derniers matchs
+                    Score = &Sigma;(résultat<sub>i</sub> &times; <span style="color:#00D4FF">0.7</span><sup>N&minus;1&minus;i</sup>) / &Sigma;(<span style="color:#00D4FF">0.7</span><sup>N&minus;1&minus;i</sup>)<br>
+                    W = <span style="color:#00D4FF">3</span> pts &nbsp;| D = <span style="color:#FFA500">1</span> pt &nbsp;| L = <span style="color:#ff4444">0</span> pt &nbsp;| Fenêtre : 10 derniers matchs<br>
+                    Ajuste λ de <span style="color:#00D4FF">±30%</span>
                 </div>
-                <div style="color:#4a6080;font-size:12px;line-height:1.7">Les matchs récents pèsent plus que les anciens. Chaque résultat reçoit un poids qui décroît de 10% par match en remontant dans le temps. Un score de 3.0 = que des victoires récentes. Ce score ajuste λ de ±20% dans le modèle Poisson.</div>
+                <div style="color:#4a6080;font-size:12px;line-height:1.7">Décroissance w=0.7 par match en remontant dans le temps (plus agressive qu'auparavant). Les matchs récents ont un poids bien supérieur aux anciens, amplifiant les séries de forme.</div>
             </div>
+
+            <div style="background:#0D1321;border:1px solid #1a2540;border-radius:12px;padding:20px">
+                <div style="color:#00D4FF;font-size:15px;font-weight:600;margin-bottom:12px">🏆 Multiplicateur Classement — Boost favori</div>
+                <div style="background:#080C14;border-radius:8px;padding:14px;font-family:monospace;font-size:13px;color:#e0e8f0;line-height:2;margin-bottom:10px">
+                    Écart rang &lt; 5 &nbsp;&nbsp;: λ_favori &times; <span style="color:#00ff87">1.20</span><br>
+                    Écart rang 5-10 : λ_favori &times; <span style="color:#FFA500">1.35</span><br>
+                    Écart rang &gt; 10 : λ_favori &times; <span style="color:#ff4444">1.50</span>
+                </div>
+                <div style="color:#4a6080;font-size:12px;line-height:1.7">Appliqué dans le générateur de paris. Quand une équipe est nettement mieux classée (gros écart de rang), son lambda offensif est amplifié pour refléter la dominance attendue.</div>
+            </div>
+
             <div style="background:#0D1321;border:1px solid #1a2540;border-radius:12px;padding:20px">
                 <div style="color:#00D4FF;font-size:15px;font-weight:600;margin-bottom:12px">🏆 Score Équipe — Classements HiddenScout</div>
                 <div style="background:#080C14;border-radius:8px;padding:14px;font-family:monospace;font-size:13px;color:#e0e8f0;line-height:2;margin-bottom:10px">
@@ -304,6 +443,7 @@
                 </div>
                 <div style="color:#4a6080;font-size:12px;line-height:1.7">Le score HiddenScout classe les équipes selon leur dynamique réelle plutôt que leur seul palmarès.</div>
             </div>
+
             <div style="background:#0D1321;border:1px solid #1a2540;border-radius:12px;padding:20px">
                 <div style="color:#00D4FF;font-size:15px;font-weight:600;margin-bottom:12px">⭐ Score Joueur — Pépites HiddenScout</div>
                 <div style="background:#080C14;border-radius:8px;padding:14px;font-family:monospace;font-size:13px;color:#e0e8f0;line-height:2;margin-bottom:10px">
@@ -312,6 +452,7 @@
                 </div>
                 <div style="color:#4a6080;font-size:12px;line-height:1.7">Le score joueur combine les statistiques de la saison entière avec la forme récente (5 derniers matchs).</div>
             </div>
+
         </div>
     </div>
 
@@ -334,15 +475,31 @@ const DRAPEAUX = {
     218:"at",207:"ch",179:"gb-sct",71:"br",72:"br",128:"ar",131:"ar",239:"co",265:"cl",268:"uy"
 };
 
-let currentDate       = getTodayParis();
-let currentTab        = 'resultats';
-let currentSeuil      = 0;       // seuil partagé toutes tabs
+// ── STATE ──
+let currentDate = getTodayParis();
+let currentTab  = 'resultats';
 let _cachedHistorique = null;
 let _cachedButeurs    = null;
+let _cachedParis      = null;
 let _lastVerifyTs     = 0;
-let _chartInstance    = null;
+const tabLoaded = { statistiques: false, winamax: false };
 
-// ── UTILS ──────────────────────────────────────────────────────────────────
+// Filters
+let filtreResResultat = 'tous';
+let filtreResSeuil    = 0;
+let filtreAttSeuil    = 0;
+let filtreButSeuil    = 20;
+let filtreButResultat = 'tous';
+let filtreParisCategorie = 'tous';
+let filtreParisResultat  = 'tous';
+
+// Charts
+let chartLine30j   = null;
+let chartTranches  = null;
+let chart7j        = null;
+let chartBankroll  = null;
+
+// ── UTILS ──
 
 function getTodayParis() {
     return new Date().toLocaleDateString('fr-CA', { timeZone: 'Europe/Paris' });
@@ -366,7 +523,12 @@ function loader() {
     return '<div class="loading"><div class="loader-radar"><div class="ring"></div><div class="ring"></div><div class="ring"></div><div class="center"></div></div><p>Chargement...</p></div>';
 }
 
-// ── DATE NAV ───────────────────────────────────────────────────────────────
+function shortDate(d) {
+    const [, m, day] = d.split('-');
+    return `${parseInt(day)}/${m}`;
+}
+
+// ── DATE NAV ──
 
 function changeDate(delta) {
     const d = new Date(currentDate + 'T12:00:00');
@@ -386,16 +548,7 @@ function updateDateNav() {
     document.getElementById('date-display').textContent = formatDateLabel(currentDate);
 }
 
-// ── SEUIL (partagé) ────────────────────────────────────────────────────────
-
-function setSeuil(seuil, btn) {
-    currentSeuil = seuil;
-    document.querySelectorAll('.seuil-btn').forEach(b => b.classList.remove('active'));
-    if (btn) btn.classList.add('active');
-    reloadCurrentTab();
-}
-
-// ── TABS ───────────────────────────────────────────────────────────────────
+// ── TABS ──
 
 function showTab(name, el) {
     currentTab = name;
@@ -403,25 +556,32 @@ function showTab(name, el) {
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
     document.getElementById('tab-' + name).classList.add('active');
     if (el) el.classList.add('active');
-    reloadCurrentTab();
+
+    const dateDependent = ['resultats', 'attente', 'buteurs'];
+    document.getElementById('date-nav').style.display = dateDependent.includes(name) ? '' : 'none';
+
+    if (name === 'statistiques' && !tabLoaded.statistiques) {
+        tabLoaded.statistiques = true;
+        loadDashboardStats();
+    } else if (name === 'winamax' && !tabLoaded.winamax) {
+        tabLoaded.winamax = true;
+        loadWinamaxStats();
+    } else if (dateDependent.includes(name)) {
+        reloadCurrentTab();
+    }
 }
 
 function reloadCurrentTab() {
     if (currentTab === 'resultats' || currentTab === 'attente') {
         updateCardsLabelsMatch();
         chargerHistorique();
-    } else if (currentTab === 'stats') {
-        updateCardsLabelsMatch();
-        chargerStats();
     } else if (currentTab === 'buteurs') {
         updateCardsLabelsButeurs();
         chargerButeurs();
-    } else if (currentTab === 'formules') {
-        // no data to reload
     }
 }
 
-// ── STATS CARDS ─────────────────────────────────────────────────────────────
+// ── SHARED KPI CARDS ──
 
 function updateCardsLabelsMatch() {
     document.getElementById('sc-label-0').textContent = 'Prédictions terminées';
@@ -438,35 +598,57 @@ function updateCardsLabelsButeurs() {
 }
 
 function renderStatsCards(total, correct, precision, attente) {
-    document.getElementById('stat-total').textContent    = total ?? '—';
-    document.getElementById('stat-correct').textContent  = correct ?? '—';
+    document.getElementById('stat-total').textContent   = total ?? '—';
+    document.getElementById('stat-correct').textContent = correct ?? '—';
     const prec = precision ?? null;
     const el = document.getElementById('stat-precision');
     el.textContent = prec !== null ? prec + '%' : '—';
-    el.className   = 'value ' + (prec === null ? '' : prec >= 60 ? 'good' : prec >= 50 ? '' : 'bad');
+    el.className = 'value ' + (prec === null ? '' : prec >= 60 ? 'good' : prec >= 50 ? '' : 'bad');
     document.getElementById('stat-attente').textContent = attente ?? '—';
 }
 
-// ── HISTORIQUE (Résultats + En attente) ────────────────────────────────────
+// ── RÉSULTATS TAB FILTERS ──
+
+function setFiltreResResultat(val, btn) {
+    filtreResResultat = val;
+    document.querySelectorAll('#tab-resultats .filter-group:first-child .filter-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    if (_cachedHistorique) renderResultats(_cachedHistorique.derniers || []);
+}
+
+function setFiltreResSeuil(val, btn) {
+    filtreResSeuil = val;
+    const grp = document.querySelectorAll('#tab-resultats .filter-group');
+    if (grp[1]) grp[1].querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    if (_cachedHistorique) renderResultats(_cachedHistorique.derniers || []);
+}
+
+function setFiltreAttSeuil(val, btn) {
+    filtreAttSeuil = val;
+    document.querySelectorAll('#tab-attente .filter-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    if (_cachedHistorique) renderEnAttente(_cachedHistorique.en_attente || []);
+}
+
+// ── HISTORIQUE (Résultats + En attente) ──
 
 async function chargerHistorique() {
     try {
-        const url = `/api/historique-predictions?date=${currentDate}&seuil=${currentSeuil}`;
+        const url = `/api/historique-predictions?date=${currentDate}&seuil=0`;
         const data = await fetch(url).then(r => r.json());
         _cachedHistorique = data;
 
         const derniers   = data.derniers   || [];
         const en_attente = data.en_attente || [];
-        const aucunePred = derniers.length === 0 && en_attente.length === 0;
 
         const total  = derniers.length;
         const correct= derniers.filter(m => m.prediction_correcte === 1).length;
         const prec   = total > 0 ? Math.round(correct / total * 100) : null;
-        const att    = en_attente.length;
-        renderStatsCards(total, correct, prec, att);
+        renderStatsCards(total, correct, prec, en_attente.length);
 
-        renderResultats(derniers, aucunePred);
-        renderEnAttente(en_attente, aucunePred);
+        renderResultats(derniers);
+        renderEnAttente(en_attente);
     } catch(e) {
         console.error('[chargerHistorique]', e);
         document.getElementById('resultats-content').innerHTML = '<div class="empty-state">Aucune prédiction sauvegardée pour cette date.</div>';
@@ -474,40 +656,47 @@ async function chargerHistorique() {
     }
 }
 
-function renderResultats(matchs, aucunePred) {
+function confBadge(pct) {
+    if (pct >= 85) return `<span class="badge-conf badge-conf-85">${pct}%</span>`;
+    if (pct >= 75) return `<span class="badge-conf badge-conf-75">${pct}%</span>`;
+    if (pct >= 65) return `<span class="badge-conf badge-conf-65">${pct}%</span>`;
+    return `<span class="badge-conf badge-conf-55">${pct}%</span>`;
+}
+
+function renderResultats(allMatchs) {
     const el = document.getElementById('resultats-content');
-    const dateLabel = formatDateLabel(currentDate);
+    let matchs = [...allMatchs];
+    if (filtreResSeuil > 0) matchs = matchs.filter(m => Math.max(m.pct_home || 0, m.pct_away || 0) >= filtreResSeuil);
+    if (filtreResResultat === 'corrects') matchs = matchs.filter(m => m.prediction_correcte === 1);
+    if (filtreResResultat === 'rates')    matchs = matchs.filter(m => m.prediction_correcte === 0);
+
     if (!matchs.length) {
-        if (aucunePred) {
-            el.innerHTML = `<div class="empty-state" style="line-height:1.8">Aucune prédiction sauvegardée pour ${dateLabel}.<br><span style="color:#00D4FF;font-size:12px">Sauvegarde automatique à minuit et 12h (heure Paris)</span></div>`;
-        } else {
-            const seuilLabel = currentSeuil > 0 ? ` à ${currentSeuil}%+` : '';
-            el.innerHTML = `<div class="empty-state">Aucune prédiction${seuilLabel} vérifiée pour ${dateLabel}.</div>`;
-        }
+        const seuilLabel = filtreResSeuil > 0 ? ` à ${filtreResSeuil}%+` : '';
+        el.innerHTML = `<div class="empty-state">Aucune prédiction${seuilLabel} terminée pour ${formatDateLabel(currentDate)}.<br><span style="color:#00D4FF;font-size:12px">Sauvegarde automatique à minuit et 12h (heure Paris)</span></div>`;
         return;
     }
+
     let html = '<div class="table-block"><table>';
-    html += '<tr><th>Date</th><th>Ligue</th><th>Match</th><th>Prédiction</th><th>Score</th><th>✓</th></tr>';
+    html += '<tr><th>Date</th><th>Ligue</th><th>Match</th><th>Prédiction</th><th>Cote impl.</th><th>Score</th><th>✓</th></tr>';
     matchs.forEach(m => {
-        const dr = DRAPEAUX[m.ligue_id] || '';
-        const favori = m.pct_home > m.pct_away ? m.home : m.away;
+        const dr  = DRAPEAUX[m.ligue_id] || '';
         const pctFav = Math.max(m.pct_home || 0, m.pct_away || 0);
-        const badge  = m.prediction_correcte === 1
-            ? '<span class="badge-ok">✅ Correct</span>'
-            : '<span class="badge-ko">❌ Raté</span>';
-        html += `<tr>
-            <td style="color:#4a6080">${m.date}</td>
+        const favori = m.pct_home > m.pct_away ? m.home : m.away;
+        const coteImpl = pctFav > 0 ? (100 / pctFav).toFixed(2) : '—';
+        const ok  = m.prediction_correcte === 1;
+        const ko  = m.prediction_correcte === 0;
+        const badge = ok ? '<span class="badge-ok">✅ Correct</span>' : '<span class="badge-ko">❌ Raté</span>';
+        const rowClass = ok ? 'row-correct' : ko ? 'row-incorrect' : '';
+        html += `<tr class="${rowClass}">
+            <td style="color:#4a6080;white-space:nowrap">${m.date}</td>
             <td><span class="ligue-badge">${dr ? `<span class="fi fi-${dr}"></span>` : ''} ${m.ligue}</span></td>
             <td><span class="match-teams"><span class="home">${m.home}</span><span class="vs">vs</span><span class="away">${m.away}</span></span></td>
             <td>
-                <div style="font-size:12px;margin-bottom:3px">
-                    <span style="color:#00D4FF;font-weight:700">${m.pct_home}%</span>
-                    <span style="color:#4a6080;margin:0 3px">—</span>
-                    <span style="color:#ff4444;font-weight:700">${m.pct_away}%</span>
-                </div>
+                <div style="margin-bottom:3px">${confBadge(pctFav)}</div>
                 <div class="pct-bar-mini"><div class="pct-home-mini" style="width:${m.pct_home}%"></div></div>
-                <div style="font-size:11px;color:#4a6080;margin-top:2px">Favori : <span style="color:#00ff87">${favori} (${pctFav}%)</span></div>
+                <div style="font-size:11px;color:#4a6080;margin-top:2px">Favori : <span style="color:#00ff87">${favori}</span></div>
             </td>
+            <td style="color:#4a6080;font-size:12px">${coteImpl}</td>
             <td style="font-weight:700">${m.score_home ?? '?'} - ${m.score_away ?? '?'}</td>
             <td>${badge}</td>
         </tr>`;
@@ -516,35 +705,32 @@ function renderResultats(matchs, aucunePred) {
     el.innerHTML = html;
 }
 
-function renderEnAttente(matchs, aucunePred) {
+function renderEnAttente(allMatchs) {
     const el = document.getElementById('attente-content');
-    const seuilLabel = currentSeuil > 0 ? ` à ${currentSeuil}%+` : '';
+    let matchs = [...allMatchs];
+    if (filtreAttSeuil > 0) matchs = matchs.filter(m => Math.max(m.pct_home || 0, m.pct_away || 0) >= filtreAttSeuil);
+
     if (!matchs.length) {
-        if (aucunePred) {
-            el.innerHTML = `<div class="empty-state" style="line-height:1.8">Aucune prédiction sauvegardée pour ${formatDateLabel(currentDate)}.<br><span style="color:#00D4FF;font-size:12px">Sauvegarde automatique à minuit et 12h (heure Paris)</span></div>`;
-        } else {
-            el.innerHTML = `<div class="empty-state">Aucune prédiction${seuilLabel} en attente pour ${formatDateLabel(currentDate)}.</div>`;
-        }
+        const seuilLabel = filtreAttSeuil > 0 ? ` à ${filtreAttSeuil}%+` : '';
+        el.innerHTML = `<div class="empty-state">Aucune prédiction${seuilLabel} en attente pour ${formatDateLabel(currentDate)}.<br><span style="color:#00D4FF;font-size:12px">Sauvegarde automatique à minuit et 12h (heure Paris)</span></div>`;
         return;
     }
+
     let html = '<div class="table-block"><table>';
-    html += '<tr><th>Ligue</th><th>Match</th><th>Prédiction HiddenScout</th><th>Statut</th></tr>';
+    html += '<tr><th>Heure</th><th>Ligue</th><th>Match</th><th>Prédiction HiddenScout</th><th>Statut</th></tr>';
     matchs.forEach(m => {
         const dr = DRAPEAUX[m.ligue_id] || '';
-        const favori = m.pct_home > m.pct_away ? m.home : m.away;
         const pctFav = Math.max(m.pct_home || 0, m.pct_away || 0);
-        const fort = pctFav >= 65;
+        const favori = m.pct_home > m.pct_away ? m.home : m.away;
+        const heure = m.heure_match || '—';
         html += `<tr>
+            <td style="color:#4a6080;white-space:nowrap">${heure}</td>
             <td><span class="ligue-badge">${dr ? `<span class="fi fi-${dr}"></span>` : ''} ${m.ligue}</span></td>
             <td><span class="match-teams"><span class="home">${m.home}</span><span class="vs">vs</span><span class="away">${m.away}</span></span></td>
             <td>
-                <div style="font-size:12px;margin-bottom:3px">
-                    <span style="color:#00D4FF;font-weight:700">${m.pct_home}%</span>
-                    <span style="color:#4a6080;margin:0 3px">—</span>
-                    <span style="color:#ff4444;font-weight:700">${m.pct_away}%</span>
-                </div>
+                <div style="margin-bottom:3px">${confBadge(pctFav)}</div>
                 <div class="pct-bar-mini"><div class="pct-home-mini" style="width:${m.pct_home}%"></div></div>
-                <div style="font-size:11px;margin-top:2px">Favori : <span style="color:${fort ? '#00ff87' : '#00D4FF'}">${favori} (${pctFav}%)</span>${fort ? ' <span style="color:#00ff87">🔥</span>' : ''}</div>
+                <div style="font-size:11px;color:#4a6080;margin-top:2px">Favori : <span style="color:${pctFav>=65?'#00ff87':'#00D4FF'}">${favori}</span>${pctFav>=65?' 🔥':''}</div>
             </td>
             <td><span class="badge-attente">⏳ En attente</span></td>
         </tr>`;
@@ -553,137 +739,222 @@ function renderEnAttente(matchs, aucunePred) {
     el.innerHTML = html;
 }
 
-// ── STATS TAB ───────────────────────────────────────────────────────────────
+// ── STATISTIQUES TAB ──
 
-async function chargerStats() {
+async function loadDashboardStats() {
     try {
-        const data = await fetch(`/api/historique-predictions?seuil=${currentSeuil}`).then(r => r.json());
+        const data = await fetch('/api/stats-dashboard').then(r => r.json());
+        if (data.error) throw new Error(data.error);
 
-        // Mettre à jour stats cards
-        const s = data.stats || {};
-        renderStatsCards(s.total, s.correct, s.precision, s.en_attente);
-
-        // Banner
-        const banner    = document.getElementById('stats-banner');
-        const label     = currentSeuil > 0 ? `matchs à ${currentSeuil}%+` : 'tous les matchs';
-        banner.innerHTML = `<div class="stats-info-banner">Sur les <strong>${label}</strong> : précision <strong>${s.precision || 0}%</strong> (${s.correct || 0}/${s.total || 0} matchs terminés)</div>`;
-
-        renderChart(data.par_jour || []);
-        renderLiguesStats(data.par_ligue || []);
+        const gs = data.global_stats || {};
+        renderStatsCards(gs.total, gs.correct, gs.precision, gs.en_attente);
+        renderExtraKpis(data);
+        renderCourbe30j(data.courbe_30j || []);
+        renderTranches(data.precision_par_tranche || []);
+        renderChart7j(data.courbe_30j || []);
+        renderHeatmap(data.heatmap_ligues || []);
     } catch(e) {
-        console.error('[chargerStats]', e);
-        const banner = document.getElementById('stats-banner');
-        if (banner) banner.innerHTML = '<div class="empty-state">Pas encore assez de données — les stats apparaîtront après quelques jours.</div>';
+        console.error('[loadDashboardStats]', e);
+        document.getElementById('heatmap-ligues').innerHTML = '<div class="empty-state">Pas encore assez de données.</div>';
     }
 }
 
-function renderChart(parJour) {
-    const ctx = document.getElementById('chart-precision');
+function renderExtraKpis(data) {
+    const roi = data.roi_simule || {};
+    const gain = roi.gain ?? 0;
+    const roiPct = roi.roi_pct ?? 0;
+    const gainStr = (gain >= 0 ? '+' : '') + gain.toFixed(2) + '€';
+    const roiStr = (roiPct >= 0 ? '+' : '') + roiPct + '%';
+    const gainColor = gain >= 0 ? '#00ff87' : '#ff4444';
+
+    const ml = data.meilleure_ligue || '—';
+    const mlPrec = data.meilleure_ligue_prec ? `${data.meilleure_ligue_prec}%` : '';
+    const tf = data.tranche_fiable || '—';
+
+    const el = document.getElementById('stats-extra-kpi');
+    el.style.display = '';
+    el.innerHTML = `
+        <div class="stat-card">
+            <div class="label">ROI Simulé <span class="badge-simulation">SIMULATION</span></div>
+            <div class="value" style="color:${gainColor};font-size:22px">${gainStr} / ${roiStr}</div>
+            <div class="sublabel">Cote fixe 1.85 sur ${roi.nb_paris || 0} paris</div>
+        </div>
+        <div class="stat-card">
+            <div class="label">Meilleure ligue</div>
+            <div class="value" style="font-size:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${ml}</div>
+            <div class="sublabel">${mlPrec} de réussite</div>
+        </div>
+        <div class="stat-card">
+            <div class="label">Tranche la plus fiable</div>
+            <div class="value" style="font-size:16px">${tf}</div>
+        </div>`;
+}
+
+function renderCourbe30j(courbe) {
+    const ctx = document.getElementById('chart-30j');
     if (!ctx) return;
+    if (chartLine30j) { chartLine30j.destroy(); chartLine30j = null; }
+    if (!courbe.length) { ctx.parentElement.innerHTML = '<div class="empty-state" style="padding:30px">Pas encore de données.</div>'; return; }
 
-    // Détruire l'instance précédente
-    if (_chartInstance) { _chartInstance.destroy(); _chartInstance = null; }
+    const labels = courbe.map(d => shortDate(d.date));
+    const matchsData = courbe.map(d => d.precision_matchs);
+    const buteursData = courbe.map(d => d.precision_buteurs);
 
-    if (!parJour.length) {
-        ctx.parentElement.innerHTML = '<div class="empty-state" style="padding:30px">Pas encore assez de données — revenez dans quelques jours.</div>';
-        return;
-    }
-
-    const labels   = parJour.map(d => {
-        const [, m, day] = d.date.split('-');
-        return `${parseInt(day)}/${m}`;
-    });
-    const values   = parJour.map(d => d.precision);
-    const colors   = values.map(v => v >= 60 ? 'rgba(0,255,135,0.8)' : v >= 40 ? 'rgba(255,165,0,0.8)' : 'rgba(255,68,68,0.8)');
-    const avg      = values.length ? Math.round(values.reduce((a, b) => a + b, 0) / values.length) : 0;
-
-    _chartInstance = new Chart(ctx, {
-        type: 'bar',
+    chartLine30j = new Chart(ctx, {
+        type: 'line',
         data: {
             labels,
             datasets: [
                 {
-                    type: 'bar',
-                    label: 'Précision',
-                    data: values,
-                    backgroundColor: colors,
-                    borderRadius: 4,
-                    borderSkipped: false,
-                    order: 2,
+                    label: 'Matchs', data: matchsData, borderColor: '#00D4FF',
+                    backgroundColor: 'rgba(0,212,255,0.08)', fill: true,
+                    tension: 0.3, pointRadius: 3, pointBackgroundColor: '#00D4FF', spanGaps: true,
                 },
                 {
-                    type: 'line',
-                    label: `Moyenne (${avg}%)`,
-                    data: new Array(values.length).fill(avg),
-                    borderColor: 'rgba(0,212,255,0.6)',
-                    borderDash: [6, 4],
-                    borderWidth: 2,
-                    pointRadius: 0,
-                    fill: false,
-                    order: 1,
+                    label: 'Buteurs', data: buteursData, borderColor: '#FFA500',
+                    backgroundColor: 'rgba(255,165,0,0.06)', fill: true,
+                    tension: 0.3, pointRadius: 3, pointBackgroundColor: '#FFA500', spanGaps: true,
+                },
+                {
+                    label: '50%', type: 'line',
+                    data: new Array(courbe.length).fill(50),
+                    borderColor: 'rgba(255,255,255,0.15)', borderDash: [5,4],
+                    borderWidth: 1, pointRadius: 0, fill: false,
                 }
             ]
         },
         options: {
-            responsive: true,
-            maintainAspectRatio: false,
+            responsive: true, maintainAspectRatio: false,
             plugins: {
-                legend: {
-                    labels: { color: '#4a6080', font: { size: 11 } }
-                },
-                tooltip: {
-                    callbacks: {
-                        title: (items) => {
-                            const idx = items[0].dataIndex;
-                            return parJour[idx]?.date || items[0].label;
-                        },
-                        label: (item) => {
-                            if (item.dataset.type === 'line') return `Moyenne : ${avg}%`;
-                            const d = parJour[item.dataIndex];
-                            return `${d.precision}%  (${d.correct}/${d.total} matchs)`;
-                        }
-                    },
-                    backgroundColor: '#0D1321',
-                    borderColor: '#1a2540',
-                    borderWidth: 1,
-                    titleColor: '#e0e8f0',
-                    bodyColor: '#00D4FF',
+                legend: { labels: { color: '#4a6080', font: { size: 11 }, filter: i => i.text !== '50%' } },
+                tooltip: { backgroundColor: '#0D1321', borderColor: '#1a2540', borderWidth: 1, titleColor: '#e0e8f0', bodyColor: '#00D4FF',
+                    callbacks: { label: item => item.dataset.label === '50%' ? null : `${item.dataset.label} : ${item.raw ?? '—'}%` }
                 }
             },
             scales: {
-                x: {
-                    ticks: { color: '#2a3a50', font: { size: 10 }, maxRotation: 45, minRotation: 45 },
-                    grid:  { color: 'rgba(26,37,64,0.4)' }
-                },
-                y: {
-                    min: 0, max: 100,
-                    ticks: { color: '#4a6080', font: { size: 11 }, callback: v => v + '%' },
-                    grid:  { color: 'rgba(26,37,64,0.5)' }
-                }
+                x: { ticks: { color: '#2a3a50', font: { size: 10 }, maxRotation: 45 }, grid: { color: 'rgba(26,37,64,0.4)' } },
+                y: { min: 0, max: 100, ticks: { color: '#4a6080', callback: v => v + '%' }, grid: { color: 'rgba(26,37,64,0.5)' } }
             }
         }
     });
 }
 
-function renderLiguesStats(parLigue) {
-    const el = document.getElementById('stats-ligues-content');
-    if (!parLigue.length) { el.innerHTML = '<div class="msg-info">Pas encore de données par ligue.</div>'; return; }
-    let html = '<div class="ligue-precision">';
-    parLigue.forEach(l => {
-        const dr    = DRAPEAUX[l.ligue_id] || '';
-        const color = l.precision >= 65 ? '#00ff87' : l.precision >= 50 ? '#00D4FF' : '#ff4444';
-        html += `<div class="ligue-row">
-            <div class="ligue-nom">${dr ? `<span class="fi fi-${dr}"></span>` : ''} ${l.ligue}</div>
-            <div style="color:#4a6080;font-size:12px">${l.correct}/${l.total}</div>
-            <div class="precision-bar"><div class="precision-fill" style="width:${l.precision}%;background:${color}"></div></div>
-            <div class="precision-pct" style="color:${color}">${l.precision}%</div>
-        </div>`;
+function renderTranches(tranches) {
+    const ctx = document.getElementById('chart-tranches');
+    if (!ctx) return;
+    if (chartTranches) { chartTranches.destroy(); chartTranches = null; }
+    if (!tranches.length) { ctx.parentElement.innerHTML = '<div class="empty-state" style="padding:30px">Pas encore de données.</div>'; return; }
+
+    const sorted = [...tranches].sort((a, b) => a.tranche.localeCompare(b.tranche));
+    const labels = sorted.map(t => t.tranche);
+    const values = sorted.map(t => t.precision);
+    const colors = sorted.map(t => {
+        const borne = parseInt(t.tranche.replace('%+','').split('-')[0]);
+        return t.precision >= borne ? 'rgba(0,255,135,0.7)' : 'rgba(255,68,68,0.7)';
     });
-    html += '</div>';
+
+    chartTranches = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [{
+                label: 'Précision', data: values,
+                backgroundColor: colors, borderRadius: 6, borderSkipped: false,
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: '#0D1321', borderColor: '#1a2540', borderWidth: 1, titleColor: '#e0e8f0', bodyColor: '#00D4FF',
+                    callbacks: {
+                        label: (item) => {
+                            const t = sorted[item.dataIndex];
+                            return `${t.nb} préd. → ${t.precision}% réussite`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: { min: 0, max: 100, ticks: { color: '#4a6080', callback: v => v + '%' }, grid: { color: 'rgba(26,37,64,0.5)' } },
+                y: { ticks: { color: '#4a6080', font: { size: 11 } }, grid: { display: false } }
+            }
+        }
+    });
+}
+
+function renderChart7j(courbe) {
+    const ctx = document.getElementById('chart-7j');
+    if (!ctx) return;
+    if (chart7j) { chart7j.destroy(); chart7j = null; }
+    const last7 = courbe.slice(-7);
+    if (!last7.length) { ctx.parentElement.innerHTML = '<div class="empty-state" style="padding:20px">Pas encore de données.</div>'; return; }
+
+    chart7j = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: last7.map(d => shortDate(d.date)),
+            datasets: [
+                { label: 'Matchs', data: last7.map(d => d.precision_matchs), backgroundColor: 'rgba(0,212,255,0.7)', borderRadius: 4, },
+                { label: 'Buteurs', data: last7.map(d => d.precision_buteurs), backgroundColor: 'rgba(255,165,0,0.7)', borderRadius: 4, }
+            ]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+                legend: { labels: { color: '#4a6080', font: { size: 11 } } },
+                tooltip: { backgroundColor: '#0D1321', borderColor: '#1a2540', borderWidth: 1, titleColor: '#e0e8f0', bodyColor: '#00D4FF' }
+            },
+            scales: {
+                x: { ticks: { color: '#2a3a50', font: { size: 11 } }, grid: { color: 'rgba(26,37,64,0.4)' } },
+                y: { min: 0, max: 100, ticks: { color: '#4a6080', callback: v => v + '%' }, grid: { color: 'rgba(26,37,64,0.5)' } }
+            }
+        }
+    });
+}
+
+function renderHeatmap(heatmap) {
+    const el = document.getElementById('heatmap-ligues');
+    if (!heatmap.length) { el.innerHTML = '<div class="msg-info">Pas encore de données par ligue.</div>'; return; }
+
+    let html = '<table>';
+    html += '<tr><th>Ligue</th><th>Matchs</th><th>Corrects</th><th>Précision</th><th>Tendance</th></tr>';
+    heatmap.forEach(l => {
+        const dr  = DRAPEAUX[l.ligue_id] || '';
+        const col = l.precision < 40 ? '#ff4444' : l.precision < 50 ? '#FFA500' : '#00ff87';
+        const tend = l.tendance === 'up'
+            ? '<span style="color:#00ff87;font-size:16px">↑</span>'
+            : '<span style="color:#ff4444;font-size:16px">↓</span>';
+        html += `<tr>
+            <td><span class="ligue-badge">${dr ? `<span class="fi fi-${dr}"></span>` : ''} ${l.ligue}</span></td>
+            <td style="color:#4a6080">${l.nb}</td>
+            <td style="color:#4a6080">${l.corrects}</td>
+            <td style="font-weight:700;color:${col}">${l.precision}%</td>
+            <td>${tend}</td>
+        </tr>`;
+    });
+    html += '</table>';
     el.innerHTML = html;
 }
 
-// ── BUTEURS TAB ─────────────────────────────────────────────────────────────
+// ── BUTEURS TAB ──
+
+function setFiltreButSeuil(val, btn) {
+    filtreButSeuil = val;
+    document.querySelectorAll('#tab-buteurs .filter-group:first-child .filter-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    if (_cachedButeurs) renderButeursPreds(_cachedButeurs.predictions || []);
+}
+
+function setFiltreButResultat(val, btn) {
+    filtreButResultat = val;
+    const grp = document.querySelectorAll('#tab-buteurs .filter-group');
+    if (grp[1]) grp[1].querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    if (_cachedButeurs) renderButeursPreds(_cachedButeurs.predictions || []);
+}
 
 async function chargerButeurs() {
     const el = document.getElementById('buteurs-content');
@@ -691,34 +962,28 @@ async function chargerButeurs() {
     try {
         const data = await fetch(`/api/predictions-buteurs?date=${currentDate}`).then(r => r.json());
         _cachedButeurs = data;
-
-        // Stats cards buteurs
-        const s      = data.stats || {};
-        const seuil  = currentSeuil || 20;   // minimum 20% pour buteurs
-        const seuilKey = seuil >= 65 ? 'precision_65' : seuil >= 40 ? 'precision_40' : 'precision_20';
-        const totKey   = seuil >= 65 ? 'tot_65'        : seuil >= 40 ? 'tot_40'        : 'tot_20';
-        const prec     = s[seuilKey] ?? null;
-        const total    = s.total || 0;
-        const correct  = prec !== null && s[totKey] ? Math.round(prec * s[totKey] / 100) : null;
-        const attente  = (data.predictions || []).filter(b => b.statut === 'en_attente').length;
-        renderStatsCards(total, correct, prec, attente);
-
-        renderButeursPreds(data.predictions || [], seuil);
+        const s = data.stats || {};
+        renderStatsCards(s.total, null, s.precision_20, (data.predictions||[]).filter(b=>b.statut==='en_attente').length);
+        renderButeursPreds(data.predictions || []);
     } catch(e) {
         console.error('[chargerButeurs]', e);
         el.innerHTML = '<div class="empty-state">Aucune prédiction buteur pour cette date.</div>';
     }
 }
 
-function renderButeursPreds(predictions, seuil) {
+function renderButeursPreds(allPreds) {
     const el = document.getElementById('buteurs-content');
-    const filtered = predictions.filter(b => (b.probabilite || 0) >= seuil);
-    if (!filtered.length) {
-        el.innerHTML = `<div class="empty-state">Aucune prédiction buteur à ${seuil}%+ pour ${formatDateLabel(currentDate)}.</div>`;
+    let preds = allPreds.filter(b => (b.probabilite || 0) >= filtreButSeuil);
+    if (filtreButResultat === 'marque') preds = preds.filter(b => b.statut === 'termine' && b.a_marque === 1);
+    if (filtreButResultat === 'rate')   preds = preds.filter(b => b.statut === 'termine' && b.a_marque === 0);
+
+    if (!preds.length) {
+        el.innerHTML = `<div class="empty-state">Aucune prédiction buteur à ${filtreButSeuil}%+ pour ${formatDateLabel(currentDate)}.</div>`;
         return;
     }
+
     let html = '<div class="buteur-grid">';
-    filtered.forEach(b => {
+    preds.forEach(b => {
         const photoUrl   = `https://media.api-sports.io/football/players/${b.joueur_id}.png`;
         const fallbackUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(b.nom)}&background=1a2540&color=00D4FF&size=44`;
         const dr = DRAPEAUX[b.ligue_id] || '';
@@ -728,25 +993,19 @@ function renderButeursPreds(predictions, seuil) {
         for (let i = 0; i < 5; i++) {
             const f = forme[i];
             if (!f) { formeDots += `<div class="forme-dot-b vide">—</div>`; continue; }
-            if (f.buts > 0)       formeDots += `<div class="forme-dot-b but" title="${f.buts} but(s)">${f.buts}</div>`;
-            else if (f.passes > 0) formeDots += `<div class="forme-dot-b passe" title="${f.passes} passe(s)">P</div>`;
+            if (f.buts > 0)        formeDots += `<div class="forme-dot-b but">${f.buts}</div>`;
+            else if (f.passes > 0) formeDots += `<div class="forme-dot-b passe">P</div>`;
             else                   formeDots += `<div class="forme-dot-b vide">—</div>`;
         }
-        let resultHtml = '';
-        if (b.statut === 'termine') {
-            resultHtml = b.a_marque
-                ? `<div class="bpc-result marque">✅ A marqué (${b.buts_reels} but${b.buts_reels > 1 ? 's' : ''})</div>`
-                : `<div class="bpc-result rate">❌ N'a pas marqué</div>`;
-        } else {
-            resultHtml = `<div class="bpc-result attente">⏳ En attente</div>`;
-        }
-        const ligueBadge = dr ? `<span class="fi fi-${dr}" style="font-size:11px"></span> ` : '';
+        let resultHtml = b.statut === 'termine'
+            ? (b.a_marque ? `<div class="bpc-result marque">✅ A marqué (${b.buts_reels} but${b.buts_reels>1?'s':''})</div>` : `<div class="bpc-result rate">❌ N'a pas marqué</div>`)
+            : `<div class="bpc-result attente">⏳ En attente</div>`;
         html += `<div class="buteur-pred-card">
             <div class="bpc-header">
                 <img class="buteur-avatar" src="${photoUrl}" onerror="this.src='${fallbackUrl}'" alt="${b.nom}">
                 <div class="buteur-info-main">
                     <div class="buteur-nom">${b.nom}</div>
-                    <div class="buteur-equipe">${ligueBadge}${b.equipe} · ${b.ligue}</div>
+                    <div class="buteur-equipe">${dr?`<span class="fi fi-${dr}" style="font-size:11px"></span> `:''}${b.equipe} · ${b.ligue}</div>
                 </div>
             </div>
             <div class="bpc-match"><strong>${b.match_home}</strong> <span style="color:#4a6080">vs</span> <strong>${b.match_away}</strong></div>
@@ -762,23 +1021,160 @@ function renderButeursPreds(predictions, seuil) {
     el.innerHTML = html;
 }
 
-// ── SCHEDULER STATUS (polling toutes les 30s) ───────────────────────────────
+// ── PARIS WINAMAX TAB ──
+
+async function loadWinamaxStats() {
+    try {
+        const data = await fetch('/api/stats-paris-winamax').then(r => r.json());
+        if (data.error) throw new Error(data.error);
+        _cachedParis = data;
+
+        const kpi = data.kpi || {};
+        document.getElementById('w-total').textContent  = kpi.total  ?? '—';
+        document.getElementById('w-gagnes').textContent = kpi.gagnes ?? '—';
+        document.getElementById('w-perdus').textContent = kpi.perdus ?? '—';
+        const roi = kpi.roi ?? 0;
+        const roiEl = document.getElementById('w-roi');
+        roiEl.textContent = (roi >= 0 ? '+' : '') + roi + '%';
+        roiEl.className = 'value ' + (roi >= 0 ? 'good' : 'bad');
+
+        const bankroll = kpi.bankroll_actuelle ?? 100;
+        const bEl = document.getElementById('w-bankroll');
+        bEl.textContent = bankroll.toFixed(2) + '€';
+        bEl.style.color = bankroll >= 100 ? '#00ff87' : '#ff4444';
+
+        renderBankroll(data.bankroll_courbe || []);
+        renderParisList(data.paris || []);
+    } catch(e) {
+        console.error('[loadWinamaxStats]', e);
+        document.getElementById('paris-content').innerHTML = '<div class="empty-state">Aucune donnée paris disponible.</div>';
+    }
+}
+
+function renderBankroll(courbe) {
+    const ctx = document.getElementById('chart-bankroll');
+    if (!ctx) return;
+    if (chartBankroll) { chartBankroll.destroy(); chartBankroll = null; }
+    if (!courbe.length) { ctx.parentElement.innerHTML = '<div class="empty-state" style="padding:30px">Pas encore de données.</div>'; return; }
+
+    const labels = courbe.map(d => shortDate(d.date));
+    const values = courbe.map(d => d.valeur);
+    const aboveColor = 'rgba(0,255,135,0.15)';
+    const lineColor  = values[values.length-1] >= 100 ? '#00ff87' : '#ff4444';
+
+    chartBankroll = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels,
+            datasets: [
+                {
+                    label: 'Bankroll', data: values,
+                    borderColor: lineColor, backgroundColor: lineColor.replace(')', ',0.08)').replace('rgb','rgba'),
+                    fill: true, tension: 0.3, pointRadius: 2, pointBackgroundColor: lineColor, spanGaps: true,
+                },
+                {
+                    label: 'Départ (100€)', data: new Array(values.length).fill(100),
+                    borderColor: 'rgba(255,255,255,0.2)', borderDash: [6,4],
+                    borderWidth: 1, pointRadius: 0, fill: false,
+                }
+            ]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+                legend: { labels: { color: '#4a6080', font: { size: 11 } } },
+                tooltip: { backgroundColor: '#0D1321', borderColor: '#1a2540', borderWidth: 1, titleColor: '#e0e8f0', bodyColor: '#00D4FF',
+                    callbacks: { label: item => item.dataset.label === 'Départ (100€)' ? null : `Bankroll : ${item.raw}€` }
+                }
+            },
+            scales: {
+                x: { ticks: { color: '#2a3a50', font: { size: 10 }, maxRotation: 45 }, grid: { color: 'rgba(26,37,64,0.4)' } },
+                y: { ticks: { color: '#4a6080', callback: v => v + '€' }, grid: { color: 'rgba(26,37,64,0.5)' } }
+            }
+        }
+    });
+}
+
+function setFiltreParisCategorie(val, btn) {
+    filtreParisCategorie = val;
+    document.querySelectorAll('#tab-winamax .filter-group:first-child .filter-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    if (_cachedParis) renderParisList(_cachedParis.paris || []);
+}
+
+function setFiltreParisResultat(val, btn) {
+    filtreParisResultat = val;
+    const grp = document.querySelectorAll('#tab-winamax .filter-group');
+    if (grp[1]) grp[1].querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    if (_cachedParis) renderParisList(_cachedParis.paris || []);
+}
+
+function renderParisList(allParis) {
+    const el = document.getElementById('paris-content');
+    let paris = [...allParis];
+    if (filtreParisCategorie !== 'tous') paris = paris.filter(p => (p.categorie||'').toUpperCase() === filtreParisCategorie);
+    if (filtreParisResultat === 'gagne')  paris = paris.filter(p => p.gagne === 1);
+    if (filtreParisResultat === 'perdu')  paris = paris.filter(p => p.gagne === 0);
+    if (filtreParisResultat === 'attente') paris = paris.filter(p => p.gagne === null || p.gagne === undefined);
+
+    if (!paris.length) {
+        el.innerHTML = '<div class="empty-state">Aucun pari correspondant aux filtres.</div>';
+        return;
+    }
+
+    let html = '<div class="table-block"><table>';
+    html += '<tr><th>Date</th><th>Match</th><th>Ligue</th><th>Type pari</th><th>Cote</th><th>Confiance</th><th>Résultat</th><th>Gain simulé</th></tr>';
+    paris.forEach(p => {
+        const dr = DRAPEAUX[p.ligue_id] || '';
+        const cat = (p.categorie || '').toUpperCase();
+        const catBadge = cat === 'SAFE' ? '<span class="badge-safe">SAFE</span>'
+            : cat === 'TENTANT' ? '<span class="badge-tentant">TENTANT</span>'
+            : '<span class="badge-fun">FUN</span>';
+        let resBadge, gainHtml;
+        if (p.gagne === 1) {
+            resBadge = '<span class="badge-ok">✅ Gagné</span>';
+            const gain = (5 * (parseFloat(p.cote||1) - 1)).toFixed(2);
+            gainHtml = `<span class="gain-pos">+${gain}€</span>`;
+        } else if (p.gagne === 0) {
+            resBadge = '<span class="badge-ko">❌ Perdu</span>';
+            gainHtml = '<span class="gain-neg">-5.00€</span>';
+        } else {
+            resBadge = '<span class="badge-attente">⏳ Attente</span>';
+            gainHtml = '<span style="color:#4a6080">—</span>';
+        }
+        const cote = parseFloat(p.cote || 0).toFixed(2);
+        const proba = p.probabilite_hiddenscout ? `${p.probabilite_hiddenscout}%` : (p.probabilite ? `${p.probabilite}%` : '—');
+        html += `<tr>
+            <td style="color:#4a6080;white-space:nowrap">${p.date||'—'}</td>
+            <td style="font-weight:600;font-size:12px">${p.match||'—'}</td>
+            <td><span class="ligue-badge">${dr?`<span class="fi fi-${dr}"></span>`:''} ${p.ligue||'—'}</span></td>
+            <td style="font-size:12px;color:#e0e8f0">${p.type_pari||'—'}</td>
+            <td style="font-weight:700;color:#00D4FF">${cote}</td>
+            <td>${catBadge}</td>
+            <td>${resBadge}</td>
+            <td>${gainHtml}</td>
+        </tr>`;
+    });
+    html += '</table></div>';
+    el.innerHTML = html;
+}
+
+// ── SCHEDULER STATUS ──
 
 async function pollSchedulerStatus() {
     try {
         const data = await fetch('/api/scheduler-status').then(r => r.json());
         document.getElementById('last-save-label').textContent   = data.last_save_label   || '—';
         document.getElementById('last-verify-label').textContent = data.last_verify_label || '—';
-
-        // Si le serveur a vérifié depuis la dernière fois, recharger les données
         if (data.last_verify_ts > _lastVerifyTs) {
             _lastVerifyTs = data.last_verify_ts;
-            if (currentTab !== 'formules') reloadCurrentTab();
+            if (currentTab !== 'formules' && currentTab !== 'statistiques' && currentTab !== 'winamax') reloadCurrentTab();
         }
     } catch(e) {}
 }
 
-// ── INIT ───────────────────────────────────────────────────────────────────
+// ── INIT ──
 
 updateDateNav();
 updateCardsLabelsMatch();

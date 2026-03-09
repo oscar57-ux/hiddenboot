@@ -2120,6 +2120,217 @@ def api_verifier_buteurs():
     return jsonify({"verifie": total_verifie, "marque": total_marque, "date": date_param})
 
 
+@app.route("/api/stats-dashboard")
+def stats_dashboard():
+    conn = None
+    try:
+        conn = get_pg()
+        c = conn.cursor()
+        pg = _is_pg(conn)
+        greatest = "GREATEST" if pg else "MAX"
+        nulls_last = "NULLS LAST" if pg else ""
+
+        # Global stats
+        c.execute("""
+            SELECT COUNT(*) as total,
+                   SUM(CASE WHEN prediction_correcte=1 THEN 1 ELSE 0 END) as correct
+            FROM predictions WHERE statut='termine'
+        """)
+        g = c.fetchone()
+        g_total = int(g['total'] or 0)
+        g_correct = int(g['correct'] or 0)
+        g_precision = round(g_correct / g_total * 100) if g_total > 0 else 0
+        c.execute("SELECT COUNT(*) as n FROM predictions WHERE statut='en_attente'")
+        g_attente = int(c.fetchone()['n'] or 0)
+
+        # precision_par_tranche
+        c.execute(f"""
+            SELECT tranche,
+                   COUNT(*) as nb,
+                   SUM(CASE WHEN prediction_correcte=1 THEN 1 ELSE 0 END) as corrects
+            FROM (
+                SELECT prediction_correcte,
+                    CASE
+                        WHEN {greatest}(pct_home, pct_away) >= 85 THEN '85%+'
+                        WHEN {greatest}(pct_home, pct_away) >= 75 THEN '75-85%'
+                        WHEN {greatest}(pct_home, pct_away) >= 65 THEN '65-75%'
+                        WHEN {greatest}(pct_home, pct_away) >= 55 THEN '55-65%'
+                        ELSE '<55%'
+                    END as tranche
+                FROM predictions WHERE statut='termine'
+            ) t WHERE tranche != '<55%'
+            GROUP BY tranche ORDER BY tranche DESC
+        """)
+        precision_par_tranche = []
+        for r in c.fetchall():
+            nb = int(r['nb'] or 0)
+            corrects = int(r['corrects'] or 0)
+            precision_par_tranche.append({
+                'tranche': r['tranche'], 'nb': nb, 'corrects': corrects,
+                'precision': round(corrects / nb * 100) if nb > 0 else 0
+            })
+
+        # courbe_30j - matchs
+        c.execute("""
+            SELECT date, COUNT(*) as total,
+                   SUM(CASE WHEN prediction_correcte=1 THEN 1 ELSE 0 END) as correct
+            FROM predictions WHERE statut='termine'
+            GROUP BY date ORDER BY date DESC LIMIT 30
+        """)
+        matchs_pj = {r['date']: {'total': int(r['total'] or 0), 'correct': int(r['correct'] or 0)} for r in c.fetchall()}
+
+        # courbe_30j - buteurs
+        c.execute("""
+            SELECT date, COUNT(*) as total,
+                   SUM(CASE WHEN a_marque=1 THEN 1 ELSE 0 END) as correct
+            FROM predictions_buteurs WHERE statut='termine'
+            GROUP BY date ORDER BY date DESC LIMIT 30
+        """)
+        buteurs_pj = {r['date']: {'total': int(r['total'] or 0), 'correct': int(r['correct'] or 0)} for r in c.fetchall()}
+
+        all_dates = sorted(set(list(matchs_pj.keys()) + list(buteurs_pj.keys())))[-30:]
+        courbe_30j = []
+        for d in all_dates:
+            m = matchs_pj.get(d)
+            b = buteurs_pj.get(d)
+            courbe_30j.append({
+                'date': d,
+                'precision_matchs': round(m['correct'] / m['total'] * 100) if m and m['total'] else None,
+                'precision_buteurs': round(b['correct'] / b['total'] * 100) if b and b['total'] else None,
+            })
+
+        # heatmap_ligues
+        c.execute(f"""
+            SELECT ligue, ligue_id, COUNT(*) as total,
+                   SUM(CASE WHEN prediction_correcte=1 THEN 1 ELSE 0 END) as corrects
+            FROM predictions WHERE statut='termine'
+            GROUP BY ligue, ligue_id HAVING COUNT(*) >= 3
+            ORDER BY SUM(CASE WHEN prediction_correcte=1 THEN 1 ELSE 0 END) * 100
+                     / NULLIF(COUNT(*), 0) DESC {nulls_last}
+        """)
+        ligues_raw = c.fetchall()
+        ph = _ph(conn)
+        heatmap_ligues = []
+        for l in ligues_raw:
+            total = int(l['total'] or 0)
+            corrects = int(l['corrects'] or 0)
+            precision = round(corrects / total * 100) if total > 0 else 0
+            c2 = conn.cursor()
+            c2.execute(f"""
+                SELECT SUM(prediction_correcte) as lc, COUNT(*) as lt
+                FROM (SELECT prediction_correcte FROM predictions
+                      WHERE statut='termine' AND ligue_id={ph}
+                      ORDER BY date DESC LIMIT 10) sub
+            """, (l['ligue_id'],))
+            lr = c2.fetchone()
+            last_prec = round(int(lr['lc'] or 0) / int(lr['lt'] or 1) * 100) if lr and lr['lt'] else precision
+            heatmap_ligues.append({
+                'ligue': l['ligue'], 'ligue_id': l['ligue_id'],
+                'nb': total, 'corrects': corrects, 'precision': precision,
+                'tendance': 'up' if last_prec > precision else 'down'
+            })
+
+        # roi_simule (cote 1.85 fixe)
+        nb_incorrects = g_total - g_correct
+        gain = g_correct * 0.85 - nb_incorrects * 1.0
+        roi_pct = round(gain / g_total * 100, 1) if g_total > 0 else 0
+        roi_simule = {'gain': round(gain, 2), 'roi_pct': roi_pct, 'nb_paris': g_total}
+
+        # meilleure_ligue (min 10 matchs)
+        c.execute(f"""
+            SELECT ligue, COUNT(*) as total,
+                   SUM(CASE WHEN prediction_correcte=1 THEN 1 ELSE 0 END) as corrects
+            FROM predictions WHERE statut='termine'
+            GROUP BY ligue HAVING COUNT(*) >= 10
+            ORDER BY SUM(CASE WHEN prediction_correcte=1 THEN 1 ELSE 0 END) * 100
+                     / NULLIF(COUNT(*), 0) DESC {nulls_last}
+            LIMIT 1
+        """)
+        ml = c.fetchone()
+        meilleure_ligue = ml['ligue'] if ml else None
+        meilleure_ligue_prec = round(int(ml['corrects'] or 0) / int(ml['total'] or 1) * 100) if ml else None
+
+        # tranche_fiable
+        tranche_fiable = None
+        if precision_par_tranche:
+            best = max(precision_par_tranche, key=lambda x: x['precision'])
+            tranche_fiable = f"{best['tranche']} → {best['precision']}% réussite"
+
+        conn.close()
+        return jsonify({
+            'global_stats': {'total': g_total, 'correct': g_correct, 'precision': g_precision, 'en_attente': g_attente},
+            'precision_par_tranche': precision_par_tranche,
+            'courbe_30j': courbe_30j,
+            'heatmap_ligues': heatmap_ligues,
+            'roi_simule': roi_simule,
+            'meilleure_ligue': meilleure_ligue,
+            'meilleure_ligue_prec': meilleure_ligue_prec,
+            'tranche_fiable': tranche_fiable,
+        })
+    except Exception as e:
+        if conn:
+            try: conn.close()
+            except: pass
+        import traceback; traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route("/api/stats-paris-winamax")
+def stats_paris_winamax():
+    conn = None
+    try:
+        conn = get_pg()
+        c = conn.cursor()
+
+        c.execute("SELECT * FROM paris_historique ORDER BY date DESC LIMIT 200")
+        paris = [dict(r) for r in c.fetchall()]
+
+        c.execute("""
+            SELECT COUNT(*) as total,
+                   SUM(CASE WHEN gagne=1 THEN 1 ELSE 0 END) as gagnes,
+                   SUM(CASE WHEN gagne=0 THEN 1 ELSE 0 END) as perdus,
+                   SUM(CASE WHEN gagne=1 THEN 5.0*(cote-1) ELSE -5.0 END) as net_profit
+            FROM paris_historique WHERE gagne IS NOT NULL
+        """)
+        kr = c.fetchone()
+        total = int(kr['total'] or 0)
+        gagnes = int(kr['gagnes'] or 0)
+        perdus = int(kr['perdus'] or 0)
+        net_profit = round(float(kr['net_profit'] or 0), 2)
+        roi = round(net_profit / (total * 5) * 100, 1) if total > 0 else 0
+
+        c.execute("""
+            SELECT date, gagne, cote FROM paris_historique
+            WHERE gagne IS NOT NULL ORDER BY date ASC
+        """)
+        bankroll = 100.0
+        bankroll_par_date = {}
+        for p in c.fetchall():
+            d = p['date']
+            if int(p['gagne'] or 0) == 1:
+                bankroll += 5.0 * (float(p['cote'] or 1) - 1)
+            else:
+                bankroll -= 5.0
+            bankroll_par_date[d] = round(bankroll, 2)
+        bankroll_courbe = [{'date': d, 'valeur': v} for d, v in sorted(bankroll_par_date.items())]
+
+        conn.close()
+        return jsonify({
+            'paris': paris,
+            'bankroll_courbe': bankroll_courbe,
+            'kpi': {
+                'total': total, 'gagnes': gagnes, 'perdus': perdus,
+                'roi': roi, 'bankroll_actuelle': round(100 + net_profit, 2)
+            }
+        })
+    except Exception as e:
+        if conn:
+            try: conn.close()
+            except: pass
+        import traceback; traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
 # ── APScheduler : génération automatique des paris à midi (Europe/Paris) ──────
 def _job_generer_paris():
     try:
