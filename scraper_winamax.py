@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
 """
-Scraper cotes Winamax (endpoints publics, sans compte ni Selenium).
+Récupération des cotes pour les paris du jour.
+
+Source principale : api-sports.io /odds (même clé que le reste de l'appli).
+Fallback         : scraping Winamax direct (bloqué sur certains réseaux/IPs).
 
 Usage :
     python scraper_winamax.py
 
-La fonction run() est importée par generateur_paris.py.
+La fonction run() est importée par app.py (scheduler).
 """
 
 import os
+import time
 import requests
 import sqlite3
 import logging
@@ -17,16 +21,59 @@ from datetime import date, datetime
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
 
-BASE = "https://www.winamax.fr/appsports"
-HDR  = {
-    "User-Agent":      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                       "AppleWebKit/537.36 (KHTML, like Gecko) "
-                       "Chrome/122.0.0.0 Safari/537.36",
-    "Accept":          "application/json, text/plain, */*",
-    "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.8",
-    "Referer":         "https://www.winamax.fr/paris-sportifs/",
-    "Origin":          "https://www.winamax.fr",
+API_SPORTS_KEY = os.environ.get("API_SPORTS_KEY", "")
+API_SPORTS_URL = "https://v3.football.api-sports.io"
+
+# Bookmaker IDs dans api-sports.io (ordre de préférence)
+# 23=Winamax, 8=Betclic, 1=Bet365, 6=Bwin
+_BOOKMAKER_IDS = [23, 8, 1, 6]
+
+BASE     = "https://www.winamax.fr/appsports"
+MAIN_URL = "https://www.winamax.fr/paris-sportifs/football"
+
+# Headers complets simulant Chrome 122
+HDR = {
+    "User-Agent":         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                          "AppleWebKit/537.36 (KHTML, like Gecko) "
+                          "Chrome/122.0.0.0 Safari/537.36",
+    "Accept":             "application/json, text/plain, */*",
+    "Accept-Language":    "fr-FR,fr;q=0.9,en;q=0.8",
+    "Accept-Encoding":    "gzip, deflate, br",
+    "Referer":            "https://www.winamax.fr/paris-sportifs/football",
+    "Origin":             "https://www.winamax.fr",
+    "sec-ch-ua":          '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
+    "sec-ch-ua-mobile":   "?0",
+    "sec-ch-ua-platform": '"Windows"',
+    "sec-fetch-dest":     "empty",
+    "sec-fetch-mode":     "cors",
+    "sec-fetch-site":     "same-origin",
+    "Connection":         "keep-alive",
 }
+
+_session = None
+
+
+def _get_session():
+    """Retourne une session avec cookies Winamax (warm-up sur la page principale)."""
+    global _session
+    if _session is not None:
+        return _session
+    _session = requests.Session()
+    try:
+        warm_hdr = {
+            "User-Agent":      HDR["User-Agent"],
+            "Accept":          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "fr-FR,fr;q=0.9",
+            "sec-fetch-dest":  "document",
+            "sec-fetch-mode":  "navigate",
+            "sec-fetch-site":  "none",
+        }
+        r = _session.get(MAIN_URL, headers=warm_hdr, timeout=10)
+        log.info(f"[session] warm-up {r.status_code} — {len(_session.cookies)} cookie(s)")
+        time.sleep(0.8)
+    except Exception as e:
+        log.warning(f"[session] warm-up échoué : {e}")
+    return _session
 
 
 # ── Base de données ────────────────────────────────────────────────────────────
@@ -157,7 +204,11 @@ def init_table():
 
 def _fetch(url, params=None):
     try:
-        r = requests.get(url, headers=HDR, params=params, timeout=10)
+        s = _get_session()
+        r = s.get(url, headers=HDR, params=params, timeout=10)
+        if r.status_code == 403:
+            log.warning(f"HTTP 403 → {url} | body: {r.text[:200]}")
+            return None
         r.raise_for_status()
         return r.json()
     except requests.exceptions.HTTPError as e:
@@ -194,11 +245,13 @@ def _get_football_id():
 def _fetch_today_matches(sport_id):
     today = date.today().strftime("%Y-%m-%d")
     patterns = [
-        (f"{BASE}/sports/{sport_id}/events",       {"date": today}),
+        (f"{BASE}/sports-events",                   {"sportId": sport_id, "date": today}),
+        (f"{BASE}/sports/{sport_id}/events",        {"date": today}),
         (f"{BASE}/sports/{sport_id}/matches",       {"date": today}),
         (f"{BASE}/sports/{sport_id}/competitions",  None),
         (f"{BASE}/matches",                         {"sportId": sport_id, "date": today}),
         (f"{BASE}/events",                          {"sportId": sport_id, "date": today}),
+        (f"{BASE}/sports/{sport_id}/bets",          {"date": today}),
     ]
     for url, params in patterns:
         data = _fetch(url, params)
@@ -470,29 +523,122 @@ def _save(cotes):
     return n
 
 
+# ── Source principale : api-sports.io /odds ───────────────────────────────────
+
+def _fetch_odds_apisports(today):
+    """Récupère les cotes via api-sports.io. Essaie plusieurs bookmakers."""
+    if not API_SPORTS_KEY:
+        log.info("[apisports] Pas de clé API_SPORTS_KEY configurée")
+        return []
+    for bm_id in _BOOKMAKER_IDS:
+        try:
+            resp = requests.get(
+                f"{API_SPORTS_URL}/odds",
+                headers={"x-apisports-key": API_SPORTS_KEY},
+                params={"date": today, "bookmaker": bm_id},
+                timeout=15,
+            )
+            data = resp.json()
+            errors = data.get("errors", {})
+            if errors:
+                log.warning(f"[apisports] erreurs bookmaker={bm_id}: {errors}")
+                continue
+            results = data.get("response", [])
+            if results:
+                log.info(f"[apisports] {len(results)} fixtures avec bookmaker_id={bm_id}")
+                return results
+        except Exception as e:
+            log.warning(f"[apisports] bookmaker={bm_id}: {e}")
+    log.warning("[apisports] Aucun bookmaker n'a retourné de cotes")
+    return []
+
+
+def _parse_odds_apisports(item):
+    """Parse un élément de /odds api-sports.io → dict cotes."""
+    teams = item.get("teams") or {}
+    home  = (teams.get("home") or {}).get("name", "")
+    away  = (teams.get("away") or {}).get("name", "")
+    league = (item.get("league") or {}).get("name", "")
+    fixture_id = str((item.get("fixture") or {}).get("id", ""))
+    if not home or not away:
+        return None
+
+    cote_1 = cote_x = cote_2 = None
+    cote_1x = cote_x2 = cote_12 = None
+    cote_plus25 = cote_moins25 = None
+    cote_btts_oui = cote_btts_non = None
+
+    for bm in (item.get("bookmakers") or []):
+        for bet in (bm.get("bets") or []):
+            name   = (bet.get("name") or "").lower()
+            values = bet.get("values") or []
+            if "match winner" in name or name == "1x2":
+                for v in values:
+                    vn = (v.get("value") or "").lower()
+                    odd = _safe_float(v.get("odd"))
+                    if vn == "home":   cote_1 = odd
+                    elif vn == "draw": cote_x = odd
+                    elif vn == "away": cote_2 = odd
+            elif "double chance" in name:
+                for v in values:
+                    vn  = (v.get("value") or "").lower()
+                    odd = _safe_float(v.get("odd"))
+                    if "home/draw" in vn or vn == "1x":   cote_1x = odd
+                    elif "draw/away" in vn or vn == "x2": cote_x2 = odd
+                    elif "home/away" in vn or vn == "12": cote_12 = odd
+            elif "goals over/under" in name:
+                for v in values:
+                    vn  = (v.get("value") or "").lower()
+                    odd = _safe_float(v.get("odd"))
+                    if "over 2.5" in vn:   cote_plus25  = odd
+                    elif "under 2.5" in vn: cote_moins25 = odd
+            elif "both teams score" in name or "btts" in name:
+                for v in values:
+                    vn  = (v.get("value") or "").lower()
+                    odd = _safe_float(v.get("odd"))
+                    if vn == "yes": cote_btts_oui = odd
+                    elif vn == "no": cote_btts_non = odd
+
+    if not any([cote_1, cote_x, cote_2]):
+        return None
+
+    return {
+        "home": home, "away": away, "ligue": league,
+        "cote_1": cote_1, "cote_x": cote_x, "cote_2": cote_2,
+        "cote_1x": cote_1x, "cote_x2": cote_x2, "cote_12": cote_12,
+        "cote_plus25": cote_plus25, "cote_moins25": cote_moins25,
+        "cote_btts_oui": cote_btts_oui, "cote_btts_non": cote_btts_non,
+        "match_id": fixture_id,
+    }
+
+
 # ── Point d'entrée ────────────────────────────────────────────────────────────
 
 def run():
     init_table()
     today = date.today().strftime("%Y-%m-%d")
-    log.info(f"=== Scraping Winamax {today} ===")
+    log.info(f"=== Scraping cotes {today} ===")
 
+    # ── Source 1 : api-sports.io /odds ─────────────────────────────────────────
+    log.info("[source] Tentative api-sports.io /odds...")
+    raw_odds = _fetch_odds_apisports(today)
+    if raw_odds:
+        cotes = [r for item in raw_odds
+                 if (r := _parse_odds_apisports(item)) is not None]
+        n = _save(cotes)
+        if n > 0:
+            log.info(f"[apisports] OK — {n} matchs avec cotes")
+            return n
+        log.warning("[apisports] Réponse reçue mais 0 cotes parsées")
+
+    # ── Source 2 : scraping Winamax direct (fallback) ──────────────────────────
+    log.info("[source] Fallback scraping Winamax direct...")
     sport_id = _get_football_id()
     raw      = _fetch_today_matches(sport_id)
-
-    cotes = []
-    for m in raw:
-        result = _extract_match(m, today)
-        if result:
-            cotes.append(result)
-
-    n = _save(cotes)
+    cotes    = [r for m in raw if (r := _extract_match(m, today)) is not None]
+    n        = _save(cotes)
     if n == 0:
-        log.warning(
-            "Aucune cote enregistrée. Winamax peut filtrer les requêtes automatiques "
-            "ou avoir modifié sa structure d'API. "
-            "Les paris seront générés sur la base des probabilités HiddenScout seules."
-        )
+        log.warning("Aucune cote (api-sports + Winamax). Paris sur probas HiddenScout seules.")
     return n
 
 
@@ -502,6 +648,7 @@ scraper_cotes = run
 
 if __name__ == "__main__":
     n = run()
-    print(f"\n{'✅' if n else '⚠️ '} {n} matchs avec cotes sauvegardés")
+    status = "OK" if n else "WARN"
+    print(f"\n[{status}] {n} matchs avec cotes sauvegardes")
     if n == 0:
-        print("Vérifiez les logs ci-dessus pour diagnostiquer le problème Winamax.")
+        print("Verifiez les logs ci-dessus. Sur Railway, API_SPORTS_KEY doit etre configuree.")

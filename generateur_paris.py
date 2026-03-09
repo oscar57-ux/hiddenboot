@@ -195,8 +195,8 @@ def _get_matchs_depuis_api(c, today):
 
 
 def _extraire_json(raw: str) -> dict | None:
-    raw = raw.replace("```json", "").replace("```", "").strip()
-    raw = re.sub(r"```(?:json)?\s*", "", raw)
+    # Supprimer tout bloc markdown (```json ... ```)
+    raw = re.sub(r"```(?:json)?\s*", "", raw, flags=re.IGNORECASE)
     raw = raw.replace("```", "").strip()
     start = raw.find("{")
     end = raw.rfind("}") + 1
