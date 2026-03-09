@@ -152,6 +152,75 @@ def _extraire_json(raw: str) -> dict:
     return json.loads(raw[start:end])
 
 
+def _get_rang_equipe(c, equipe_nom, ligue_id):
+    """Retourne le rang (1=leader) de l'équipe dans sa ligue via SQLite classements.
+    Retourne None si aucune donnée disponible."""
+    try:
+        c.execute("""
+            SELECT cl.rang FROM classements cl
+            JOIN api_equipes e ON cl.equipe_id = e.id
+            WHERE cl.ligue_id = ? AND e.nom LIKE ?
+            LIMIT 1
+        """, (ligue_id, f"%{equipe_nom[:10]}%"))
+        row = c.fetchone()
+        return row["rang"] if row else None
+    except Exception:
+        return None
+
+
+def _appliquer_multiplicateur_classement(pct_home, pct_nul, pct_away,
+                                          rang_home, rang_away,
+                                          home_nom="dom", away_nom="ext"):
+    """
+    Booste la probabilité de l'équipe MIEUX classée si l'écart de position >= 10.
+    Le multiplicateur s'applique sur les probas (espace probabilité, pas lambdas bruts).
+    Renormalise pour que pct_home + pct_nul + pct_away = 100.
+
+    Seuils :
+      écart >= 10 → ×1.20
+      écart >= 15 → ×1.35
+      écart >= 18 → ×1.50
+
+    Si rang inconnu pour l'une ou l'autre → multiplicateur = 1.0 (neutre).
+    """
+    if rang_home is None or rang_away is None:
+        print(f"[classement] {home_nom} pos=? vs {away_nom} pos=? → données manquantes, multiplicateur=1.00")
+        return pct_home, pct_nul, pct_away
+
+    ecart = abs(rang_home - rang_away)
+    print(f"[classement] {home_nom} pos={rang_home} vs {away_nom} pos={rang_away} → écart={ecart}", end="")
+
+    if ecart < 10:
+        print(" multiplicateur=1.00 (écart insuffisant)")
+        return pct_home, pct_nul, pct_away
+
+    mult = 1.50 if ecart >= 18 else 1.35 if ecart >= 15 else 1.20
+    # rang 1 = meilleur : l'équipe avec le plus petit rang est la favorite
+    home_est_favorite = rang_home < rang_away
+
+    p_h = pct_home / 100.0
+    p_n = pct_nul / 100.0
+    p_a = pct_away / 100.0
+
+    if home_est_favorite:
+        p_h_new = p_h * mult
+        total = p_h_new + p_n + p_a
+        r_h = round(p_h_new / total * 100)
+        r_n = round(p_n / total * 100)
+        r_a = 100 - r_h - r_n
+        cote = "dom"
+    else:
+        p_a_new = p_a * mult
+        total = p_h + p_n + p_a_new
+        r_a = round(p_a_new / total * 100)
+        r_n = round(p_n / total * 100)
+        r_h = 100 - r_a - r_n
+        cote = "ext"
+
+    print(f" multiplicateur={mult} (boost {cote}) | avant={pct_home}/{pct_nul}/{pct_away} → après={r_h}/{r_n}/{r_a}")
+    return r_h, r_n, r_a
+
+
 def _categorie_depuis_proba(proba: int) -> str | None:
     if proba >= 80:
         return "safe"
@@ -182,6 +251,19 @@ def generer_paris() -> int:
         conn.close()
         conn_pg.close()
         return 0
+
+    # 1.5. Ajustement classement — multiplicateur sur la proba de l'équipe mieux classée
+    # Seuils : écart >= 10 → ×1.20 | >= 15 → ×1.35 | >= 18 → ×1.50
+    # Si classement inconnu pour une équipe → neutre (×1.0)
+    print(f"[classement] ajustement sur {len(matchs)} matchs…")
+    for m in matchs:
+        rang_h = _get_rang_equipe(c, m["home"], m["ligue_id"])
+        rang_a = _get_rang_equipe(c, m["away"], m["ligue_id"])
+        m["pct_home"], m["pct_nul"], m["pct_away"] = _appliquer_multiplicateur_classement(
+            m["pct_home"], m["pct_nul"], m["pct_away"],
+            rang_h, rang_a,
+            home_nom=m["home"], away_nom=m["away"],
+        )
 
     # 2. Construire le prompt — probabilité HiddenScout bien visible
     lignes = []
