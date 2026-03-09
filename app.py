@@ -61,7 +61,7 @@ def calculer_forme_ponderee(forme_str):
     n = len(resultats)
     if n == 0:
         return 1.5
-    poids = [0.9 ** (n - 1 - i) for i in range(n)]
+    poids = [0.7 ** (n - 1 - i) for i in range(n)]
     return sum(r * w for r, w in zip(resultats, poids)) / sum(poids)
 
 
@@ -77,24 +77,32 @@ def calculer_proba_poisson(stats_home, stats_away, moy_ligue=1.35):
     matchs_home = max(1, stats_home.get("victoires", 0) + stats_home.get("nuls", 0) + stats_home.get("defaites", 0))
     matchs_away = max(1, stats_away.get("victoires", 0) + stats_away.get("nuls", 0) + stats_away.get("defaites", 0))
 
-    bm_home = stats_home.get("buts_pour", 0) / matchs_home
-    be_home = stats_home.get("buts_contre", 0) / matchs_home
-    bm_away = stats_away.get("buts_pour", 0) / matchs_away
-    be_away = stats_away.get("buts_contre", 0) / matchs_away
-
     moy = max(moy_ligue, 0.5)
 
-    # λ = (buts_marqués / moy) × (buts_encaissés_adversaire / moy) × facteur_domicile
-    lambda_home = (bm_home / moy) * (be_away / moy) * 1.3
-    lambda_away = (bm_away / moy) * (be_home / moy) * 1.0
+    # Fallback à moy_ligue si buts = 0 (données manquantes → évite lambda = 0 qui écrase le calcul)
+    _bp_h = (stats_home.get("buts_pour", 0) or 0) / matchs_home
+    bm_home = _bp_h if _bp_h > 0 else moy
+    _bc_h = (stats_home.get("buts_contre", 0) or 0) / matchs_home
+    be_home = _bc_h if _bc_h > 0 else moy
+    _bp_a = (stats_away.get("buts_pour", 0) or 0) / matchs_away
+    bm_away = _bp_a if _bp_a > 0 else moy
+    _bc_a = (stats_away.get("buts_contre", 0) or 0) / matchs_away
+    be_away = _bc_a if _bc_a > 0 else moy
 
-    # Ajustement léger par forme pondérée (±20%)
+    # Amplification ^1.5 des ratios attaque/défense : crée des écarts prononcés entre fortes/faibles équipes
+    # Sans ^1.5, une équipe à 1.5 buts/match face à une défense à 1.5 buts concédés donne λ≈1.3 comme
+    # une équipe moyenne, aplatissant toutes les probas autour de 45%
+    lambda_home = (bm_home / moy) ** 1.5 * (be_away / moy) ** 1.5 * 1.3
+    lambda_away = (bm_away / moy) ** 1.5 * (be_home / moy) ** 1.5 * 1.0
+
+    # Ajustement par forme pondérée (±30%, amplifié vs ancien ±20%)
     fh = calculer_forme_ponderee(stats_home.get("forme_raw", ""))
     fa = calculer_forme_ponderee(stats_away.get("forme_raw", ""))
     denom = (fh + fa) / 2
     if denom > 0:
-        lambda_home *= max(0.8, min(1.2, fh / denom))
-        lambda_away *= max(0.8, min(1.2, fa / denom))
+        lambda_home *= max(0.7, min(1.3, fh / denom))
+        lambda_away *= max(0.7, min(1.3, fa / denom))
+    print(f"[poisson] λ_h={lambda_home:.2f} λ_a={lambda_away:.2f} | bm_h={bm_home:.2f} be_a={be_away:.2f} moy={moy:.2f}")
 
     lambda_home = max(0.1, min(4.0, lambda_home))
     lambda_away = max(0.1, min(4.0, lambda_away))
@@ -135,12 +143,15 @@ def calculer_proba_buteur_mc(ratio_buts, buts_encaisses_adv=1.35, forme_str="",
     forme_norm = calculer_forme_ponderee(forme_str) / 3.0  # Normaliser entre 0 et 1
     facteur_dom = 1.15 if est_domicile else 1.0
 
-    lambda_base = taux * facteur_opp * (1 + 0.3 * forme_norm) * facteur_dom * part_buts
+    # part_buts retiré du calcul principal : multiplier ratio × part revenait à compter les buts deux fois
+    # → les top buteurs (ratio=0.4, part=0.25) obtenaient λ≈0.05 donc 5% seulement
+    # → part_buts devient un bonus modeste (+0% si part=0% jusqu'à +15% si part≥30%)
+    bonus_part = 1.0 + min(0.15, part_buts * 0.5)
+    lambda_base = taux * facteur_opp * (1 + 0.3 * forme_norm) * facteur_dom * bonus_part
     # Cap à 1.2 : 1 - e^(-1.2) ≈ 70 %, évite les probas irréalistes
     lambda_base = max(0.01, min(1.2, lambda_base))
 
-    if lambda_base < 0.05:
-        print(f"[lambda_warn] lambda={lambda_base:.4f} ratio={ratio_buts:.3f} part={part_buts:.3f} opp={buts_encaisses_adv:.2f}")
+    print(f"[buteur] ratio={taux:.3f} part={part_buts:.3f} bonus={bonus_part:.3f} λ={lambda_base:.3f}")
 
     rng = np.random.default_rng(42)
     lambdas = lambda_base * rng.normal(loc=1.0, scale=0.15, size=n_sims)
@@ -149,13 +160,18 @@ def calculer_proba_buteur_mc(ratio_buts, buts_encaisses_adv=1.35, forme_str="",
 
     mean_pct = min(70.0, round(float(np.mean(probas)) * 100, 1))
 
-    # Planchers minimum selon le profil du joueur
+    # Planchers minimum selon le profil du joueur (renforcés)
     plancher = 0.0
     if buts_saison > 3:
         plancher = max(plancher, 5.0)
+    if buts_saison > 8:
+        plancher = max(plancher, 8.0)
     if buts_recents >= 3:
         plancher = max(plancher, 10.0)
+    if buts_recents >= 4:
+        plancher = max(plancher, 15.0)
     mean_pct = max(mean_pct, plancher)
+    print(f"[buteur] p={mean_pct:.1f}% plancher={plancher:.0f}% (saison={buts_saison} recents={buts_recents})")
 
     return (
         mean_pct,
@@ -558,6 +574,27 @@ def api_matchs_jour():
     if not ligues_suivies:
         ligues_suivies = set(DRAPEAUX_LIGUES.keys())
 
+    # ── Chargement batch des prédictions PG pour aujourd'hui ─────────────────
+    # Évite N requêtes dans la boucle et permet l'auto-save en temps réel
+    conn_pg = None
+    c_pg_matchs = None
+    ph_pg = None
+    pg_preds_today = {}
+    try:
+        conn_pg = get_pg()
+        c_pg_matchs = conn_pg.cursor()
+        ph_pg = _ph(conn_pg)
+        c_pg_matchs.execute(
+            f"SELECT fixture_id, pct_home, pct_nul, pct_away FROM predictions WHERE date = {ph_pg}",
+            (today,)
+        )
+        for row in c_pg_matchs.fetchall():
+            pg_preds_today[row["fixture_id"]] = dict(row)
+        print(f"[matchs-jour] {len(pg_preds_today)} prédictions PG chargées pour {today}")
+    except Exception as _e_pg:
+        print(f"[matchs-jour] PG indisponible, calcul à la volée: {_e_pg}")
+        conn_pg = None
+
     def get_stats_equipe(equipe_id):
         c.execute("""
             SELECT rang, points, forme, diff_buts,
@@ -636,23 +673,46 @@ def api_matchs_jour():
         stats_home = get_stats_equipe(home_id)
         stats_away = get_stats_equipe(away_id)
         moy_ligue = moy_buts_par_ligue.get(ligue_id, 1.35)
-        # Utiliser les probabilités sauvegardées si disponibles
-        saved = None
-        try:
-            c_pred = conn.cursor()
-            c_pred.execute(
-                "SELECT pct_home, pct_nul, pct_away FROM predictions WHERE fixture_id = ?",
-                (fixture_id,)
-            )
-            saved = c_pred.fetchone()
-        except Exception:
-            pass
-        if saved:
-            pct_home = saved["pct_home"]
-            pct_nul  = saved["pct_nul"]
-            pct_away = saved["pct_away"]
+        # Priorité : PG (batch chargé avant la boucle) > SQLite (legacy) > calcul + auto-save PG
+        if fixture_id in pg_preds_today:
+            _sp = pg_preds_today[fixture_id]
+            pct_home = _sp["pct_home"]
+            pct_nul  = _sp["pct_nul"]
+            pct_away = _sp["pct_away"]
         else:
-            pct_home, pct_nul, pct_away = calculer_proba_poisson(stats_home, stats_away, moy_ligue)
+            _saved_sq = None
+            try:
+                _c_sq = conn.cursor()
+                _c_sq.execute(
+                    "SELECT pct_home, pct_nul, pct_away FROM predictions WHERE fixture_id = ?",
+                    (fixture_id,)
+                )
+                _saved_sq = _c_sq.fetchone()
+            except Exception:
+                pass
+            if _saved_sq:
+                pct_home = _saved_sq["pct_home"]
+                pct_nul  = _saved_sq["pct_nul"]
+                pct_away = _saved_sq["pct_away"]
+            else:
+                pct_home, pct_nul, pct_away = calculer_proba_poisson(stats_home, stats_away, moy_ligue)
+                # Sauvegarde immédiate dans PG → la page Résultats les verra sans attendre minuit
+                if conn_pg and c_pg_matchs and ph_pg:
+                    try:
+                        _hm = match["fixture"]["date"][11:16]
+                        c_pg_matchs.execute(
+                            f'''INSERT INTO predictions
+                               (fixture_id, date, ligue, ligue_id, home, away,
+                                pct_home, pct_nul, pct_away, statut, date_maj, heure_match)
+                               VALUES ({ph_pg},{ph_pg},{ph_pg},{ph_pg},{ph_pg},{ph_pg},
+                                       {ph_pg},{ph_pg},{ph_pg},'en_attente',{ph_pg},{ph_pg})
+                               ON CONFLICT (fixture_id) DO NOTHING''',
+                            (fixture_id, today, ligue_nom, ligue_id,
+                             home_name, away_name, pct_home, pct_nul, pct_away,
+                             datetime.now().strftime("%Y-%m-%d %H:%M"), _hm)
+                        )
+                    except Exception as _e_ins:
+                        print(f"[matchs-jour] insert PG fixture {fixture_id}: {_e_ins}")
         heure = match["fixture"]["date"][11:16]
         statut = match["fixture"]["status"]["short"]
         est_live = statut in ["1H", "2H", "HT", "ET", "P"]
@@ -682,6 +742,13 @@ def api_matchs_jour():
             "forme_detail_away": get_forme_detail(away_name, forme_raw_away),
             "drapeau": DRAPEAUX_LIGUES.get(ligue_id, ""),
         })
+    # Commit PG (auto-saves effectuées dans la boucle) + fermeture propre
+    if conn_pg:
+        try:
+            conn_pg.commit()
+            conn_pg.close()
+        except Exception:
+            pass
     conn.close()
     return jsonify({"ligues": ligues, "date": today})
 
