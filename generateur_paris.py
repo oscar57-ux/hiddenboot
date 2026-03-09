@@ -308,24 +308,16 @@ _PROMPT_JSON_SCHEMA = """\
       "ligue": "Nom ligue",
       "heure": "18:00",
       "type_pari": "Type concis",
-      "description": "Description courte et précise",
+      "description": "Description courte (max 15 mots)",
       "probabilite_hiddenscout": 82,
       "cote": 1.45,
       "value_bet": true,
       "forme_domicile": "WWDWW",
       "forme_exterieur": "WDLWL",
       "classement": "3ème vs 15ème",
-      "raisonnement": "Justification croisant proba + forme + classement"
+      "raisonnement": "1-2 phrases max : proba + forme + value bet"
     }
-  ],
-  "combi_du_jour": {
-    "selections": ["Match A — type", "Match B — type", "Match C — type"],
-    "cote_combinee": 3.45,
-    "probabilite_jointe": 58,
-    "mise_suggeree": 3.20,
-    "gain_potentiel": 11.04,
-    "description": "Pourquoi ce combi est solide"
-  }
+  ]
 }"""
 
 
@@ -435,6 +427,15 @@ def _construire_combis(paris_valides):
             "description":        f"Combi {len(selections)} sélections — cote {cote_comb}",
         }, used
 
+    # ── Debug : état de tous les paris valides ────────────────────────────────
+    print(f"[combi] Total paris_valides : {len(paris_valides)}")
+    for p in paris_valides:
+        proba = p.get("probabilite_hiddenscout", 0)
+        cote  = p.get("cote")
+        cat   = p.get("categorie", "?")
+        cote_ok = cote is not None and float(cote or 0) > 1.0
+        print(f"[combi]   cat={cat} proba={proba} cote={cote} (cote>1={cote_ok}) | {p.get('match')} | {p.get('type_pari')}")
+
     # COMBI 1 — Full SAFE
     safe_candidats = sorted(
         [p for p in paris_valides
@@ -443,6 +444,10 @@ def _construire_combis(paris_valides):
         key=lambda p: int(p.get("probabilite_hiddenscout", 0) or 0),
         reverse=True,
     )
+    print(f"[combi] SAFE eligibles (proba>=80, cote>1) : {len(safe_candidats)}")
+    for p in safe_candidats:
+        print(f"[combi]   -> proba={p.get('probabilite_hiddenscout')} cote={p.get('cote')} | {p.get('match')}")
+
     combi_safe, used_safe = _build(safe_candidats, "safe", 5.00)
 
     # COMBI 2 — SAFE + TENTANT (proba >= 70), matchs différents du combi_safe
@@ -454,6 +459,10 @@ def _construire_combis(paris_valides):
         key=lambda p: int(p.get("probabilite_hiddenscout", 0) or 0),
         reverse=True,
     )
+    print(f"[combi] MIXTE eligibles (proba>=70, cote>1, hors safe) : {len(mixte_candidats)}")
+    for p in mixte_candidats:
+        print(f"[combi]   -> proba={p.get('probabilite_hiddenscout')} cote={p.get('cote')} | {p.get('match')}")
+
     combi_mixte, _ = _build(mixte_candidats, "mixte", 3.00)
 
     return combi_safe, combi_mixte
@@ -802,14 +811,12 @@ RÈGLES STRICTES :
 
 7. Si aucun pari >= 55% → "paris": []
 
-8. Propose un combi_du_jour avec 3 sélections SAFE/TENTANT solides.
-   Calcule cote_combinee = produit des cotes, probabilite_jointe = produit des probas/100,
-   mise_suggeree = 3.20, gain_potentiel = round(mise * cote_combinee, 2).
+8. Raisonnement : 1-2 phrases MAX par pari (sois concis, pas de répétition).
 
 Réponds UNIQUEMENT en JSON valide sans markdown :
 {_PROMPT_JSON_SCHEMA}
 
-Génère entre 6 et 12 paris bien répartis entre les catégories disponibles."""
+Génère entre 6 et 10 paris bien répartis entre les catégories disponibles."""
 
     # 3. Appeler Claude
     print("[claude-prompt] ========== PROMPT ENVOYÉ ==========")
@@ -819,7 +826,7 @@ Génère entre 6 et 12 paris bien répartis entre les catégories disponibles.""
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
     message = client.messages.create(
         model="claude-sonnet-4-6",
-        max_tokens=4000,
+        max_tokens=8000,
         messages=[{"role": "user", "content": prompt}],
     )
     raw = message.content[0].text.strip()
