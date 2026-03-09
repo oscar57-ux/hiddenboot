@@ -90,6 +90,10 @@ LIGUES_CIBLES = {
     "Liga BetPlay": 239,
     "Primera Division CL": 265,
     "Primera Division UY": 268,
+    # UEFA
+    "Champions League": 2,
+    "Europa League": 3,
+    "Conference League": 848,
 }
 
 SAISON = 2025
