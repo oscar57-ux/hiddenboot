@@ -1059,17 +1059,38 @@ function renderBankroll(courbe) {
 
     const labels = courbe.map(d => shortDate(d.date));
     const values = courbe.map(d => d.valeur);
-    const aboveColor = 'rgba(0,255,135,0.15)';
-    const lineColor  = values[values.length-1] >= 100 ? '#00ff87' : '#ff4444';
+    const lastVal = values[values.length - 1] ?? 100;
+    const lineColor = lastVal >= 100 ? '#4ade80' : '#f87171';
+
+    // Plugin inline : gradient de remplissage vert au-dessus de 100€, rouge en dessous
+    const splitFillPlugin = {
+        id: 'bankrollSplitFill',
+        beforeDraw(chart) {
+            const ds = chart.data.datasets[0];
+            const yScale = chart.scales.y;
+            if (!yScale) return;
+            const y100   = yScale.getPixelForValue(100);
+            const top    = yScale.top;
+            const bottom = yScale.bottom;
+            const ratio  = Math.max(0, Math.min(1, (y100 - top) / (bottom - top)));
+            const grad   = chart.ctx.createLinearGradient(0, top, 0, bottom);
+            grad.addColorStop(0,     'rgba(74,222,128,0.30)');
+            grad.addColorStop(ratio, 'rgba(74,222,128,0.30)');
+            grad.addColorStop(ratio, 'rgba(248,113,113,0.30)');
+            grad.addColorStop(1,     'rgba(248,113,113,0.30)');
+            ds.backgroundColor = grad;
+        }
+    };
 
     chartBankroll = new Chart(ctx, {
         type: 'line',
+        plugins: [splitFillPlugin],
         data: {
             labels,
             datasets: [
                 {
                     label: 'Bankroll', data: values,
-                    borderColor: lineColor, backgroundColor: lineColor.replace(')', ',0.08)').replace('rgb','rgba'),
+                    borderColor: lineColor, backgroundColor: 'rgba(74,222,128,0.30)',
                     fill: true, tension: 0.3, pointRadius: 2, pointBackgroundColor: lineColor, spanGaps: true,
                 },
                 {
@@ -1095,11 +1116,30 @@ function renderBankroll(courbe) {
     });
 }
 
+function updateWinamaxKpis(parisFiltres) {
+    const avecRes = parisFiltres.filter(p => p.gagne !== null && p.gagne !== undefined);
+    const gagnes  = avecRes.filter(p => p.gagne === 1);
+    const perdus  = avecRes.filter(p => p.gagne === 0);
+    const netProfit = gagnes.reduce((s, p) => s + 5 * (parseFloat(p.cote || 1) - 1), 0) - perdus.length * 5;
+    const roi = avecRes.length > 0 ? netProfit / (avecRes.length * 5) * 100 : 0;
+    document.getElementById('w-total').textContent  = avecRes.length;
+    document.getElementById('w-gagnes').textContent = gagnes.length;
+    document.getElementById('w-perdus').textContent = perdus.length;
+    const roiEl = document.getElementById('w-roi');
+    roiEl.textContent = (roi >= 0 ? '+' : '') + roi.toFixed(1) + '%';
+    roiEl.className = 'value ' + (roi >= 0 ? 'good' : 'bad');
+}
+
 function setFiltreParisCategorie(val, btn) {
     filtreParisCategorie = val;
     document.querySelectorAll('#tab-winamax .filter-group:first-child .filter-btn').forEach(b => b.classList.remove('active'));
     if (btn) btn.classList.add('active');
-    if (_cachedParis) renderParisList(_cachedParis.paris || []);
+    if (_cachedParis) {
+        const all = _cachedParis.paris || [];
+        const catFiltered = val === 'tous' ? all : all.filter(p => (p.categorie||'').toUpperCase() === val);
+        updateWinamaxKpis(catFiltered);
+        renderParisList(all);
+    }
 }
 
 function setFiltreParisResultat(val, btn) {
