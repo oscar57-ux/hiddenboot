@@ -127,6 +127,28 @@
         .btn-verifier { min-height: 40px; padding: 0 16px; border-radius: 8px; border: 1px solid #00D4FF; background: rgba(0,212,255,0.08); color: #00D4FF; cursor: pointer; font-size: 13px; }
         .btn-verifier:disabled { opacity: 0.5; cursor: not-allowed; }
 
+        /* ── Combi du jour ────────────────────────────────────── */
+        .combi-card { background: #0a1628; border: 1px solid #1e3a5f; border-left: 4px solid #00D4FF; border-radius: 14px; padding: 20px; margin-bottom: 20px; }
+        .combi-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 10px; }
+        .combi-title { font-size: 16px; font-weight: 800; color: #e0e8f0; display: flex; align-items: center; gap: 8px; }
+        .combi-badge-simu { background: rgba(0,212,255,0.12); border: 1px solid rgba(0,212,255,0.3); color: #00D4FF; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; padding: 3px 9px; border-radius: 20px; }
+        .combi-statut { font-size: 12px; }
+        .combi-sels { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+        .combi-sel { background: rgba(255,255,255,0.03); border: 1px solid #1a2540; border-radius: 8px; padding: 8px 12px; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+        .combi-sel-match { font-size: 13px; font-weight: 600; color: #c0d0e0; }
+        .combi-sel-type { font-size: 11px; color: #4a6080; }
+        .combi-sel-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+        .combi-sel-proba { font-size: 12px; font-weight: 700; color: #00ff87; }
+        .combi-sel-cote { font-size: 16px; font-weight: 800; color: #00D4FF; }
+        .combi-footer { display: flex; align-items: center; justify-content: space-between; padding-top: 14px; border-top: 1px solid #1a2540; flex-wrap: wrap; gap: 12px; }
+        .combi-cote-totale { display: flex; flex-direction: column; }
+        .combi-cote-label { font-size: 10px; color: #4a6080; text-transform: uppercase; letter-spacing: 1px; }
+        .combi-cote-val { font-size: 36px; font-weight: 900; color: #00D4FF; line-height: 1; }
+        .combi-mise-info { text-align: right; }
+        .combi-mise-line { font-size: 13px; color: #8090a0; }
+        .combi-gain-line { font-size: 20px; font-weight: 800; color: #00ff87; }
+        .combi-prob-jointe { font-size: 11px; color: #4a6080; margin-top: 4px; }
+
         /* ── Loading overlay ──────────────────────────────────── */
         .loading-overlay { display: none; position: fixed; inset: 0; background: rgba(8,12,20,0.9); z-index: 300; flex-direction: column; align-items: center; justify-content: center; gap: 20px; }
         .loading-overlay.visible { display: flex; }
@@ -250,6 +272,7 @@
             {% else %}
              — <span style="color:#FFA500">Aucune génération aujourd'hui</span>
             {% endif %}
+            <span id="maj-cotes" style="color:#888;font-size:.85em;margin-left:8px"></span>
         </div>
         <button class="btn-regen" id="btn-regen" onclick="regenerer()">
             <span class="spinner" id="regen-spinner"></span>
@@ -259,6 +282,50 @@
 
     {% if resume %}
     <div class="resume-box">💡 {{ resume }}</div>
+    {% endif %}
+
+    {% if combi_du_jour %}
+    <!-- ── Combi du jour ─────────────────────────────────────── -->
+    <div class="combi-card">
+        <div class="combi-header">
+            <div class="combi-title">
+                🎯 Combi du jour
+                <span class="combi-badge-simu">Simulation</span>
+            </div>
+            <div class="combi-statut">
+                {% if combi_du_jour.resultat == 'gagne' %}✅ Gagné
+                {% elif combi_du_jour.resultat == 'perdu' %}❌ Perdu
+                {% else %}⏳ En attente{% endif %}
+            </div>
+        </div>
+
+        <div class="combi-sels">
+            {% for sel in combi_du_jour.selections %}
+            <div class="combi-sel">
+                <div>
+                    <div class="combi-sel-match">{{ sel.match }}</div>
+                    <div class="combi-sel-type">{{ sel.type_pari }} · {{ sel.ligue }}</div>
+                </div>
+                <div class="combi-sel-right">
+                    <span class="combi-sel-proba">{{ sel.probabilite_hiddenscout }}%</span>
+                    <span class="combi-sel-cote">{{ sel.cote }}</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="combi-footer">
+            <div class="combi-cote-totale">
+                <span class="combi-cote-label">Cote combinée</span>
+                <span class="combi-cote-val">{{ combi_du_jour.cote_combinee }}</span>
+                <span class="combi-prob-jointe">prob. jointe ≈ {{ combi_du_jour.probabilite_jointe }}%</span>
+            </div>
+            <div class="combi-mise-info">
+                <div class="combi-mise-line">Mise suggérée : <strong>{{ combi_du_jour.mise_suggeree }}€</strong></div>
+                <div class="combi-gain-line">Gain potentiel : {{ combi_du_jour.gain_potentiel }}€</div>
+            </div>
+        </div>
+    </div>
     {% endif %}
 
     {% if has_paris %}
@@ -583,6 +650,22 @@ async function verifierParis() {
         if (btn) { btn.disabled = false; btn.textContent = '🔄 Vérifier hier'; }
     }
 }
+
+/* ── Dernière mise à jour cotes Winamax ──────────────────── */
+(async function() {
+    try {
+        const r = await fetch('/api/derniere-maj-cotes');
+        const d = await r.json();
+        const el = document.getElementById('maj-cotes');
+        if (!el) return;
+        if (d.timestamp) {
+            const heure = d.timestamp.slice(11, 16);
+            el.textContent = `— Cotes Winamax : ${heure} (${d.nb_matchs} matchs)`;
+        } else {
+            el.textContent = '— Cotes Winamax : non disponibles';
+        }
+    } catch(e) { /* silencieux */ }
+})();
 </script>
 
 </body>

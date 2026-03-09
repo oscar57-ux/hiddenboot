@@ -45,6 +45,56 @@ LIGUES_IDS = {
     268: "Primera División (Uruguay)",
 }
 
+# Ligues disponibles sur Winamax — seuls les matchs de ces ligues sont éligibles aux paris
+LIGUES_WINAMAX = {
+    # France
+    61: "Ligue 1",
+    62: "Ligue 2",
+    # Angleterre
+    39: "Premier League",
+    40: "Championship",
+    # Espagne
+    140: "La Liga",
+    141: "La Liga 2",
+    # Allemagne
+    78: "Bundesliga",
+    79: "2. Bundesliga",
+    # Italie
+    135: "Serie A",
+    136: "Serie B",
+    # Pays-Bas
+    88: "Eredivisie",
+    # Belgique
+    144: "Pro League",
+    # Portugal
+    94: "Primeira Liga",
+    # Turquie
+    203: "Süper Lig",
+    # Pologne
+    106: "Ekstraklasa",
+    # Serbie
+    286: "Super Liga",
+    # Grèce
+    197: "Super League 1",
+    # Suisse
+    207: "Super League",
+    # Roumanie
+    283: "Liga 1",
+    # Écosse
+    179: "Premiership",
+    # Autriche
+    218: "Bundesliga autrichienne",
+    # Croatie
+    210: "HNL",
+    # UEFA
+    2:   "Champions League",
+    3:   "Europa League",
+    848: "Conference League",
+}
+
+# Mots-clés indiquant une équipe réserve/espoirs — ces matchs sont exclus
+_RESERVE_KEYWORDS = ("jong", "b team", "reservas", "espoirs", "u23", "u21")
+
 
 def get_db():
     conn = sqlite3.connect("botfoot.db")
@@ -153,8 +203,7 @@ def _extraire_json(raw: str) -> dict:
 
 
 def _get_rang_equipe(c, equipe_nom, ligue_id):
-    """Retourne le rang (1=leader) de l'équipe dans sa ligue via SQLite classements.
-    Retourne None si aucune donnée disponible."""
+    """Retourne le rang (1=leader) de l'équipe dans sa ligue via SQLite classements."""
     try:
         c.execute("""
             SELECT cl.rang FROM classements cl
@@ -166,6 +215,202 @@ def _get_rang_equipe(c, equipe_nom, ligue_id):
         return row["rang"] if row else None
     except Exception:
         return None
+
+
+def _get_classement_details(c, equipe_nom, ligue_id):
+    """Rang, forme 5J, moyennes buts marqués/encaissés depuis classements SQLite."""
+    try:
+        c.execute("""
+            SELECT cl.rang, cl.forme, cl.buts_pour, cl.buts_contre,
+                   (cl.victoires + cl.nuls + cl.defaites) AS nb_matchs
+            FROM classements cl
+            JOIN api_equipes e ON cl.equipe_id = e.id
+            WHERE cl.ligue_id = ? AND e.nom LIKE ?
+            LIMIT 1
+        """, (ligue_id, f"%{equipe_nom[:10]}%"))
+        row = c.fetchone()
+        if row:
+            nb = row["nb_matchs"] or 1
+            return {
+                "rang":     row["rang"] if row["rang"] else "?",
+                "forme":    (row["forme"] or "?")[-5:],  # 5 derniers résultats
+                "buts_moy": round(row["buts_pour"]   / nb, 2) if nb > 0 else "?",
+                "buts_enc": round(row["buts_contre"] / nb, 2) if nb > 0 else "?",
+            }
+    except Exception:
+        pass
+    return {"rang": "?", "forme": "?", "buts_moy": "?", "buts_enc": "?"}
+
+
+def _get_cotes_match_winamax(conn, home, away, today):
+    """Retourne le dict complet des cotes Winamax pour ce match (toutes colonnes)."""
+    ph   = _ph(conn)
+    like = "ILIKE" if _is_pg(conn) else "LIKE"
+    try:
+        cur = conn.cursor()
+        cur.execute(f"""
+            SELECT cote_1, cote_x, cote_2, cote_1x, cote_x2, cote_12,
+                   cote_plus25, cote_moins25, cote_btts_oui, cote_btts_non
+            FROM cotes_winamax
+            WHERE date = {ph} AND home {like} {ph} AND away {like} {ph}
+            LIMIT 1
+        """, (today, f"%{home[:8]}%", f"%{away[:8]}%"))
+        row = cur.fetchone()
+        if row:
+            return dict(row)
+    except Exception:
+        pass
+    return {}
+
+
+def _migrer_paris_jour(c_pg):
+    """Ajoute heure et value_bet à paris_jour si manquantes (PostgreSQL uniquement)."""
+    for col, typ in [("heure", "TEXT"), ("value_bet", "BOOLEAN"), ("valeur_du_jour", "TEXT")]:
+        try:
+            c_pg.execute(f"ALTER TABLE paris_jour ADD COLUMN IF NOT EXISTS {col} {typ}")
+        except Exception:
+            pass
+
+
+def _init_paris_combi_table(c_pg, pg):
+    """Crée la table paris_combi si elle n'existe pas."""
+    if pg:
+        c_pg.execute("""
+            CREATE TABLE IF NOT EXISTS paris_combi (
+                id               SERIAL PRIMARY KEY,
+                date             DATE UNIQUE,
+                selections       JSONB,
+                cote_combinee    FLOAT,
+                probabilite_jointe FLOAT,
+                mise_suggeree    FLOAT,
+                gain_potentiel   FLOAT,
+                description      TEXT,
+                resultat         VARCHAR(20) DEFAULT 'en_attente',
+                created_at       TIMESTAMP DEFAULT NOW()
+            )
+        """)
+    else:
+        c_pg.execute("""
+            CREATE TABLE IF NOT EXISTS paris_combi (
+                id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+                date               TEXT UNIQUE,
+                selections         TEXT,
+                cote_combinee      REAL,
+                probabilite_jointe REAL,
+                mise_suggeree      REAL,
+                gain_potentiel     REAL,
+                description        TEXT,
+                resultat           TEXT DEFAULT 'en_attente',
+                created_at         TEXT
+            )
+        """)
+
+
+def _construire_combi(paris_valides):
+    """
+    Sélectionne 3-4 paris SAFE (proba >= 80, cote > 1.0, matchs distincts)
+    et retourne un dict combi ou None si pas assez de candidats.
+    """
+    candidats = sorted(
+        [
+            p for p in paris_valides
+            if p.get("categorie") == "safe"
+            and int(p.get("probabilite_hiddenscout", 0) or 0) >= 80
+            and float(p.get("cote") or 0) > 1.0
+        ],
+        key=lambda p: int(p.get("probabilite_hiddenscout", 0) or 0),
+        reverse=True,
+    )
+
+    # Un seul paris par match
+    vus = set()
+    selections = []
+    for p in candidats:
+        match_key = (p.get("match") or "").strip().lower()
+        if match_key and match_key not in vus:
+            vus.add(match_key)
+            selections.append(p)
+        if len(selections) == 4:
+            break
+
+    if len(selections) < 3:
+        print(f"[combi] {len(selections)} SAFE éligibles — minimum 3 requis, combi non généré")
+        return None
+
+    cotes  = [round(float(p["cote"]), 2) for p in selections]
+    probas = [int(p.get("probabilite_hiddenscout", 80)) for p in selections]
+
+    cote_comb = round(__import__("functools").reduce(lambda a, b: a * b, cotes), 2)
+
+    # probabilite_jointe = p1 × p2 × ... / 100^(n-1)
+    prob_joint = probas[0]
+    for pr in probas[1:]:
+        prob_joint = round(prob_joint * pr / 100, 1)
+
+    mise = 3.20
+    gain = round(mise * cote_comb, 2)
+
+    sels_list = [
+        {
+            "match":                   p.get("match", ""),
+            "ligue":                   p.get("ligue", ""),
+            "type_pari":               p.get("type_pari", ""),
+            "cote":                    round(float(p["cote"]), 2),
+            "probabilite_hiddenscout": int(p.get("probabilite_hiddenscout", 80)),
+        }
+        for p in selections
+    ]
+
+    print(
+        f"[combi] {len(selections)} sélections | "
+        f"cote={cote_comb} | prob_jointe={prob_joint}% | gain={gain}€"
+    )
+
+    return {
+        "selections":         sels_list,
+        "cote_combinee":      cote_comb,
+        "probabilite_jointe": prob_joint,
+        "mise_suggeree":      mise,
+        "gain_potentiel":     gain,
+        "description":        f"Combi {len(selections)} sélections SAFE — cote {cote_comb}",
+    }
+
+
+def _sauvegarder_combi(c_pg, ph, pg, combi, today, now_ts):
+    """INSERT OR REPLACE du combi dans paris_combi."""
+    sels_json = json.dumps(combi["selections"], ensure_ascii=False)
+    if pg:
+        c_pg.execute(f"""
+            INSERT INTO paris_combi
+                (date, selections, cote_combinee, probabilite_jointe,
+                 mise_suggeree, gain_potentiel, description, resultat, created_at)
+            VALUES ({ph}, {ph}::jsonb, {ph}, {ph}, {ph}, {ph}, {ph}, 'en_attente', NOW())
+            ON CONFLICT (date) DO UPDATE SET
+                selections         = EXCLUDED.selections,
+                cote_combinee      = EXCLUDED.cote_combinee,
+                probabilite_jointe = EXCLUDED.probabilite_jointe,
+                gain_potentiel     = EXCLUDED.gain_potentiel,
+                description        = EXCLUDED.description,
+                created_at         = NOW()
+        """, (
+            today, sels_json,
+            combi["cote_combinee"], combi["probabilite_jointe"],
+            combi["mise_suggeree"], combi["gain_potentiel"],
+            combi["description"],
+        ))
+    else:
+        c_pg.execute("""
+            INSERT OR REPLACE INTO paris_combi
+                (date, selections, cote_combinee, probabilite_jointe,
+                 mise_suggeree, gain_potentiel, description, resultat, created_at)
+            VALUES (?,?,?,?,?,?,?,'en_attente',?)
+        """, (
+            today, sels_json,
+            combi["cote_combinee"], combi["probabilite_jointe"],
+            combi["mise_suggeree"], combi["gain_potentiel"],
+            combi["description"], now_ts,
+        ))
+    print(f"[combi] sauvegardé pour {today}")
 
 
 def _appliquer_multiplicateur_classement(pct_home, pct_nul, pct_away,
@@ -221,6 +466,90 @@ def _appliquer_multiplicateur_classement(pct_home, pct_nul, pct_away,
     return r_h, r_n, r_a
 
 
+# ── Mapping type_pari → colonne cotes_winamax ─────────────────────────────────
+
+_TYPE_PARI_TO_COL = {
+    "victoire domicile":              "cote_1",
+    "victoire à domicile":            "cote_1",
+    "victoire extérieure":            "cote_2",
+    "victoire à l'extérieur":         "cote_2",
+    "victoire exterieure":            "cote_2",
+    "nul":                            "cote_x",
+    "match nul":                      "cote_x",
+    "double chance 1x":               "cote_1x",
+    "double chance 1 x":              "cote_1x",
+    "double chance x2":               "cote_x2",
+    "double chance x 2":              "cote_x2",
+    "double chance 12":               "cote_12",
+    "double chance 1 2":              "cote_12",
+    "plus de 2.5 buts":               "cote_plus25",
+    "plus 2.5 buts":                  "cote_plus25",
+    "over 2.5":                       "cote_plus25",
+    "moins de 2.5 buts":              "cote_moins25",
+    "moins 2.5 buts":                 "cote_moins25",
+    "under 2.5":                      "cote_moins25",
+    "les deux équipes marquent oui":  "cote_btts_oui",
+    "les deux équipes marquent - oui":"cote_btts_oui",
+    "btts oui":                       "cote_btts_oui",
+    "les deux équipes marquent non":  "cote_btts_non",
+    "les deux équipes marquent - non":"cote_btts_non",
+    "btts non":                       "cote_btts_non",
+}
+
+
+def _type_pari_to_col(type_pari: str) -> str | None:
+    """Retourne la colonne cotes_winamax correspondant au type de pari."""
+    key = type_pari.lower().strip()
+    return _TYPE_PARI_TO_COL.get(key)
+
+
+def _get_cote_winamax(conn, match: str, type_pari: str, today: str) -> float | None:
+    """
+    Cherche la cote Winamax réelle pour ce match et ce type de pari.
+    `match` est au format "Equipe A vs Equipe B".
+    Retourne None si introuvable.
+    """
+    col = _type_pari_to_col(type_pari)
+    if not col:
+        return None
+
+    # Extraire home/away depuis "Equipe A vs Equipe B"
+    parts = [p.strip() for p in match.split(" vs ", 1)]
+    if len(parts) != 2:
+        return None
+    home_q, away_q = parts
+
+    ph = _ph(conn)
+    try:
+        cur = conn.cursor()
+        # Matching souple : ILIKE (pg) ou LIKE (sqlite), les 6 premiers caractères
+        if _is_pg(conn):
+            cur.execute(
+                f"""SELECT {col} FROM cotes_winamax
+                    WHERE date = {ph}
+                      AND home ILIKE {ph}
+                      AND away ILIKE {ph}
+                    LIMIT 1""",
+                (today, f"%{home_q[:8]}%", f"%{away_q[:8]}%"),
+            )
+        else:
+            cur.execute(
+                f"""SELECT {col} FROM cotes_winamax
+                    WHERE date = {ph}
+                      AND home LIKE {ph}
+                      AND away LIKE {ph}
+                    LIMIT 1""",
+                (today, f"%{home_q[:8]}%", f"%{away_q[:8]}%"),
+            )
+        row = cur.fetchone()
+        if row:
+            val = row[col] if isinstance(row, dict) else row[0]
+            return float(val) if val is not None else None
+    except Exception as e:
+        print(f"[winamax] erreur lookup cote ({match}, {type_pari}): {e}")
+    return None
+
+
 def _categorie_depuis_proba(proba: int) -> str | None:
     if proba >= 80:
         return "safe"
@@ -243,6 +572,16 @@ def generer_paris() -> int:
     c_pg = conn_pg.cursor()
     ph = _ph(conn_pg)
 
+    # Migration + init tables
+    pg = _is_pg(conn_pg)
+    if pg:
+        _migrer_paris_jour(c_pg)
+    _init_paris_combi_table(c_pg, pg)
+    try:
+        conn_pg.commit()
+    except Exception:
+        pass
+
     # 1. Matchs — d'abord depuis predictions (PG), sinon depuis l'API (SQLite pour les ligues)
     matchs = _get_matchs_depuis_predictions(c_pg, ph, today)
     if not matchs:
@@ -252,77 +591,160 @@ def generer_paris() -> int:
         conn_pg.close()
         return 0
 
-    # 1.5. Ajustement classement — multiplicateur sur la proba de l'équipe mieux classée
-    # Seuils : écart >= 10 → ×1.20 | >= 15 → ×1.35 | >= 18 → ×1.50
-    # Si classement inconnu pour une équipe → neutre (×1.0)
+    # 1.5a. Filtrage whitelist Winamax + exclusion équipes réserves
+    nb_total = len(matchs)
+    matchs_filtres = []
+    for m in matchs:
+        ligue_id = m.get("ligue_id")
+        if ligue_id not in LIGUES_WINAMAX:
+            continue
+        home_l = (m.get("home") or "").lower()
+        away_l = (m.get("away") or "").lower()
+        if any(kw in home_l or kw in away_l for kw in _RESERVE_KEYWORDS):
+            continue
+        matchs_filtres.append(m)
+    matchs = matchs_filtres
+    print(f"[whitelist] {len(matchs)} matchs retenus / {nb_total} total")
+
+    if not matchs:
+        conn.close()
+        conn_pg.close()
+        return 0
+
+    # 1.5b. Ajustement classement + collecte données complètes pour le prompt
+    # Seuils multiplicateur : écart >= 10 → ×1.20 | >= 15 → ×1.35 | >= 18 → ×1.50
     print(f"[classement] ajustement sur {len(matchs)} matchs…")
     for m in matchs:
-        rang_h = _get_rang_equipe(c, m["home"], m["ligue_id"])
-        rang_a = _get_rang_equipe(c, m["away"], m["ligue_id"])
+        det_h = _get_classement_details(c, m["home"], m["ligue_id"])
+        det_a = _get_classement_details(c, m["away"], m["ligue_id"])
+        rang_h = det_h["rang"] if isinstance(det_h["rang"], int) else None
+        rang_a = det_a["rang"] if isinstance(det_a["rang"], int) else None
         m["pct_home"], m["pct_nul"], m["pct_away"] = _appliquer_multiplicateur_classement(
             m["pct_home"], m["pct_nul"], m["pct_away"],
             rang_h, rang_a,
             home_nom=m["home"], away_nom=m["away"],
         )
+        m["_det_home"] = det_h
+        m["_det_away"] = det_a
 
-    # 2. Construire le prompt — probabilité HiddenScout bien visible
-    lignes = []
+    # 2. Construire le prompt enrichi avec toutes les données disponibles
+    blocs = []
     for m in matchs[:30]:
-        proba_dom = m["pct_home"]
-        proba_ext = m["pct_away"]
-        proba_nul = m["pct_nul"]
-        # Déterminer le favori clair
-        max_proba = max(proba_dom, proba_ext, proba_nul)
-        favori = ""
-        if proba_dom == max_proba:
-            favori = f"Favori domicile ({proba_dom}%)"
-        elif proba_ext == max_proba:
-            favori = f"Favori extérieur ({proba_ext}%)"
-        else:
-            favori = f"Nul probable ({proba_nul}%)"
-        lignes.append(
-            f"- {m['home']} vs {m['away']} ({m['ligue']}) | "
-            f"Poisson: Dom={proba_dom}% Nul={proba_nul}% Ext={proba_ext}% | {favori}"
-        )
-    matchs_text = "\n".join(lignes)
+        ph_dom  = m["pct_home"]
+        ph_nul  = m["pct_nul"]
+        ph_ext  = m["pct_away"]
+        det_h   = m.get("_det_home", {"rang": "?", "forme": "?", "buts_moy": "?", "buts_enc": "?"})
+        det_a   = m.get("_det_away", {"rang": "?", "forme": "?", "buts_moy": "?", "buts_enc": "?"})
+        heure   = m.get("heure", "?")
 
-    prompt = f"""Tu es un analyste sportif expert. Tu reçois les probabilités calculées par le modèle Poisson/Monte Carlo HiddenScout pour les matchs du {today}.
+        # Cotes Winamax pour ce match
+        cw = _get_cotes_match_winamax(conn_pg, m["home"], m["away"], today)
+
+        # Value bet : comparer la proba dominante à la cote implicite Winamax
+        dom_proba, dom_col = max(
+            (ph_dom, "cote_1"), (ph_nul, "cote_x"), (ph_ext, "cote_2"),
+            key=lambda x: x[0],
+        )
+        cote_dom = cw.get(dom_col)
+        if cote_dom and cote_dom > 1:
+            cote_impl = round(100 / cote_dom, 1)
+            value_bet  = dom_proba > cote_impl
+            vb_str     = f"{'✅ OUI' if value_bet else '❌ NON'} (HiddenScout={dom_proba}% vs implicite={cote_impl}%)"
+        else:
+            cote_impl = "?"
+            value_bet  = False
+            vb_str     = f"? (pas de cote Winamax)"
+
+        def _fmt(v):
+            return str(v) if v is not None else "?"
+
+        blocs.append(
+            f"{m['home']} vs {m['away']} ({m['ligue']}) — {heure}\n"
+            f"  Probas HiddenScout : dom={ph_dom}% nul={ph_nul}% ext={ph_ext}%\n"
+            f"  Classement : {det_h['rang']}ème vs {det_a['rang']}ème\n"
+            f"  Forme dom (5J) : {det_h['forme']} | Forme ext (5J) : {det_a['forme']}\n"
+            f"  Buts marqués/match : dom={det_h['buts_moy']} ext={det_a['buts_moy']}\n"
+            f"  Buts encaissés/match : dom={det_h['buts_enc']} ext={det_a['buts_enc']}\n"
+            f"  Cotes Winamax : 1={_fmt(cw.get('cote_1'))} X={_fmt(cw.get('cote_x'))} "
+            f"2={_fmt(cw.get('cote_2'))} 1X={_fmt(cw.get('cote_1x'))} "
+            f"X2={_fmt(cw.get('cote_x2'))} +2.5={_fmt(cw.get('cote_plus25'))}\n"
+            f"  Value bet : {vb_str}"
+        )
+        # Stocker pour l'enrichissement post-Claude
+        m["_cotes_winamax"] = cw
+        m["_value_bet"]     = value_bet
+
+    matchs_text = "\n\n".join(blocs)
+
+    prompt = f"""Tu es un analyste sportif expert travaillant avec HiddenScout.
+Tu reçois les données complètes des matchs du {today}.
 
 MATCHS DU JOUR :
 {matchs_text}
 
-RÈGLES STRICTES À RESPECTER :
-1. Catégories basées UNIQUEMENT sur la probabilité HiddenScout (pas la cote) :
-   - SAFE    : probabilité_hiddenscout >= 80%
-   - TENTANT : probabilité_hiddenscout 65-79%
-   - FUN     : probabilité_hiddenscout 55-64%
-   - Ignore TOUT pari dont la probabilité serait < 55%
-2. Maximum 2 paris par match (tous types confondus)
-3. Maximum 2 buteurs par match
-4. Types autorisés : victoire domicile, victoire extérieure, nul, double chance (1X/X2/12), plus de 2.5 buts, moins de 2.5 buts, les deux équipes marquent (oui/non)
-5. Classe par probabilité_hiddenscout décroissante dans chaque catégorie
-6. Sélectionne les paris les plus solides selon nos probabilités, pas selon la cote
-7. Si aucun pari n'atteint 55%, réponds avec "paris": []
-8. Diversifie les matchs — ne concentre pas tous les paris sur 1-2 matchs
+RÈGLES STRICTES :
+1. Catégories basées UNIQUEMENT sur probabilité_hiddenscout :
+   - SAFE    : >= 80%
+   - TENTANT : 65-79%
+   - FUN     : 55-64%
+   - Ignorer < 55%
 
-Réponds UNIQUEMENT en JSON valide, sans markdown, sans texte avant ou après :
+2. PRIORISE les value bets (quand HiddenScout > cote implicite Winamax)
+
+3. Maximum 2 paris par match, maximum 2 buteurs par match
+
+4. Types autorisés :
+   Victoire domicile / Victoire extérieure / Nul /
+   Double chance 1X / Double chance X2 / Double chance 12 /
+   Plus de 2.5 buts / Moins de 2.5 buts /
+   Les deux équipes marquent oui / Les deux équipes marquent non
+
+5. Dans le raisonnement, croiser OBLIGATOIREMENT :
+   - La proba Poisson
+   - La forme récente
+   - Le classement si disponible
+   - Le value bet si applicable
+
+6. Diversifie les matchs — ne concentre pas tous les paris sur 1-2 matchs
+
+7. Si aucun pari >= 55% → "paris": []
+
+8. Propose un combi_du_jour avec 3 sélections SAFE/TENTANT solides.
+   Calcule cote_combinee = produit des cotes, probabilite_jointe = produit des probas/100,
+   mise_suggeree = 3.20, gain_potentiel = round(mise * cote_combinee, 2).
+
+Réponds UNIQUEMENT en JSON valide sans markdown :
 {{
-  "resume": "Résumé en 1 phrase de la journée de paris",
+  "resume": "Résumé en 1 phrase de la journée",
+  "valeur_du_jour": "Meilleur value bet en 1 phrase",
   "paris": [
     {{
       "categorie": "safe|tentant|fun",
       "match": "Equipe A vs Equipe B",
-      "ligue": "Nom de la ligue",
-      "type_pari": "Type de pari concis (ex: Victoire domicile, Plus de 2.5 buts)",
-      "description": "Description courte et précise du pari",
+      "ligue": "Nom ligue",
+      "heure": "18:00",
+      "type_pari": "Type concis",
+      "description": "Description courte et précise",
       "probabilite_hiddenscout": 82,
       "cote": 1.45,
-      "raisonnement": "Justification en 1 phrase basée sur les stats Poisson"
+      "value_bet": true,
+      "forme_domicile": "WWDWW",
+      "forme_exterieur": "WDLWL",
+      "classement": "3ème vs 15ème",
+      "raisonnement": "Justification croisant proba + forme + classement"
     }}
-  ]
+  ],
+  "combi_du_jour": {{
+    "selections": ["Match A — type", "Match B — type", "Match C — type"],
+    "cote_combinee": 3.45,
+    "probabilite_jointe": 58,
+    "mise_suggeree": 3.20,
+    "gain_potentiel": 11.04,
+    "description": "Pourquoi ce combi est solide"
+  }}
 }}
 
-Génère entre 4 et 10 paris bien répartis entre les catégories disponibles."""
+Génère entre 6 et 12 paris bien répartis entre les catégories disponibles."""
 
     # 3. Appeler Claude
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
@@ -375,6 +797,20 @@ Génère entre 4 et 10 paris bien répartis entre les catégories disponibles.""
         if is_buteur:
             buteurs_par_match[match_key] += 1
 
+    # 5b. Enrichir avec les cotes Winamax réelles
+    nb_cotes_trouvees = 0
+    for p in paris_valides:
+        cote_win = _get_cote_winamax(conn_pg, p.get("match", ""), p.get("type_pari", ""), today)
+        if cote_win is not None:
+            old = p.get("cote")
+            p["cote"] = cote_win
+            nb_cotes_trouvees += 1
+            print(f"[winamax] {p['match']} | {p['type_pari']} → cote réelle={cote_win} (Claude={old})")
+        else:
+            print(f"[winamax] {p['match']} | {p['type_pari']} → cote Winamax introuvable, cote Claude conservée")
+
+    print(f"[winamax] {nb_cotes_trouvees}/{len(paris_valides)} cotes Winamax trouvées")
+
     # 6. Effacer et réinsérer
     c_pg.execute(f"DELETE FROM paris_jour WHERE date = {ph}", (today,))
 
@@ -387,6 +823,34 @@ Génère entre 4 et 10 paris bien répartis entre les catégories disponibles.""
             (today, resume, now_ts),
         )
 
+    valeur = parsed.get("valeur_du_jour", "")
+    if valeur:
+        c_pg.execute(
+            f"""INSERT INTO paris_jour
+               (date, categorie, match, ligue, type_pari, description, cote, probabilite, raisonnement, timestamp)
+               VALUES ({ph},'valeur','','','',{ph},0,0,'',{ph})""",
+            (today, valeur, now_ts),
+        )
+
+    combi = parsed.get("combi_du_jour", {})
+    if combi and isinstance(combi, dict):
+        try:
+            c_pg.execute(
+                f"""INSERT INTO paris_jour
+                   (date, categorie, match, ligue, type_pari, description, cote, probabilite, raisonnement, timestamp)
+                   VALUES ({ph},'combi','','','Combiné',{ph},{ph},{ph},{ph},{ph})""",
+                (
+                    today,
+                    json.dumps(combi, ensure_ascii=False),
+                    float(combi.get("cote_combinee", 0) or 0),
+                    int(combi.get("probabilite_jointe", 0) or 0),
+                    combi.get("description", ""),
+                    now_ts,
+                ),
+            )
+        except Exception as e:
+            print(f"[generateur] combi_du_jour non sauvegardé : {e}")
+
     count = 0
     for p in paris_valides:
         try:
@@ -394,23 +858,50 @@ Génère entre 4 et 10 paris bien répartis entre les catégories disponibles.""
         except (TypeError, ValueError):
             cote = 1.5
         proba_hs = int(p.get("probabilite_hiddenscout", p.get("probabilite", 60)) or 60)
+        value_bet = bool(p.get("value_bet", False))
+        heure_p   = str(p.get("heure", "") or "")
 
-        c_pg.execute(
-            f"""INSERT INTO paris_jour
-               (date, categorie, match, ligue, type_pari, description, cote,
-                probabilite, probabilite_hiddenscout, raisonnement, timestamp)
-               VALUES ({ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph})""",
-            (
-                today, p["categorie"],
-                p.get("match", ""), p.get("ligue", ""),
-                p.get("type_pari", ""), p.get("description", ""),
-                cote, proba_hs, proba_hs,
-                p.get("raisonnement", ""), now_ts,
-            ),
-        )
+        # Insertion avec heure/value_bet si les colonnes existent
+        try:
+            c_pg.execute(
+                f"""INSERT INTO paris_jour
+                   (date, categorie, match, ligue, type_pari, description, cote,
+                    probabilite, probabilite_hiddenscout, raisonnement, heure, value_bet, timestamp)
+                   VALUES ({ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph})""",
+                (
+                    today, p["categorie"],
+                    p.get("match", ""), p.get("ligue", ""),
+                    p.get("type_pari", ""), p.get("description", ""),
+                    cote, proba_hs, proba_hs,
+                    p.get("raisonnement", ""), heure_p, value_bet, now_ts,
+                ),
+            )
+        except Exception:
+            # Fallback sans les nouvelles colonnes
+            c_pg.execute(
+                f"""INSERT INTO paris_jour
+                   (date, categorie, match, ligue, type_pari, description, cote,
+                    probabilite, probabilite_hiddenscout, raisonnement, timestamp)
+                   VALUES ({ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph})""",
+                (
+                    today, p["categorie"],
+                    p.get("match", ""), p.get("ligue", ""),
+                    p.get("type_pari", ""), p.get("description", ""),
+                    cote, proba_hs, proba_hs,
+                    p.get("raisonnement", ""), now_ts,
+                ),
+            )
         count += 1
 
     conn_pg.commit()
+
+    # ── Combi du jour (3-4 meilleurs SAFE) ────────────────────────────────────
+    combi_obj = _construire_combi(paris_valides)
+    if combi_obj:
+        try:
+            _sauvegarder_combi(c_pg, ph, pg, combi_obj, today, now_ts)
+        except Exception as e:
+            print(f"[combi] erreur sauvegarde: {e}")
 
     # ── Sauvegarde automatique dans paris_historique ──────────────────────────
     heure_gen = now_ts[11:16]  # "HH:MM"

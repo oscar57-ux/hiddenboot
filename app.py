@@ -283,6 +283,19 @@ def init_pg_tables():
                     c.execute(col_sql)
                 except Exception:
                     pass
+            c.execute("""CREATE TABLE IF NOT EXISTS paris_combi (
+                id                 SERIAL PRIMARY KEY,
+                date               DATE UNIQUE,
+                selections         JSONB,
+                cote_combinee      FLOAT,
+                probabilite_jointe FLOAT,
+                mise_suggeree      FLOAT,
+                gain_potentiel     FLOAT,
+                description        TEXT,
+                resultat           VARCHAR(20) DEFAULT 'en_attente',
+                created_at         TIMESTAMP DEFAULT NOW()
+            )""")
+            print("[pg] table 'paris_combi' OK")
             c.execute("""CREATE TABLE IF NOT EXISTS predictions_buteurs (
                 id SERIAL PRIMARY KEY,
                 joueur_id INTEGER, nom TEXT, equipe TEXT, ligue TEXT, ligue_id INTEGER,
@@ -1446,6 +1459,21 @@ def paris():
             histo_stats = {"total": tot, "gagne": n_g, "taux": round(n_g/tot*100), "roi": roi}
     except Exception:
         pass
+    # Combi du jour
+    combi_du_jour = None
+    try:
+        c.execute(f"""
+            SELECT selections, cote_combinee, probabilite_jointe,
+                   mise_suggeree, gain_potentiel, description, resultat
+            FROM paris_combi WHERE date = {ph}
+        """, (today,))
+        row = c.fetchone()
+        if row:
+            combi_du_jour = dict(row)
+            if isinstance(combi_du_jour.get("selections"), str):
+                combi_du_jour["selections"] = json.loads(combi_du_jour["selections"])
+    except Exception:
+        pass
     conn.close()
     return render_template("paris.html",
         safe_paris=[p for p in paris_today if p["categorie"] == "safe"],
@@ -1459,6 +1487,7 @@ def paris():
         aucun_pari_solide=bool(paris_today) is False,
         paris_histo=paris_histo,
         histo_stats=histo_stats,
+        combi_du_jour=combi_du_jour,
     )
 
 
@@ -1482,6 +1511,34 @@ def api_paris_jour():
     return jsonify({"paris": paris, "date": today})
 
 
+@app.route("/api/combi-du-jour")
+def api_combi_du_jour():
+    today = date.today().strftime("%Y-%m-%d")
+    conn  = get_pg()
+    c     = conn.cursor()
+    ph    = _ph(conn)
+    try:
+        c.execute(f"""
+            SELECT selections, cote_combinee, probabilite_jointe,
+                   mise_suggeree, gain_potentiel, description, resultat, created_at
+            FROM paris_combi WHERE date = {ph}
+        """, (today,))
+        row = c.fetchone()
+        if row:
+            data = dict(row)
+            if isinstance(data.get("selections"), str):
+                data["selections"] = json.loads(data["selections"])
+            if data.get("created_at"):
+                data["created_at"] = str(data["created_at"])
+            conn.close()
+            return jsonify({"status": "ok", "combi": data, "date": today})
+    except Exception as e:
+        conn.close()
+        return jsonify({"status": "error", "message": str(e)}), 500
+    conn.close()
+    return jsonify({"status": "ok", "combi": None, "date": today})
+
+
 @app.route("/api/generer-paris")
 def api_generer_paris():
     try:
@@ -1490,6 +1547,50 @@ def api_generer_paris():
         return jsonify({"status": "ok", "paris": n, "message": f"{n} paris générés"})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/debug/regenerer-paris")
+def debug_regenerer_paris():
+    """Force la régénération des paris du jour (nécessite DEBUG_TOKEN)."""
+    token_attendu = os.environ.get("DEBUG_TOKEN", "")
+    if not token_attendu or request.args.get("force") != "true" or \
+       request.args.get("token", "") != token_attendu:
+        return jsonify({"status": "error", "message": "Non autorisé"}), 403
+    today = date.today().strftime("%Y-%m-%d")
+    try:
+        conn = get_pg()
+        c    = conn.cursor()
+        ph   = _ph(conn)
+        c.execute(f"DELETE FROM paris_jour WHERE date = {ph}", (today,))
+        conn.commit()
+        conn.close()
+        print(f"[debug] paris_jour vidé pour {today} — régénération forcée")
+        from generateur_paris import generer_paris
+        n = generer_paris()
+        return jsonify({"status": "ok", "paris": n, "message": f"{n} paris régénérés pour {today}"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/derniere-maj-cotes")
+def api_derniere_maj_cotes():
+    """Retourne le timestamp de la dernière mise à jour des cotes Winamax."""
+    today = date.today().strftime("%Y-%m-%d")
+    try:
+        conn = get_pg()
+        c    = conn.cursor()
+        ph   = _ph(conn)
+        c.execute(
+            f"SELECT MAX(timestamp) AS ts, COUNT(*) AS n FROM cotes_winamax WHERE date = {ph}",
+            (today,),
+        )
+        row = c.fetchone()
+        conn.close()
+        if row and row["ts"]:
+            return jsonify({"timestamp": str(row["ts"]), "nb_matchs": row["n"] or 0})
+        return jsonify({"timestamp": None, "nb_matchs": 0})
+    except Exception as e:
+        return jsonify({"timestamp": None, "nb_matchs": 0, "error": str(e)})
 
 
 @app.route("/resultats")
@@ -2275,6 +2376,13 @@ def stats_dashboard():
         return jsonify({'error': str(e)}), 500
 
 
+# Mise en euros par catégorie
+_MISE_PAR_CAT = {'safe': 5.0, 'tentant': 2.5, 'cool': 2.5, 'fun': 1.0}
+
+def _mise(categorie):
+    return _MISE_PAR_CAT.get((categorie or '').lower(), 1.0)
+
+
 @app.route("/api/stats-paris-winamax")
 def stats_paris_winamax():
     conn = None
@@ -2285,43 +2393,79 @@ def stats_paris_winamax():
         c.execute("SELECT * FROM paris_historique ORDER BY date DESC LIMIT 200")
         paris = [dict(r) for r in c.fetchall()]
 
+        # ── KPI globaux avec mises pondérées ──────────────────────────────────
         c.execute("""
             SELECT COUNT(*) as total,
                    SUM(CASE WHEN gagne=1 THEN 1 ELSE 0 END) as gagnes,
                    SUM(CASE WHEN gagne=0 THEN 1 ELSE 0 END) as perdus,
-                   SUM(CASE WHEN gagne=1 THEN 5.0*(cote-1) ELSE -5.0 END) as net_profit
+                   SUM(CASE
+                       WHEN gagne=1
+                       THEN CASE WHEN categorie='safe' THEN 5.0
+                                 WHEN categorie IN ('tentant','cool') THEN 2.5
+                                 ELSE 1.0 END * (cote - 1)
+                       ELSE -CASE WHEN categorie='safe' THEN 5.0
+                                  WHEN categorie IN ('tentant','cool') THEN 2.5
+                                  ELSE 1.0 END
+                       END) as net_profit,
+                   SUM(CASE WHEN categorie='safe' THEN 5.0
+                            WHEN categorie IN ('tentant','cool') THEN 2.5
+                            ELSE 1.0 END) as total_mises
             FROM paris_historique WHERE gagne IS NOT NULL
         """)
         kr = c.fetchone()
-        total = int(kr['total'] or 0)
-        gagnes = int(kr['gagnes'] or 0)
-        perdus = int(kr['perdus'] or 0)
+        total      = int(kr['total'] or 0)
+        gagnes     = int(kr['gagnes'] or 0)
+        perdus     = int(kr['perdus'] or 0)
         net_profit = round(float(kr['net_profit'] or 0), 2)
-        roi = round(net_profit / (total * 5) * 100, 1) if total > 0 else 0
+        total_mises = float(kr['total_mises'] or 1)
+        roi = round(net_profit / total_mises * 100, 1) if total_mises > 0 else 0
 
+        # ── ROI par catégorie ─────────────────────────────────────────────────
+        roi_par_cat = {}
+        for cat, mise_cat in [('safe', 5.0), ('tentant', 2.5), ('fun', 1.0)]:
+            cat_cond = f"categorie='{cat}'" if cat != 'tentant' else "categorie IN ('tentant','cool')"
+            c.execute(f"""
+                SELECT COUNT(*) as total,
+                       SUM(CASE WHEN gagne=1 THEN 1 ELSE 0 END) as gagnes,
+                       SUM(CASE WHEN gagne=1 THEN {mise_cat}*(cote-1) ELSE -{mise_cat} END) as net
+                FROM paris_historique WHERE gagne IS NOT NULL AND {cat_cond}
+            """)
+            r = c.fetchone()
+            n = int(r['total'] or 0)
+            roi_par_cat[cat] = {
+                'total':  n,
+                'gagnes': int(r['gagnes'] or 0),
+                'gain':   round(float(r['net'] or 0), 2),
+                'roi':    round(float(r['net'] or 0) / (n * mise_cat) * 100, 1) if n > 0 else 0,
+                'mise':   mise_cat,
+            }
+
+        # ── Courbe bankroll avec mises pondérées ──────────────────────────────
         c.execute("""
-            SELECT date, gagne, cote FROM paris_historique
-            WHERE gagne IS NOT NULL ORDER BY date ASC
+            SELECT date, gagne, cote, categorie FROM paris_historique
+            WHERE gagne IS NOT NULL ORDER BY date ASC, id ASC
         """)
         bankroll = 100.0
         bankroll_par_date = {}
         for p in c.fetchall():
-            d = p['date']
+            d    = str(p['date'])
+            mise = _mise(p['categorie'])
             if int(p['gagne'] or 0) == 1:
-                bankroll += 5.0 * (float(p['cote'] or 1) - 1)
+                bankroll += mise * (float(p['cote'] or 1) - 1)
             else:
-                bankroll -= 5.0
+                bankroll -= mise
             bankroll_par_date[d] = round(bankroll, 2)
         bankroll_courbe = [{'date': d, 'valeur': v} for d, v in sorted(bankroll_par_date.items())]
 
         conn.close()
         return jsonify({
-            'paris': paris,
+            'paris':           paris,
             'bankroll_courbe': bankroll_courbe,
+            'roi_par_cat':     roi_par_cat,
             'kpi': {
                 'total': total, 'gagnes': gagnes, 'perdus': perdus,
-                'roi': roi, 'bankroll_actuelle': round(100 + net_profit, 2)
-            }
+                'roi':   roi,   'bankroll_actuelle': round(100 + net_profit, 2),
+            },
         })
     except Exception as e:
         if conn:
@@ -2331,13 +2475,44 @@ def stats_paris_winamax():
         return jsonify({'error': str(e)}), 500
 
 
-# ── APScheduler : génération automatique des paris à midi (Europe/Paris) ──────
+# ── APScheduler : génération automatique des paris à 00h05 (Europe/Paris) ─────
+
+def _paris_deja_generes():
+    """Retourne True si des paris existent déjà pour aujourd'hui."""
+    try:
+        conn = get_pg()
+        c    = conn.cursor()
+        ph   = _ph(conn)
+        c.execute(
+            f"SELECT COUNT(*) AS n FROM paris_jour WHERE date = {ph}",
+            (date.today().strftime("%Y-%m-%d"),),
+        )
+        row = c.fetchone()
+        conn.close()
+        return (row["n"] if row else 0) > 0
+    except Exception:
+        return False
+
+
 def _job_generer_paris():
+    if _paris_deja_generes():
+        print("[paris] Paris du jour déjà générés, skip")
+        return
     try:
         from generateur_paris import generer_paris
-        generer_paris()
+        n = generer_paris()
+        print(f"[scheduler] generer_paris OK — {n} paris")
     except Exception as e:
         print(f"[scheduler] erreur generer_paris: {e}")
+
+
+def _job_scraper_winamax():
+    try:
+        from scraper_winamax import run as scraper_run
+        n = scraper_run()
+        print(f"[scheduler] scraper_winamax OK — {n} matchs")
+    except Exception as e:
+        print(f"[scheduler] erreur scraper_winamax: {e}")
 
 
 def _job_sauvegarder_predictions_auto():
@@ -2379,13 +2554,24 @@ init_pg_tables()
 try:
     from apscheduler.schedulers.background import BackgroundScheduler
     _scheduler = BackgroundScheduler(timezone="Europe/Paris")
+
+    # Génération des paris à 00h05 (après le dernier run scraper à 00h00)
     _scheduler.add_job(
         _job_generer_paris,
         "cron",
-        hour=12, minute=0,
-        id="generer_paris_midi",
+        hour=0, minute=5,
+        id="generer_paris_minuit",
         replace_existing=True,
     )
+    # Scraper Winamax toutes les 30 minutes, premier run à 23h30
+    _scheduler.add_job(
+        _job_scraper_winamax,
+        "cron",
+        minute="0,30",
+        id="scraper_winamax_30min",
+        replace_existing=True,
+    )
+    # Sauvegarde predictions
     _scheduler.add_job(
         _job_sauvegarder_predictions_auto,
         "cron",
@@ -2400,6 +2586,7 @@ try:
         id="sauvegarder_midi",
         replace_existing=True,
     )
+    # Vérification résultats toutes les 3 minutes
     _scheduler.add_job(
         _job_verifier_resultats_auto,
         "interval",
@@ -2408,7 +2595,7 @@ try:
         replace_existing=True,
     )
     _scheduler.start()
-    print("[scheduler] demarre - paris@12h | sauvegarde@00h+12h | verification toutes les 3min")
+    print("[scheduler] paris@00h05 | scraper@toutes les 30min | verification resultats@toutes les 3min | sauvegarde@00h00+12h00")
 except Exception as _sched_err:
     print(f"[scheduler] non demarre: {_sched_err}")
 

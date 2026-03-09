@@ -351,18 +351,22 @@
             <div class="stat-card"><div class="label">Paris joués</div><div class="value" id="w-total">—</div></div>
             <div class="stat-card"><div class="label">Gagnés</div><div class="value good" id="w-gagnes">—</div></div>
             <div class="stat-card"><div class="label">Perdus</div><div class="value bad" id="w-perdus">—</div></div>
-            <div class="stat-card"><div class="label">ROI réel</div><div class="value" id="w-roi">—</div></div>
+            <div class="stat-card">
+                <div class="label">ROI réel <span class="badge-simulation">pondéré</span></div>
+                <div class="value" id="w-roi">—</div>
+                <div id="w-gain-cats" style="margin-top:6px;font-size:11px;line-height:1.9;color:#4a6080"></div>
+            </div>
         </div>
         <div class="stat-card" id="w-bankroll-card" style="margin-bottom:18px;text-align:left;display:flex;align-items:center;gap:20px">
             <div>
                 <div class="label">Bankroll simulée <span class="badge-simulation">SIMULATION</span></div>
                 <div class="value" id="w-bankroll" style="font-size:32px;margin-top:6px">100€</div>
-                <div class="sublabel">Départ : 100€ · Mise : 5€/pari</div>
+                <div class="sublabel">Départ : 100€ · SAFE 5€ · TENTANT 2.50€ · FUN 1€</div>
             </div>
         </div>
 
         <div class="chart-wrap" style="margin-bottom:20px">
-            <div class="chart-title">💰 Évolution bankroll (100€ de départ · 5€/pari)</div>
+            <div class="chart-title">💰 Évolution bankroll (100€ de départ · mises pondérées SAFE/TENTANT/FUN)</div>
             <div class="chart-canvas-wrap" style="height:200px"><canvas id="chart-bankroll"></canvas></div>
         </div>
 
@@ -1030,19 +1034,12 @@ async function loadWinamaxStats() {
         _cachedParis = data;
 
         const kpi = data.kpi || {};
-        document.getElementById('w-total').textContent  = kpi.total  ?? '—';
-        document.getElementById('w-gagnes').textContent = kpi.gagnes ?? '—';
-        document.getElementById('w-perdus').textContent = kpi.perdus ?? '—';
-        const roi = kpi.roi ?? 0;
-        const roiEl = document.getElementById('w-roi');
-        roiEl.textContent = (roi >= 0 ? '+' : '') + roi + '%';
-        roiEl.className = 'value ' + (roi >= 0 ? 'good' : 'bad');
-
         const bankroll = kpi.bankroll_actuelle ?? 100;
         const bEl = document.getElementById('w-bankroll');
         bEl.textContent = bankroll.toFixed(2) + '€';
         bEl.style.color = bankroll >= 100 ? '#00ff87' : '#ff4444';
 
+        updateWinamaxKpis(data.paris || [], data.roi_par_cat || {});
         renderBankroll(data.bankroll_courbe || []);
         renderParisList(data.paris || []);
     } catch(e) {
@@ -1116,18 +1113,46 @@ function renderBankroll(courbe) {
     });
 }
 
-function updateWinamaxKpis(parisFiltres) {
-    const avecRes = parisFiltres.filter(p => p.gagne !== null && p.gagne !== undefined);
-    const gagnes  = avecRes.filter(p => p.gagne === 1);
-    const perdus  = avecRes.filter(p => p.gagne === 0);
-    const netProfit = gagnes.reduce((s, p) => s + 5 * (parseFloat(p.cote || 1) - 1), 0) - perdus.length * 5;
-    const roi = avecRes.length > 0 ? netProfit / (avecRes.length * 5) * 100 : 0;
+function getMise(categorie) {
+    const cat = (categorie || '').toLowerCase();
+    if (cat === 'safe')                   return 5.0;
+    if (cat === 'tentant' || cat === 'cool') return 2.5;
+    return 1.0;
+}
+
+function updateWinamaxKpis(parisFiltres, roiParCat) {
+    const avecRes   = parisFiltres.filter(p => p.gagne !== null && p.gagne !== undefined);
+    const gagnes    = avecRes.filter(p => p.gagne === 1);
+    const perdus    = avecRes.filter(p => p.gagne === 0);
+    const totalMises = avecRes.reduce((s, p) => s + getMise(p.categorie), 0);
+    const netProfit  = gagnes.reduce((s, p) => s + getMise(p.categorie) * (parseFloat(p.cote || 1) - 1), 0)
+                     - perdus.reduce((s, p) => s + getMise(p.categorie), 0);
+    const roi = totalMises > 0 ? netProfit / totalMises * 100 : 0;
+
     document.getElementById('w-total').textContent  = avecRes.length;
     document.getElementById('w-gagnes').textContent = gagnes.length;
     document.getElementById('w-perdus').textContent = perdus.length;
     const roiEl = document.getElementById('w-roi');
     roiEl.textContent = (roi >= 0 ? '+' : '') + roi.toFixed(1) + '%';
     roiEl.className = 'value ' + (roi >= 0 ? 'good' : 'bad');
+
+    // Détail gain par catégorie (depuis les données backend si disponibles, sinon calcul JS)
+    const catEl = document.getElementById('w-gain-cats');
+    if (catEl) {
+        const src = roiParCat || {};
+        const lines = [
+            ['safe',    '🟢 SAFE',    '#00ff87'],
+            ['tentant', '🟡 TENTANT', '#FFA500'],
+            ['fun',     '🔴 FUN',     '#ff6666'],
+        ].map(([key, label, color]) => {
+            const d = src[key];
+            if (!d || d.total === 0) return '';
+            const g = d.gain >= 0 ? `+${d.gain.toFixed(2)}€` : `${d.gain.toFixed(2)}€`;
+            const gc = d.gain >= 0 ? '#00ff87' : '#ff4444';
+            return `<span style="color:${color}">${label}</span> ${d.gagnes}/${d.total} · <span style="color:${gc}">${g}</span> (ROI ${d.roi >= 0 ? '+' : ''}${d.roi}%)`;
+        }).filter(Boolean);
+        catEl.innerHTML = lines.join('<br>');
+    }
 }
 
 function setFiltreParisCategorie(val, btn) {
@@ -1137,7 +1162,8 @@ function setFiltreParisCategorie(val, btn) {
     if (_cachedParis) {
         const all = _cachedParis.paris || [];
         const catFiltered = val === 'tous' ? all : all.filter(p => (p.categorie||'').toUpperCase() === val);
-        updateWinamaxKpis(catFiltered);
+        // Passer null pour roi_par_cat quand filtré (calcul JS local suffisant)
+        updateWinamaxKpis(catFiltered, val === 'tous' ? (_cachedParis.roi_par_cat || {}) : null);
         renderParisList(all);
     }
 }
@@ -1164,21 +1190,22 @@ function renderParisList(allParis) {
     }
 
     let html = '<div class="table-block"><table>';
-    html += '<tr><th>Date</th><th>Match</th><th>Ligue</th><th>Type pari</th><th>Cote</th><th>Confiance</th><th>Résultat</th><th>Gain simulé</th></tr>';
+    html += '<tr><th>Date</th><th>Match</th><th>Ligue</th><th>Type pari</th><th>Cote</th><th>Mise</th><th>Confiance</th><th>Résultat</th><th>Gain simulé</th></tr>';
     paris.forEach(p => {
         const dr = DRAPEAUX[p.ligue_id] || '';
         const cat = (p.categorie || '').toUpperCase();
         const catBadge = cat === 'SAFE' ? '<span class="badge-safe">SAFE</span>'
             : cat === 'TENTANT' ? '<span class="badge-tentant">TENTANT</span>'
             : '<span class="badge-fun">FUN</span>';
+        const mise = getMise(p.categorie);
         let resBadge, gainHtml;
         if (p.gagne === 1) {
             resBadge = '<span class="badge-ok">✅ Gagné</span>';
-            const gain = (5 * (parseFloat(p.cote||1) - 1)).toFixed(2);
+            const gain = (mise * (parseFloat(p.cote||1) - 1)).toFixed(2);
             gainHtml = `<span class="gain-pos">+${gain}€</span>`;
         } else if (p.gagne === 0) {
             resBadge = '<span class="badge-ko">❌ Perdu</span>';
-            gainHtml = '<span class="gain-neg">-5.00€</span>';
+            gainHtml = `<span class="gain-neg">-${mise.toFixed(2)}€</span>`;
         } else {
             resBadge = '<span class="badge-attente">⏳ Attente</span>';
             gainHtml = '<span style="color:#4a6080">—</span>';
@@ -1191,6 +1218,7 @@ function renderParisList(allParis) {
             <td><span class="ligue-badge">${dr?`<span class="fi fi-${dr}"></span>`:''} ${p.ligue||'—'}</span></td>
             <td style="font-size:12px;color:#e0e8f0">${p.type_pari||'—'}</td>
             <td style="font-weight:700;color:#00D4FF">${cote}</td>
+            <td style="color:#8090a0;font-size:12px">${mise.toFixed(2)}€</td>
             <td>${catBadge}</td>
             <td>${resBadge}</td>
             <td>${gainHtml}</td>
