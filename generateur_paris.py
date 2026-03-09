@@ -13,6 +13,7 @@ import re
 from collections import defaultdict
 from datetime import date, datetime
 
+import unicodedata
 import functools
 
 import anthropic
@@ -596,50 +597,79 @@ def _type_pari_to_col(type_pari: str) -> str | None:
     return _TYPE_PARI_TO_COL.get(key)
 
 
+def _normaliser(s: str) -> str:
+    """Minuscules + supprime accents + strip pour comparaison floue."""
+    s = s.lower().strip()
+    s = unicodedata.normalize("NFD", s)
+    return "".join(c for c in s if unicodedata.category(c) != "Mn")
+
+
 def _get_cote_winamax(conn, match: str, type_pari: str, today: str) -> float | None:
     """
-    Cherche la cote Winamax réelle pour ce match et ce type de pari.
-    `match` est au format "Equipe A vs Equipe B".
-    Retourne None si introuvable.
+    Cherche la cote pour ce match via fuzzy matching sur home/away.
+    Utilise rapidfuzz.fuzz.partial_ratio >= 75 comme seuil.
     """
     col = _type_pari_to_col(type_pari)
     if not col:
         return None
 
-    # Extraire home/away depuis "Equipe A vs Equipe B"
     parts = [p.strip() for p in match.split(" vs ", 1)]
     if len(parts) != 2:
         return None
-    home_q, away_q = parts
+    home_q, away_q = _normaliser(parts[0]), _normaliser(parts[1])
 
     ph = _ph(conn)
     try:
+        from rapidfuzz import fuzz
         cur = conn.cursor()
-        # Matching souple : ILIKE (pg) ou LIKE (sqlite), les 6 premiers caractères
-        if _is_pg(conn):
+        cur.execute(
+            f"SELECT home, away, {col} FROM cotes_winamax WHERE date = {ph}",
+            (today,),
+        )
+        rows = cur.fetchall()
+
+        best_score = 0
+        best_val   = None
+        for row in rows:
+            if isinstance(row, dict):
+                r_home, r_away, r_val = row["home"], row["away"], row[col]
+            else:
+                r_home, r_away, r_val = row[0], row[1], row[2]
+
+            score = (
+                fuzz.partial_ratio(home_q, _normaliser(r_home))
+                + fuzz.partial_ratio(away_q, _normaliser(r_away))
+            ) / 2
+
+            if score > best_score:
+                best_score = score
+                best_val   = r_val
+
+        if best_score >= 75:
+            if best_val is not None:
+                print(f"[fuzzy] '{parts[0]} vs {parts[1]}' → score={best_score:.0f} col={col} val={best_val}")
+                return float(best_val)
+            return None  # match trouvé mais cote NULL pour ce type de pari
+
+    except ImportError:
+        # Fallback LIKE si rapidfuzz absent
+        try:
+            cur = conn.cursor()
+            like = "ILIKE" if _is_pg(conn) else "LIKE"
             cur.execute(
                 f"""SELECT {col} FROM cotes_winamax
-                    WHERE date = {ph}
-                      AND home ILIKE {ph}
-                      AND away ILIKE {ph}
+                    WHERE date = {ph} AND home {like} {ph} AND away {like} {ph}
                     LIMIT 1""",
-                (today, f"%{home_q[:8]}%", f"%{away_q[:8]}%"),
+                (today, f"%{parts[0][:8]}%", f"%{parts[1][:8]}%"),
             )
-        else:
-            cur.execute(
-                f"""SELECT {col} FROM cotes_winamax
-                    WHERE date = {ph}
-                      AND home LIKE {ph}
-                      AND away LIKE {ph}
-                    LIMIT 1""",
-                (today, f"%{home_q[:8]}%", f"%{away_q[:8]}%"),
-            )
-        row = cur.fetchone()
-        if row:
-            val = row[col] if isinstance(row, dict) else row[0]
-            return float(val) if val is not None else None
+            row = cur.fetchone()
+            if row:
+                val = row[col] if isinstance(row, dict) else row[0]
+                return float(val) if val is not None else None
+        except Exception:
+            pass
     except Exception as e:
-        print(f"[winamax] erreur lookup cote ({match}, {type_pari}): {e}")
+        print(f"[winamax] erreur lookup ({match}, {type_pari}): {e}")
     return None
 
 
@@ -866,8 +896,8 @@ Génère entre 6 et 10 paris bien répartis entre les catégories disponibles.""
 
         match_key = p.get("match", "").strip().lower()
 
-        # Max 2 paris par match
-        if paris_par_match[match_key] >= 2:
+        # Max 1 pari par match (le meilleur = proba la plus haute, déjà trié)
+        if paris_par_match[match_key] >= 1:
             continue
 
         # Max 2 buteurs par match

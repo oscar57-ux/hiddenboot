@@ -632,7 +632,13 @@ def _parse_odds_apisports(item, fixture_map=None):
     cote_plus25 = cote_moins25 = None
     cote_btts_oui = cote_btts_non = None
 
+    logged_bets = False
     for bm in (item.get("bookmakers") or []):
+        # Log debug BTTS : noms de tous les paris disponibles (une seule fois par fixture)
+        if not logged_bets:
+            bet_names = [b.get("name", "") for b in (bm.get("bets") or [])]
+            print(f"[btts] bets disponibles (bookmaker={bm.get('id')}) : {bet_names}")
+            logged_bets = True
         for bet in (bm.get("bets") or []):
             name   = (bet.get("name") or "").lower()
             values = bet.get("values") or []
@@ -654,9 +660,9 @@ def _parse_odds_apisports(item, fixture_map=None):
                 for v in values:
                     vn  = (v.get("value") or "").lower()
                     odd = _safe_float(v.get("odd"))
-                    if "over 2.5" in vn:   cote_plus25  = odd
+                    if "over 2.5" in vn:    cote_plus25  = odd
                     elif "under 2.5" in vn: cote_moins25 = odd
-            elif "both teams score" in name or "btts" in name:
+            elif any(k in name for k in ("both teams score", "both teams to score", "btts")):
                 for v in values:
                     vn  = (v.get("value") or "").lower()
                     odd = _safe_float(v.get("odd"))
