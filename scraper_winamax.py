@@ -525,12 +525,51 @@ def _save(cotes):
 
 # ── Source principale : api-sports.io /odds ───────────────────────────────────
 
+def _fetch_fixture_map(today):
+    """
+    Récupère les noms d'équipes via /fixtures?date=today.
+    Retourne un dict {fixture_id_str: {home, away, ligue}}.
+    L'endpoint /odds ne retourne pas les teams — ce mapping est nécessaire.
+    """
+    if not API_SPORTS_KEY:
+        return {}
+    try:
+        resp = requests.get(
+            f"{API_SPORTS_URL}/fixtures",
+            headers={"x-apisports-key": API_SPORTS_KEY},
+            params={"date": today, "timezone": "Europe/Paris"},
+            timeout=15,
+        )
+        data   = resp.json()
+        result = {}
+        for fix in data.get("response", []):
+            fid  = str((fix.get("fixture") or {}).get("id", ""))
+            home = (fix.get("teams") or {}).get("home", {}).get("name", "")
+            away = (fix.get("teams") or {}).get("away", {}).get("name", "")
+            ligue = (fix.get("league") or {}).get("name", "")
+            if fid and home and away:
+                result[fid] = {"home": home, "away": away, "ligue": ligue}
+        log.info(f"[apisports] /fixtures → {len(result)} équipes chargées")
+        return result
+    except Exception as e:
+        log.warning(f"[apisports] Erreur /fixtures: {e}")
+        return {}
+
+
 def _fetch_odds_apisports(today):
-    """Récupère les cotes via api-sports.io. Essaie plusieurs bookmakers."""
+    """Récupère les cotes via api-sports.io, enrichies avec les noms d'équipes."""
     if not API_SPORTS_KEY:
         log.info("[apisports] Pas de clé API_SPORTS_KEY configurée")
-        return []
-    for bm_id in _BOOKMAKER_IDS:
+        return [], {}
+
+    # Récupérer le mapping fixture_id → équipes EN PREMIER
+    fixture_map = _fetch_fixture_map(today)
+
+    bookmaker_ids = [8, 16, 1, 3]
+    best_results = []
+    best_bm_id   = None
+
+    for bm_id in bookmaker_ids:
         try:
             resp = requests.get(
                 f"{API_SPORTS_URL}/odds",
@@ -538,28 +577,53 @@ def _fetch_odds_apisports(today):
                 params={"date": today, "bookmaker": bm_id},
                 timeout=15,
             )
-            data = resp.json()
-            errors = data.get("errors", {})
-            if errors:
-                log.warning(f"[apisports] erreurs bookmaker={bm_id}: {errors}")
-                continue
+            data    = resp.json()
+            errors  = data.get("errors", {})
             results = data.get("response", [])
-            if results:
-                log.info(f"[apisports] {len(results)} fixtures avec bookmaker_id={bm_id}")
-                return results
+
+            if errors:
+                log.warning(f"[apisports] bookmaker={bm_id} → erreurs: {errors}")
+                continue
+            if not results:
+                log.info(f"[apisports] bookmaker={bm_id} → 0 fixtures")
+                continue
+
+            log.info(f"[apisports] bookmaker={bm_id} → {len(results)} fixtures")
+
+            nb_parsees = sum(1 for item in results
+                             if _parse_odds_apisports(item, fixture_map) is not None)
+            log.info(f"[apisports] bookmaker={bm_id} → {nb_parsees}/{len(results)} cotes parsées")
+
+            if nb_parsees > len(best_results):
+                best_results = results
+                best_bm_id   = bm_id
+
         except Exception as e:
             log.warning(f"[apisports] bookmaker={bm_id}: {e}")
-    log.warning("[apisports] Aucun bookmaker n'a retourné de cotes")
-    return []
+
+    if best_results:
+        log.info(f"[apisports] Bookmaker retenu : {best_bm_id} ({len(best_results)} fixtures)")
+        return best_results, fixture_map
+
+    log.warning("[apisports] Aucun bookmaker avec des cotes parsables")
+    return [], fixture_map
 
 
-def _parse_odds_apisports(item):
+def _parse_odds_apisports(item, fixture_map=None):
     """Parse un élément de /odds api-sports.io → dict cotes."""
-    teams = item.get("teams") or {}
-    home  = (teams.get("home") or {}).get("name", "")
-    away  = (teams.get("away") or {}).get("name", "")
-    league = (item.get("league") or {}).get("name", "")
     fixture_id = str((item.get("fixture") or {}).get("id", ""))
+
+    # L'endpoint /odds ne retourne pas les teams — on les récupère via fixture_map
+    if fixture_map and fixture_id in fixture_map:
+        home  = fixture_map[fixture_id]["home"]
+        away  = fixture_map[fixture_id]["away"]
+        league = fixture_map[fixture_id]["ligue"]
+    else:
+        teams  = item.get("teams") or {}
+        home   = (teams.get("home") or {}).get("name", "")
+        away   = (teams.get("away") or {}).get("name", "")
+        league = (item.get("league") or {}).get("name", "")
+
     if not home or not away:
         return None
 
@@ -621,10 +685,10 @@ def run():
 
     # ── Source 1 : api-sports.io /odds ─────────────────────────────────────────
     log.info("[source] Tentative api-sports.io /odds...")
-    raw_odds = _fetch_odds_apisports(today)
+    raw_odds, fixture_map = _fetch_odds_apisports(today)
     if raw_odds:
         cotes = [r for item in raw_odds
-                 if (r := _parse_odds_apisports(item)) is not None]
+                 if (r := _parse_odds_apisports(item, fixture_map)) is not None]
         n = _save(cotes)
         if n > 0:
             log.info(f"[apisports] OK — {n} matchs avec cotes")
