@@ -1549,6 +1549,26 @@ def api_generer_paris():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
+@app.route("/debug/force-generer-paris")
+def debug_force_generer_paris():
+    """Force la régénération des paris du jour sans protection (debug uniquement)."""
+    today = date.today().strftime("%Y-%m-%d")
+    try:
+        conn = get_pg()
+        c    = conn.cursor()
+        ph   = _ph(conn)
+        c.execute(f"DELETE FROM paris_jour WHERE date = {ph}", (today,))
+        conn.commit()
+        conn.close()
+        print(f"[debug] paris_jour vidé pour {today} — régénération forcée")
+        from generateur_paris import generer_paris
+        n = generer_paris()
+        return jsonify({"status": "ok", "paris": n, "message": f"{n} paris régénérés pour {today}", "date": today})
+    except Exception as e:
+        import traceback
+        return jsonify({"status": "error", "message": str(e), "traceback": traceback.format_exc()}), 500
+
+
 @app.route("/debug/regenerer-paris")
 def debug_regenerer_paris():
     """Force la régénération des paris du jour (nécessite DEBUG_TOKEN)."""
