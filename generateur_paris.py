@@ -13,6 +13,8 @@ import re
 from collections import defaultdict
 from datetime import date, datetime
 
+import functools
+
 import anthropic
 import requests as req
 
@@ -327,12 +329,13 @@ _PROMPT_JSON_SCHEMA = """\
 
 
 def _init_paris_combi_table(c_pg, pg):
-    """Crée la table paris_combi si elle n'existe pas."""
+    """Crée la table paris_combi (date + type = clé unique)."""
     if pg:
         c_pg.execute("""
             CREATE TABLE IF NOT EXISTS paris_combi (
                 id               SERIAL PRIMARY KEY,
-                date             DATE UNIQUE,
+                date             DATE,
+                type             VARCHAR(20) DEFAULT 'safe',
                 selections       JSONB,
                 cote_combinee    FLOAT,
                 probabilite_jointe FLOAT,
@@ -340,14 +343,34 @@ def _init_paris_combi_table(c_pg, pg):
                 gain_potentiel   FLOAT,
                 description      TEXT,
                 resultat         VARCHAR(20) DEFAULT 'en_attente',
-                created_at       TIMESTAMP DEFAULT NOW()
+                created_at       TIMESTAMP DEFAULT NOW(),
+                UNIQUE(date, type)
             )
         """)
+        # Migration tables existantes
+        for sql in [
+            "ALTER TABLE paris_combi ADD COLUMN IF NOT EXISTS type VARCHAR(20) DEFAULT 'safe'",
+            "ALTER TABLE paris_combi DROP CONSTRAINT IF EXISTS paris_combi_date_key",
+            "ALTER TABLE paris_combi ADD CONSTRAINT paris_combi_date_type_key UNIQUE (date, type)",
+        ]:
+            try:
+                c_pg.execute(sql)
+            except Exception:
+                pass
     else:
+        # SQLite : recréer si la colonne type manque
+        need_recreate = False
+        try:
+            c_pg.execute("SELECT type FROM paris_combi LIMIT 1")
+        except Exception:
+            need_recreate = True
+        if need_recreate:
+            c_pg.execute("DROP TABLE IF EXISTS paris_combi")
         c_pg.execute("""
             CREATE TABLE IF NOT EXISTS paris_combi (
                 id                 INTEGER PRIMARY KEY AUTOINCREMENT,
-                date               TEXT UNIQUE,
+                date               TEXT,
+                type               TEXT DEFAULT 'safe',
                 selections         TEXT,
                 cote_combinee      REAL,
                 probabilite_jointe REAL,
@@ -355,91 +378,96 @@ def _init_paris_combi_table(c_pg, pg):
                 gain_potentiel     REAL,
                 description        TEXT,
                 resultat           TEXT DEFAULT 'en_attente',
-                created_at         TEXT
+                created_at         TEXT,
+                UNIQUE(date, type)
             )
         """)
 
 
-def _construire_combi(paris_valides):
+def _construire_combis(paris_valides):
     """
-    Sélectionne 3-4 paris SAFE (proba >= 80, cote > 1.0, matchs distincts)
-    et retourne un dict combi ou None si pas assez de candidats.
+    Retourne (combi_safe, combi_mixte).
+    combi_safe  : 2-4 SAFE (proba >= 80, cote > 1.0), mise 5€
+    combi_mixte : 2-4 paris (proba >= 70, SAFE+TENTANT), matchs différents du combi_safe, mise 3€
     """
-    candidats = sorted(
-        [
-            p for p in paris_valides
-            if p.get("categorie") == "safe"
-            and int(p.get("probabilite_hiddenscout", 0) or 0) >= 80
-            and float(p.get("cote") or 0) > 1.0
-        ],
+    def _build(candidats, nom, mise, min_sel=2):
+        vus = set()
+        selections = []
+        for p in candidats:
+            match_key = (p.get("match") or "").strip().lower()
+            if match_key and match_key not in vus:
+                vus.add(match_key)
+                selections.append(p)
+            if len(selections) == 4:
+                break
+        if len(selections) < min_sel:
+            print(f"[combi-{nom}] {len(selections)} éligibles — minimum {min_sel} requis, non généré")
+            return None, set()
+
+        cotes  = [round(float(p["cote"]), 2) for p in selections]
+        probas = [int(p.get("probabilite_hiddenscout", 80)) for p in selections]
+        cote_comb = round(functools.reduce(lambda a, b: a * b, cotes), 2)
+
+        prob_joint = probas[0]
+        for pr in probas[1:]:
+            prob_joint = round(prob_joint * pr / 100, 1)
+
+        gain = round(mise * cote_comb, 2)
+        sels_list = [
+            {
+                "match":                   p.get("match", ""),
+                "ligue":                   p.get("ligue", ""),
+                "type_pari":               p.get("type_pari", ""),
+                "cote":                    round(float(p["cote"]), 2),
+                "probabilite_hiddenscout": int(p.get("probabilite_hiddenscout", 80)),
+            }
+            for p in selections
+        ]
+        used = {(p.get("match") or "").strip().lower() for p in selections}
+        print(f"[combi-{nom}] {len(selections)} sél | cote={cote_comb} | prob={prob_joint}% | gain={gain}€")
+        return {
+            "selections":         sels_list,
+            "cote_combinee":      cote_comb,
+            "probabilite_jointe": prob_joint,
+            "mise_suggeree":      mise,
+            "gain_potentiel":     gain,
+            "description":        f"Combi {len(selections)} sélections — cote {cote_comb}",
+        }, used
+
+    # COMBI 1 — Full SAFE
+    safe_candidats = sorted(
+        [p for p in paris_valides
+         if int(p.get("probabilite_hiddenscout", 0) or 0) >= 80
+         and float(p.get("cote") or 0) > 1.0],
         key=lambda p: int(p.get("probabilite_hiddenscout", 0) or 0),
         reverse=True,
     )
+    combi_safe, used_safe = _build(safe_candidats, "safe", 5.00)
 
-    # Un seul paris par match
-    vus = set()
-    selections = []
-    for p in candidats:
-        match_key = (p.get("match") or "").strip().lower()
-        if match_key and match_key not in vus:
-            vus.add(match_key)
-            selections.append(p)
-        if len(selections) == 4:
-            break
-
-    if len(selections) < 3:
-        print(f"[combi] {len(selections)} SAFE éligibles — minimum 3 requis, combi non généré")
-        return None
-
-    cotes  = [round(float(p["cote"]), 2) for p in selections]
-    probas = [int(p.get("probabilite_hiddenscout", 80)) for p in selections]
-
-    cote_comb = round(__import__("functools").reduce(lambda a, b: a * b, cotes), 2)
-
-    # probabilite_jointe = p1 × p2 × ... / 100^(n-1)
-    prob_joint = probas[0]
-    for pr in probas[1:]:
-        prob_joint = round(prob_joint * pr / 100, 1)
-
-    mise = 3.20
-    gain = round(mise * cote_comb, 2)
-
-    sels_list = [
-        {
-            "match":                   p.get("match", ""),
-            "ligue":                   p.get("ligue", ""),
-            "type_pari":               p.get("type_pari", ""),
-            "cote":                    round(float(p["cote"]), 2),
-            "probabilite_hiddenscout": int(p.get("probabilite_hiddenscout", 80)),
-        }
-        for p in selections
-    ]
-
-    print(
-        f"[combi] {len(selections)} sélections | "
-        f"cote={cote_comb} | prob_jointe={prob_joint}% | gain={gain}€"
+    # COMBI 2 — SAFE + TENTANT (proba >= 70), matchs différents du combi_safe
+    mixte_candidats = sorted(
+        [p for p in paris_valides
+         if int(p.get("probabilite_hiddenscout", 0) or 0) >= 70
+         and float(p.get("cote") or 0) > 1.0
+         and (p.get("match") or "").strip().lower() not in used_safe],
+        key=lambda p: int(p.get("probabilite_hiddenscout", 0) or 0),
+        reverse=True,
     )
+    combi_mixte, _ = _build(mixte_candidats, "mixte", 3.00)
 
-    return {
-        "selections":         sels_list,
-        "cote_combinee":      cote_comb,
-        "probabilite_jointe": prob_joint,
-        "mise_suggeree":      mise,
-        "gain_potentiel":     gain,
-        "description":        f"Combi {len(selections)} sélections SAFE — cote {cote_comb}",
-    }
+    return combi_safe, combi_mixte
 
 
-def _sauvegarder_combi(c_pg, ph, pg, combi, today, now_ts):
-    """INSERT OR REPLACE du combi dans paris_combi."""
+def _sauvegarder_combi(c_pg, ph, pg, combi, combi_type, today, now_ts):
+    """Upsert du combi (safe ou mixte) dans paris_combi."""
     sels_json = json.dumps(combi["selections"], ensure_ascii=False)
     if pg:
         c_pg.execute(f"""
             INSERT INTO paris_combi
-                (date, selections, cote_combinee, probabilite_jointe,
+                (date, type, selections, cote_combinee, probabilite_jointe,
                  mise_suggeree, gain_potentiel, description, resultat, created_at)
-            VALUES ({ph}, {ph}::jsonb, {ph}, {ph}, {ph}, {ph}, {ph}, 'en_attente', NOW())
-            ON CONFLICT (date) DO UPDATE SET
+            VALUES ({ph}, {ph}, {ph}::jsonb, {ph}, {ph}, {ph}, {ph}, {ph}, 'en_attente', NOW())
+            ON CONFLICT (date, type) DO UPDATE SET
                 selections         = EXCLUDED.selections,
                 cote_combinee      = EXCLUDED.cote_combinee,
                 probabilite_jointe = EXCLUDED.probabilite_jointe,
@@ -447,24 +475,25 @@ def _sauvegarder_combi(c_pg, ph, pg, combi, today, now_ts):
                 description        = EXCLUDED.description,
                 created_at         = NOW()
         """, (
-            today, sels_json,
+            today, combi_type, sels_json,
             combi["cote_combinee"], combi["probabilite_jointe"],
             combi["mise_suggeree"], combi["gain_potentiel"],
             combi["description"],
         ))
     else:
+        c_pg.execute(f"DELETE FROM paris_combi WHERE date = {ph} AND type = {ph}", (today, combi_type))
         c_pg.execute("""
-            INSERT OR REPLACE INTO paris_combi
-                (date, selections, cote_combinee, probabilite_jointe,
+            INSERT INTO paris_combi
+                (date, type, selections, cote_combinee, probabilite_jointe,
                  mise_suggeree, gain_potentiel, description, resultat, created_at)
-            VALUES (?,?,?,?,?,?,?,'en_attente',?)
+            VALUES (?,?,?,?,?,?,?,?,'en_attente',?)
         """, (
-            today, sels_json,
+            today, combi_type, sels_json,
             combi["cote_combinee"], combi["probabilite_jointe"],
             combi["mise_suggeree"], combi["gain_potentiel"],
             combi["description"], now_ts,
         ))
-    print(f"[combi] sauvegardé pour {today}")
+    print(f"[combi-{combi_type}] sauvegardé pour {today}")
 
 
 def _appliquer_multiplicateur_classement(pct_home, pct_nul, pct_away,
@@ -934,13 +963,15 @@ Génère entre 6 et 12 paris bien répartis entre les catégories disponibles.""
 
     conn_pg.commit()
 
-    # ── Combi du jour (3-4 meilleurs SAFE) ────────────────────────────────────
-    combi_obj = _construire_combi(paris_valides)
-    if combi_obj:
-        try:
-            _sauvegarder_combi(c_pg, ph, pg, combi_obj, today, now_ts)
-        except Exception as e:
-            print(f"[combi] erreur sauvegarde: {e}")
+    # ── Combis du jour ─────────────────────────────────────────────────────────
+    combi_safe, combi_mixte = _construire_combis(paris_valides)
+    for combi_obj, combi_type in [(combi_safe, "safe"), (combi_mixte, "mixte")]:
+        if combi_obj:
+            try:
+                _sauvegarder_combi(c_pg, ph, pg, combi_obj, combi_type, today, now_ts)
+                conn_pg.commit()
+            except Exception as e:
+                print(f"[combi-{combi_type}] erreur sauvegarde: {e}")
 
     # ── Sauvegarde automatique dans paris_historique ──────────────────────────
     heure_gen = now_ts[11:16]  # "HH:MM"

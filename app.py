@@ -285,7 +285,8 @@ def init_pg_tables():
                     pass
             c.execute("""CREATE TABLE IF NOT EXISTS paris_combi (
                 id                 SERIAL PRIMARY KEY,
-                date               DATE UNIQUE,
+                date               DATE,
+                type               VARCHAR(20) DEFAULT 'safe',
                 selections         JSONB,
                 cote_combinee      FLOAT,
                 probabilite_jointe FLOAT,
@@ -293,8 +294,18 @@ def init_pg_tables():
                 gain_potentiel     FLOAT,
                 description        TEXT,
                 resultat           VARCHAR(20) DEFAULT 'en_attente',
-                created_at         TIMESTAMP DEFAULT NOW()
+                created_at         TIMESTAMP DEFAULT NOW(),
+                UNIQUE(date, type)
             )""")
+            for sql in [
+                "ALTER TABLE paris_combi ADD COLUMN IF NOT EXISTS type VARCHAR(20) DEFAULT 'safe'",
+                "ALTER TABLE paris_combi DROP CONSTRAINT IF EXISTS paris_combi_date_key",
+                "ALTER TABLE paris_combi ADD CONSTRAINT paris_combi_date_type_key UNIQUE (date, type)",
+            ]:
+                try:
+                    c.execute(sql)
+                except Exception:
+                    pass
             print("[pg] table 'paris_combi' OK")
             c.execute("""CREATE TABLE IF NOT EXISTS predictions_buteurs (
                 id SERIAL PRIMARY KEY,
@@ -1459,21 +1470,6 @@ def paris():
             histo_stats = {"total": tot, "gagne": n_g, "taux": round(n_g/tot*100), "roi": roi}
     except Exception:
         pass
-    # Combi du jour
-    combi_du_jour = None
-    try:
-        c.execute(f"""
-            SELECT selections, cote_combinee, probabilite_jointe,
-                   mise_suggeree, gain_potentiel, description, resultat
-            FROM paris_combi WHERE date = {ph}
-        """, (today,))
-        row = c.fetchone()
-        if row:
-            combi_du_jour = dict(row)
-            if isinstance(combi_du_jour.get("selections"), str):
-                combi_du_jour["selections"] = json.loads(combi_du_jour["selections"])
-    except Exception:
-        pass
     conn.close()
     return render_template("paris.html",
         safe_paris=[p for p in paris_today if p["categorie"] == "safe"],
@@ -1487,7 +1483,6 @@ def paris():
         aucun_pari_solide=bool(paris_today) is False,
         paris_histo=paris_histo,
         histo_stats=histo_stats,
-        combi_du_jour=combi_du_jour,
     )
 
 
@@ -1519,24 +1514,28 @@ def api_combi_du_jour():
     ph    = _ph(conn)
     try:
         c.execute(f"""
-            SELECT selections, cote_combinee, probabilite_jointe,
+            SELECT type, selections, cote_combinee, probabilite_jointe,
                    mise_suggeree, gain_potentiel, description, resultat, created_at
             FROM paris_combi WHERE date = {ph}
         """, (today,))
-        row = c.fetchone()
-        if row:
-            data = dict(row)
-            if isinstance(data.get("selections"), str):
-                data["selections"] = json.loads(data["selections"])
-            if data.get("created_at"):
-                data["created_at"] = str(data["created_at"])
-            conn.close()
-            return jsonify({"status": "ok", "combi": data, "date": today})
+        rows = c.fetchall()
+        combi_safe = None
+        combi_mixte = None
+        for row in rows:
+            d = dict(row)
+            if isinstance(d.get("selections"), str):
+                d["selections"] = json.loads(d["selections"])
+            if d.get("created_at"):
+                d["created_at"] = str(d["created_at"])
+            if d.get("type") == "mixte":
+                combi_mixte = d
+            else:
+                combi_safe = d
+        conn.close()
+        return jsonify({"status": "ok", "combi_safe": combi_safe, "combi_mixte": combi_mixte, "date": today})
     except Exception as e:
         conn.close()
         return jsonify({"status": "error", "message": str(e)}), 500
-    conn.close()
-    return jsonify({"status": "ok", "combi": None, "date": today})
 
 
 @app.route("/api/generer-paris")
