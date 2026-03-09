@@ -192,14 +192,34 @@ def _get_matchs_depuis_api(c, today):
     return matchs
 
 
-def _extraire_json(raw: str) -> dict:
+def _extraire_json(raw: str) -> dict | None:
     raw = re.sub(r"```(?:json)?\s*", "", raw)
     raw = raw.replace("```", "").strip()
     start = raw.find("{")
     end = raw.rfind("}") + 1
     if start == -1 or end == 0:
-        raise ValueError("Aucun JSON trouvé dans la réponse Claude")
-    return json.loads(raw[start:end])
+        print(f"[claude] Aucun JSON trouvé dans la réponse : {raw[:300]}")
+        return None
+    candidate = raw[start:end]
+
+    # Nettoyage : virgules trailing, commentaires JS
+    candidate = re.sub(r",\s*([}\]])", r"\1", candidate)          # virgules trailing
+    candidate = re.sub(r"//[^\n]*", "", candidate)                 # commentaires //
+    candidate = re.sub(r"/\*.*?\*/", "", candidate, flags=re.S)   # commentaires /* */
+
+    try:
+        return json.loads(candidate)
+    except json.JSONDecodeError:
+        pass
+
+    try:
+        import json5
+        return json5.loads(candidate)
+    except Exception:
+        pass
+
+    print(f"[claude] JSON invalide reçu : {candidate[:500]}")
+    return None
 
 
 def _get_rang_equipe(c, equipe_nom, ligue_id):
@@ -753,6 +773,10 @@ Réponds UNIQUEMENT en JSON valide sans markdown :
 Génère entre 6 et 12 paris bien répartis entre les catégories disponibles."""
 
     # 3. Appeler Claude
+    print("[claude-prompt] ========== PROMPT ENVOYÉ ==========")
+    print(prompt[:3000])
+    print("[claude-prompt] ========== FIN PROMPT ==========")
+
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
     message = client.messages.create(
         model="claude-sonnet-4-6",
@@ -761,8 +785,17 @@ Génère entre 6 et 12 paris bien répartis entre les catégories disponibles.""
     )
     raw = message.content[0].text.strip()
 
+    print("[claude-raw] ========== RÉPONSE BRUTE ==========")
+    print(raw[:2000])
+    print("[claude-raw] ========== FIN RÉPONSE ==========")
+
     # 4. Parser le JSON
     parsed = _extraire_json(raw)
+    if parsed is None:
+        print("[generateur] Claude n'a pas retourné de JSON valide")
+        conn.close()
+        conn_pg.close()
+        return 0
 
     # 5. Post-traitement : appliquer les règles métier
     paris_bruts = parsed.get("paris", [])
