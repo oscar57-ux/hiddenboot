@@ -2549,6 +2549,24 @@ def _job_sauvegarder_predictions_auto():
         print(f"[scheduler] erreur sauvegarde: {e}")
 
 
+def _job_bootstrap_matchs_jour():
+    try:
+        with app.test_request_context('/api/sauvegarder-predictions'):
+            sauvegarder_predictions()
+        print("[scheduler] bootstrap matchs du jour OK")
+    except Exception as e:
+        print(f"[scheduler] erreur bootstrap matchs: {e}")
+
+
+def _job_forme_joueurs():
+    try:
+        from bootstrap_forme_joueurs import bootstrap_forme
+        bootstrap_forme()
+        print("[scheduler] bootstrap forme joueurs OK")
+    except Exception as e:
+        print(f"[scheduler] erreur forme joueurs: {e}")
+
+
 def _job_verifier_resultats_auto():
     global _last_verify_time
     today = date.today().strftime("%Y-%m-%d")
@@ -2609,6 +2627,22 @@ try:
         id="sauvegarder_midi",
         replace_existing=True,
     )
+    # Bootstrap matchs du jour à 23h00 (prépare les prédictions pour 00h05)
+    _scheduler.add_job(
+        _job_bootstrap_matchs_jour,
+        "cron",
+        hour=23, minute=0,
+        id="bootstrap_matchs_23h",
+        replace_existing=True,
+    )
+    # Scraper forme joueurs à 23h30 (données fraîches avant génération paris)
+    _scheduler.add_job(
+        _job_forme_joueurs,
+        "cron",
+        hour=23, minute=30,
+        id="forme_joueurs_23h30",
+        replace_existing=True,
+    )
     # Vérification résultats toutes les 3 minutes
     _scheduler.add_job(
         _job_verifier_resultats_auto,
@@ -2618,7 +2652,7 @@ try:
         replace_existing=True,
     )
     _scheduler.start()
-    print("[scheduler] paris@00h05 | scraper@toutes les 30min | verification resultats@toutes les 3min | sauvegarde@00h00+12h00")
+    print("[scheduler] paris@00h05 | scraper@toutes les 30min | bootstrap_matchs@23h00 | forme_joueurs@23h30 | sauvegarde@00h00+12h00")
 except Exception as _sched_err:
     print(f"[scheduler] non demarre: {_sched_err}")
 
