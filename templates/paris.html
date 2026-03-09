@@ -433,7 +433,7 @@
     <!-- ── Pas de paris ────────────────────────────────────────── -->
     <div class="no-pari-msg">😴 Pas de pari solide aujourd'hui — patience !</div>
     <div class="countdown-box">
-        <div class="countdown-title">⏳ Prochaine génération automatique à <strong style="color:#00D4FF">12h00</strong> (heure Paris)</div>
+        <div class="countdown-title">⏳ Prochaine génération automatique à <strong style="color:#00D4FF">00h05</strong> (heure Paris)</div>
         <div class="countdown-time" id="countdown">--:--:--</div>
         <div style="color:#2a3a50;font-size:12px">Ou clique sur <strong style="color:#00D4FF">Regénérer</strong> maintenant</div>
     </div>
@@ -548,12 +548,12 @@ function closeMoreMenu() {
     document.getElementById('more-overlay').classList.remove('open');
 }
 
-/* ── Countdown vers midi Paris ───────────────────────────── */
+/* ── Countdown vers 00h05 Paris ──────────────────────────── */
 function updateCountdown() {
     const now   = new Date();
     const paris = new Date(now.toLocaleString('en-US', { timeZone: 'Europe/Paris' }));
     let target  = new Date(paris);
-    target.setHours(12, 0, 0, 0);
+    target.setHours(0, 5, 0, 0);
     if (paris >= target) target.setDate(target.getDate() + 1);
     const diff = target - paris;
     const h = Math.floor(diff / 3600000);
