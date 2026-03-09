@@ -1,7 +1,7 @@
 from flask import Flask, render_template, jsonify, request, redirect, url_for
 from datetime import date
 import os
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 import sqlite3
 import math
 import numpy as np
@@ -1625,7 +1625,8 @@ def sauvegarder_predictions():
     """A appeler chaque jour avant les matchs pour sauvegarder les prédictions"""
     import requests as req
     from zoneinfo import ZoneInfo
-    today = datetime.now(ZoneInfo("Europe/Paris")).strftime("%Y-%m-%d")
+    date_param = request.args.get("date", "").strip()
+    today = date_param if date_param else datetime.now(ZoneInfo("Europe/Paris")).strftime("%Y-%m-%d")
     print(f"[sauvegarder] date Paris = {today}")
     API_KEY = API_SPORTS_KEY
     api_headers = {"x-apisports-key": API_KEY}
@@ -2550,10 +2551,12 @@ def _job_sauvegarder_predictions_auto():
 
 
 def _job_bootstrap_matchs_jour():
+    from zoneinfo import ZoneInfo
+    tomorrow = (datetime.now(ZoneInfo("Europe/Paris")) + timedelta(days=1)).strftime("%Y-%m-%d")
     try:
-        with app.test_request_context('/api/sauvegarder-predictions'):
+        with app.test_request_context(f'/api/sauvegarder-predictions?date={tomorrow}'):
             sauvegarder_predictions()
-        print("[scheduler] bootstrap matchs du jour OK")
+        print(f"[scheduler] bootstrap matchs du lendemain ({tomorrow}) OK")
     except Exception as e:
         print(f"[scheduler] erreur bootstrap matchs: {e}")
 
