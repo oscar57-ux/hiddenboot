@@ -142,29 +142,41 @@ def get_stats_fixture(fixture_id, fixture_date, ligue_id):
 # ── Fix 2 : recalcul série de victoires via /fixtures?team={id}&last=10 ───────
 
 def _get_forme_equipe(equipe_id, ligue_id):
-    """Retourne une chaîne de forme W/D/L (10 derniers matchs, du plus ancien au plus récent)."""
-    data = api_get("fixtures", {
-        "team":   equipe_id,
-        "season": _saison(ligue_id),
-        "last":   10,
-        "status": "FT",
-    })
+    """Retourne une chaîne de forme W/D/L (10 derniers matchs, du plus RÉCENT au plus ancien).
+    Index 0 = match le plus récent → permet de compter les victoires consécutives
+    en parcourant simplement depuis le début de la chaîne.
+    """
+    try:
+        data = api_get("fixtures", {
+            "team":   equipe_id,
+            "season": _saison(ligue_id),
+            "last":   10,
+            "status": "FT",
+        })
+    except Exception as e:
+        print(f"[serie] api_get erreur equipe={equipe_id}: {e}")
+        return ""
+
     matchs = data.get("response", [])
-    # Trier du plus ancien au plus récent
-    matchs = sorted(matchs, key=lambda m: m["fixture"]["date"])
+    if not matchs:
+        return ""
+
+    # Trier du plus RÉCENT au plus ancien (index 0 = match le plus récent)
+    matchs = sorted(matchs, key=lambda m: m["fixture"]["date"], reverse=True)
+
     result = []
     for match in matchs:
-        home_id      = match["teams"]["home"]["id"]
-        home_winner  = match["teams"]["home"]["winner"]
-        away_winner  = match["teams"]["away"]["winner"]
+        home_id     = match["teams"]["home"]["id"]
+        home_winner = match["teams"]["home"]["winner"]
+        away_winner = match["teams"]["away"]["winner"]
         if equipe_id == home_id:
-            if home_winner:   result.append("W")
-            elif away_winner: result.append("L")
-            else:             result.append("D")
+            if home_winner is True:    result.append("W")
+            elif away_winner is True:  result.append("L")
+            else:                      result.append("D")
         else:
-            if away_winner:   result.append("W")
-            elif home_winner: result.append("L")
-            else:             result.append("D")
+            if away_winner is True:    result.append("W")
+            elif home_winner is True:  result.append("L")
+            else:                      result.append("D")
     return "".join(result)
 
 
@@ -186,13 +198,16 @@ def bootstrap_equipes_serie():
     for eq in equipes:
         equipe_id = eq[0]
         ligue_id  = eq[1]
-        forme = _get_forme_equipe(equipe_id, ligue_id)
-        if forme:
-            c.execute(
-                "UPDATE classements SET forme = ? WHERE equipe_id = ? AND ligue_id = ?",
-                (forme, equipe_id, ligue_id)
-            )
-            updated += 1
+        try:
+            forme = _get_forme_equipe(equipe_id, ligue_id)
+            if forme:
+                c.execute(
+                    "UPDATE classements SET forme = ? WHERE equipe_id = ? AND ligue_id = ?",
+                    (forme, equipe_id, ligue_id)
+                )
+                updated += 1
+        except Exception as e:
+            print(f"[serie] erreur equipe={equipe_id} ligue={ligue_id}: {e}")
 
     conn.commit()
     conn.close()

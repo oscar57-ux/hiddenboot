@@ -863,8 +863,9 @@ def alertes():
         """)
         for row in c.fetchall():
             forme_str = row["forme"] or ""
+            # forme_str est stockée du plus récent au plus ancien (index 0 = dernier match)
             wins = 0
-            for ch in reversed(forme_str):
+            for ch in forme_str:
                 if ch == "W":
                     wins += 1
                 else:
@@ -876,7 +877,8 @@ def alertes():
                     "rang": row["rang"],
                     "ligue_nom": row["ligue_nom"],
                     "drapeau": DRAPEAUX_LIGUES.get(row["ligue_id"], ""),
-                    "forme_dots": list(forme_str[-5:]),
+                    # Inverser pour l'affichage chronologique (oldest→newest)
+                    "forme_dots": list(reversed(list(forme_str[-5:]))),
                 })
         equipes_serie.sort(key=lambda x: x["wins_consecutifs"], reverse=True)
         equipes_serie = equipes_serie[:10]
