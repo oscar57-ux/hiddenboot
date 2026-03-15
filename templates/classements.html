@@ -40,13 +40,7 @@
         .ligue-header { padding: 12px 16px; border-bottom: 1px solid #1a2540; background: rgba(0, 212, 255, 0.03); display: flex; align-items: center; gap: 8px; }
         .ligue-header h3 { color: #00D4FF; font-size: 13px; font-weight: 600; }
 
-        .ligue-cols { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid #1a2540; }
-        .col-header { padding: 8px 12px; font-size: 10px; color: #2a3a50; text-transform: uppercase; letter-spacing: 1px; text-align: center; }
-        .col-header:first-child { border-right: 1px solid #1a2540; }
-
-        .ligue-body { display: grid; grid-template-columns: 1fr 1fr; max-height: 280px; overflow-y: auto; }
-        .col-equipes { border-right: 1px solid #1a2540; }
-        .col-equipes:last-child { border-right: none; }
+        .col-header { padding: 8px 12px; font-size: 10px; color: #2a3a50; text-transform: uppercase; letter-spacing: 1px; }
 
         .equipe-row { display: flex; align-items: center; justify-content: space-between; padding: 7px 10px; border-bottom: 1px solid #0a1020; font-size: 12px; }
         .equipe-row:last-child { border-bottom: none; }
@@ -69,10 +63,41 @@
         .forme-D { background: #ff4444; }
         .forme-vide { background: #1a2540; }
 
+        /* ── Tableau classement officiel ── */
+        .cl-section { overflow-x: auto; max-height: 340px; overflow-y: auto; }
+        .cl-section::-webkit-scrollbar { width: 3px; height: 3px; }
+        .cl-section::-webkit-scrollbar-thumb { background: #1a2540; }
+        .cl-table { width: 100%; border-collapse: collapse; font-size: 11px; min-width: 380px; }
+        .cl-table thead th {
+            padding: 7px 8px; color: #2a3a50; font-size: 10px; text-transform: uppercase;
+            letter-spacing: 1px; border-bottom: 1px solid #1a2540; text-align: center;
+            position: sticky; top: 0; background: #0D1321; z-index: 1;
+        }
+        .cl-table thead th.th-equipe { text-align: left; }
+        .cl-table tbody td { padding: 6px 8px; border-bottom: 1px solid #0a1020; text-align: center; vertical-align: middle; }
+        .cl-table tbody td.td-equipe { text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 130px; }
+        .cl-table tbody tr:last-child td { border-bottom: none; }
+        .cl-table tbody tr:hover td { background: rgba(0,212,255,0.025); }
+        .cl-rang { color: #2a3a50; font-weight: 600; }
+        .cl-pts { color: #fff; font-weight: 700; }
+        .cl-v { color: #00ff87; }
+        .cl-n { color: #FFA500; }
+        .cl-d { color: #ff4444; }
+        .cl-mj { color: #4a6080; }
+
+        /* ── Forme compacte (Score de forme) ── */
+        .forme-section { border-top: 1px solid #1a2540; max-height: 160px; overflow-y: auto; }
+        .forme-section::-webkit-scrollbar { width: 3px; }
+        .forme-section::-webkit-scrollbar-thumb { background: #1a2540; }
+        .equipe-row { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; border-bottom: 1px solid #0a1020; font-size: 12px; }
+        .equipe-row:last-child { border-bottom: none; }
+        .equipe-row:hover { background: rgba(0, 212, 255, 0.03); }
+
         .ligue-body::-webkit-scrollbar { width: 3px; }
         .ligue-body::-webkit-scrollbar-thumb { background: #1a2540; }
 
-        @media (max-width: 1200px) { .ligues-grid { grid-template-columns: 1fr; } }
+        /* Les cards sont plus larges maintenant — passer à 1 col sur écrans < 1400px */
+        @media (max-width: 1400px) { .ligues-grid { grid-template-columns: 1fr; } }
         .bottom-nav { display: none; }
         .more-menu { display: none; position: fixed; bottom: 60px; left: 0; right: 0; background: #0D1321; border-top: 1px solid #1a2540; z-index: 150; flex-direction: column; }
         .more-menu.open { display: flex; }
@@ -81,7 +106,6 @@
         .more-overlay { display: none; position: fixed; inset: 0; z-index: 140; }
         .more-overlay.open { display: block; }
 
-        @media (max-width: 1200px) { .ligues-grid { grid-template-columns: 1fr; } }
         @media (max-width: 768px) {
             .sidebar { display: none; }
             .burger { display: none !important; }
@@ -139,33 +163,55 @@
                 {% if data.drapeau %}<span class="fi fi-{{ data.drapeau }}" style="font-size:16px"></span>{% endif %}
                 <h3>{{ ligue_nom }}</h3>
             </div>
-            <div class="ligue-cols">
-                <div class="col-header">Classement officiel</div>
-                <div class="col-header">Score de forme</div>
+            <!-- Classement officiel : tableau # / Équipe / MJ / V / N / D / Pts / Forme -->
+            <div class="col-header" style="text-align:left;padding:8px 12px;border-bottom:1px solid #1a2540">Classement officiel</div>
+            <div class="cl-section">
+                <table class="cl-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th class="th-equipe">Équipe</th>
+                            <th title="Matchs joués">MJ</th>
+                            <th title="Victoires" class="cl-v">V</th>
+                            <th title="Nuls" class="cl-n">N</th>
+                            <th title="Défaites" class="cl-d">D</th>
+                            <th title="Points">Pts</th>
+                            <th title="Forme 5 derniers matchs">Forme</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for eq in data.classement %}
+                        <tr>
+                            <td class="cl-rang {% if eq.rang == 1 %}rang-1{% elif eq.rang == 2 %}rang-2{% elif eq.rang == 3 %}rang-3{% endif %}">{{ eq.rang }}</td>
+                            <td class="td-equipe">{{ eq.nom }}</td>
+                            <td class="cl-mj">{{ eq.mj }}</td>
+                            <td class="cl-v">{{ eq.victoires }}</td>
+                            <td class="cl-n">{{ eq.nuls }}</td>
+                            <td class="cl-d">{{ eq.defaites }}</td>
+                            <td class="cl-pts">{{ eq.points }}</td>
+                            <td>
+                                <div class="forme-dots" style="justify-content:center">
+                                    {% for f in eq.forme %}
+                                    <div class="forme-dot forme-{{ f }}"></div>
+                                    {% endfor %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
-            <div class="ligue-body">
-                <div class="col-equipes">
-                    {% for eq in data.classement %}
-                    <div class="equipe-row">
-                        <span class="equipe-rang {% if eq.rang == 1 %}rang-1{% elif eq.rang == 2 %}rang-2{% elif eq.rang == 3 %}rang-3{% endif %}">{{ eq.rang }}</span>
-                        <span class="equipe-nom">{{ eq.nom }}</span>
-                        <div class="forme-dots">
-                            {% for f in eq.forme %}
-                            <div class="forme-dot forme-{{ f }}"></div>
-                            {% endfor %}
-                        </div>
-                    </div>
-                    {% endfor %}
+
+            <!-- Score de forme HiddenScout (compact) -->
+            <div class="col-header" style="text-align:left;padding:7px 12px;border-top:1px solid #1a2540;border-bottom:1px solid #1a2540;font-size:10px">Score de forme HiddenScout</div>
+            <div class="forme-section">
+                {% for eq in data.forme %}
+                <div class="equipe-row">
+                    <span class="equipe-rang {% if loop.index == 1 %}rang-1{% elif loop.index == 2 %}rang-2{% elif loop.index == 3 %}rang-3{% endif %}">{{ loop.index }}</span>
+                    <span class="equipe-nom">{{ eq.nom }}</span>
+                    <span class="{% if eq.score > 0 %}score-pos{% else %}score-neg{% endif %}">{{ eq.score }} pts</span>
                 </div>
-                <div class="col-equipes">
-                    {% for eq in data.forme %}
-                    <div class="equipe-row">
-                        <span class="equipe-rang {% if loop.index == 1 %}rang-1{% elif loop.index == 2 %}rang-2{% elif loop.index == 3 %}rang-3{% endif %}">{{ loop.index }}</span>
-                        <span class="equipe-nom">{{ eq.nom }}</span>
-                        <span class="{% if eq.score > 0 %}score-pos{% else %}score-neg{% endif %}">{{ eq.score }}</span>
-                    </div>
-                    {% endfor %}
-                </div>
+                {% endfor %}
             </div>
         </div>
         {% endfor %}

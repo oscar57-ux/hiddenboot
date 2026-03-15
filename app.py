@@ -377,7 +377,8 @@ def _build_classements_data():
         ligue_id = ligue["id"]
         ligue_nom = ligue["nom"]
         c.execute("""
-            SELECT ae.nom, cl.rang, cl.points, cl.forme
+            SELECT ae.nom, cl.rang, cl.points, cl.forme,
+                   cl.victoires, cl.nuls, cl.defaites
             FROM classements cl
             JOIN api_equipes ae ON cl.equipe_id = ae.id
             WHERE cl.ligue_id = ?
@@ -387,13 +388,25 @@ def _build_classements_data():
         if not classement_rows:
             continue
         classement = []
+        conversion = {"W": "V", "D": "N", "L": "D"}
         for row in classement_rows:
             forme_raw = row["forme"] or ""
-            conversion = {"W": "V", "D": "N", "L": "D"}
             forme = [conversion.get(f, "vide") for f in forme_raw[-5:]]
             while len(forme) < 5:
                 forme.insert(0, "vide")
-            classement.append({"nom": row["nom"], "rang": row["rang"], "points": row["points"], "forme": forme})
+            v = row["victoires"] or 0
+            n = row["nuls"]      or 0
+            d = row["defaites"]  or 0
+            classement.append({
+                "nom":      row["nom"],
+                "rang":     row["rang"],
+                "points":   row["points"],
+                "forme":    forme,
+                "mj":       v + n + d,
+                "victoires": v,
+                "nuls":      n,
+                "defaites":  d,
+            })
         forme_list = [{"nom": r["nom"], "score": r["points"]} for r in classement_rows]
         forme_list.sort(key=lambda x: x["score"], reverse=True)
         ligues_data[ligue_nom] = {"classement": classement, "forme": forme_list, "drapeau": DRAPEAUX_LIGUES.get(ligue_id, "")}
