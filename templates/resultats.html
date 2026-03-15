@@ -256,6 +256,7 @@
     <div class="tabs">
         <div class="tab active" onclick="showTab('resultats', this)">📋 Résultats</div>
         <div class="tab" onclick="showTab('attente', this)">⏳ En attente</div>
+        <div class="tab" onclick="showTab('vue-globale', this)">🌐 Vue globale</div>
         <div class="tab" onclick="showTab('statistiques', this)">📊 Statistiques</div>
         <div class="tab" onclick="showTab('buteurs', this)">⚽ Buteurs</div>
         <div class="tab" onclick="showTab('winamax', this)">🎰 Paris Winamax</div>
@@ -278,7 +279,10 @@
                 <button class="filter-btn" onclick="setFiltreResSeuil(55, this)">55%+</button>
                 <button class="filter-btn" onclick="setFiltreResSeuil(65, this)">65%+</button>
                 <button class="filter-btn" onclick="setFiltreResSeuil(75, this)">75%+</button>
+                <button class="filter-btn" onclick="setFiltreResSeuil(80, this)">80%+</button>
                 <button class="filter-btn" onclick="setFiltreResSeuil(85, this)">85%+</button>
+                <button class="filter-btn" onclick="setFiltreResSeuil(90, this)">90%+</button>
+                <button class="filter-btn" onclick="setFiltreResSeuil(95, this)">95%+</button>
             </div>
         </div>
         <div id="resultats-content"><div class="loading"><div class="loader-radar"><div class="ring"></div><div class="ring"></div><div class="ring"></div><div class="center"></div></div><p>Chargement...</p></div></div>
@@ -296,6 +300,45 @@
             </div>
         </div>
         <div id="attente-content"><div class="loading"><div class="loader-radar"><div class="ring"></div><div class="ring"></div><div class="ring"></div><div class="center"></div></div><p>Chargement...</p></div></div>
+    </div>
+
+    <!-- ════ Tab Vue globale ════ -->
+    <div class="tab-content" id="tab-vue-globale">
+        <!-- Stats KPI propres à cet onglet -->
+        <div class="stats-grid" id="vg-stats" style="margin-bottom:18px">
+            <div class="stat-card"><div class="label">Terminées</div><div class="value" id="vg-total">—</div></div>
+            <div class="stat-card"><div class="label">Correctes</div><div class="value good" id="vg-correct">—</div></div>
+            <div class="stat-card"><div class="label">Précision</div><div class="value" id="vg-precision">—</div></div>
+            <div class="stat-card"><div class="label">En attente</div><div class="value" id="vg-attente">—</div></div>
+        </div>
+        <div class="filter-bar">
+            <div class="filter-group">
+                <span class="filter-label">Période :</span>
+                <button class="filter-btn active" id="vg-btn-tout"   onclick="setVGPeriode('tout',   this)">Tout</button>
+                <button class="filter-btn"         id="vg-btn-mois"   onclick="setVGPeriode('mois',   this)">Ce mois</button>
+                <button class="filter-btn"         id="vg-btn-semaine" onclick="setVGPeriode('semaine',this)">Cette semaine</button>
+            </div>
+            <div class="filter-sep"></div>
+            <div class="filter-group">
+                <span class="filter-label">Résultat :</span>
+                <button class="filter-btn active" onclick="setVGResultat('tous',     this)">Tous</button>
+                <button class="filter-btn"         onclick="setVGResultat('corrects', this)">✅ Corrects</button>
+                <button class="filter-btn"         onclick="setVGResultat('rates',    this)">❌ Ratés</button>
+            </div>
+            <div class="filter-sep"></div>
+            <div class="filter-group">
+                <span class="filter-label">Seuil :</span>
+                <button class="filter-btn active" onclick="setVGSeuil(0,  this)">Tout</button>
+                <button class="filter-btn"         onclick="setVGSeuil(55, this)">55%+</button>
+                <button class="filter-btn"         onclick="setVGSeuil(65, this)">65%+</button>
+                <button class="filter-btn"         onclick="setVGSeuil(75, this)">75%+</button>
+                <button class="filter-btn"         onclick="setVGSeuil(80, this)">80%+</button>
+                <button class="filter-btn"         onclick="setVGSeuil(85, this)">85%+</button>
+                <button class="filter-btn"         onclick="setVGSeuil(90, this)">90%+</button>
+                <button class="filter-btn"         onclick="setVGSeuil(95, this)">95%+</button>
+            </div>
+        </div>
+        <div id="vg-content"><div class="loading"><div class="loader-radar"><div class="ring"></div><div class="ring"></div><div class="ring"></div><div class="center"></div></div><p>Chargement...</p></div></div>
     </div>
 
     <!-- ════ Tab Statistiques ════ -->
@@ -570,6 +613,9 @@ function showTab(name, el) {
     } else if (name === 'winamax' && !tabLoaded.winamax) {
         tabLoaded.winamax = true;
         loadWinamaxStats();
+    } else if (name === 'vue-globale' && !tabLoaded['vue-globale']) {
+        tabLoaded['vue-globale'] = true;
+        chargerVueGlobale();
     } else if (dateDependent.includes(name)) {
         reloadCurrentTab();
     }
@@ -609,6 +655,118 @@ function renderStatsCards(total, correct, precision, attente) {
     el.textContent = prec !== null ? prec + '%' : '—';
     el.className = 'value ' + (prec === null ? '' : prec >= 60 ? 'good' : prec >= 50 ? '' : 'bad');
     document.getElementById('stat-attente').textContent = attente ?? '—';
+}
+
+// ── VUE GLOBALE ──
+
+let vgPeriode  = 'tout';
+let vgResultat = 'tous';
+let vgSeuil    = 0;
+let _cachedVG  = null;
+
+function setVGPeriode(val, btn) {
+    vgPeriode = val;
+    document.querySelectorAll('#tab-vue-globale .filter-group:first-child .filter-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    _cachedVG = null;
+    tabLoaded['vue-globale'] = false;
+    chargerVueGlobale();
+}
+
+function setVGResultat(val, btn) {
+    vgResultat = val;
+    const grps = document.querySelectorAll('#tab-vue-globale .filter-group');
+    if (grps[1]) grps[1].querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    if (_cachedVG) renderVueGlobale(_cachedVG.matchs || []);
+}
+
+function setVGSeuil(val, btn) {
+    vgSeuil = val;
+    const grps = document.querySelectorAll('#tab-vue-globale .filter-group');
+    if (grps[2]) grps[2].querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    if (_cachedVG) renderVueGlobale(_cachedVG.matchs || []);
+}
+
+async function chargerVueGlobale() {
+    document.getElementById('vg-content').innerHTML = loader();
+    try {
+        const data = await fetch(`/api/resultats-globaux?periode=${vgPeriode}`).then(r => r.json());
+        if (data.error) throw new Error(data.error);
+        _cachedVG = data;
+
+        // KPI propres
+        const s = data.stats || {};
+        document.getElementById('vg-total').textContent     = s.total ?? '—';
+        document.getElementById('vg-correct').textContent   = s.correct ?? '—';
+        const prec = s.precision ?? null;
+        const elP  = document.getElementById('vg-precision');
+        elP.textContent = prec !== null ? prec + '%' : '—';
+        elP.className   = 'value ' + (prec === null ? '' : prec >= 60 ? 'good' : prec >= 50 ? '' : 'bad');
+        document.getElementById('vg-attente').textContent   = s.en_attente ?? '—';
+
+        renderVueGlobale(data.matchs || []);
+    } catch(e) {
+        console.error('[chargerVueGlobale]', e);
+        document.getElementById('vg-content').innerHTML = `<div class="empty-state">Erreur : ${e.message}</div>`;
+    }
+}
+
+function renderVueGlobale(allMatchs) {
+    const el = document.getElementById('vg-content');
+    let matchs = [...allMatchs];
+
+    if (vgSeuil > 0)
+        matchs = matchs.filter(m => Math.max(m.pct_home || 0, m.pct_away || 0) >= vgSeuil);
+    if (vgResultat === 'corrects')
+        matchs = matchs.filter(m => m.prediction_correcte === 1);
+    if (vgResultat === 'rates')
+        matchs = matchs.filter(m => m.prediction_correcte === 0);
+
+    // Recalc KPI sur données filtrées
+    const tot = matchs.length;
+    const cor = matchs.filter(m => m.prediction_correcte === 1).length;
+    const prec = tot > 0 ? Math.round(cor / tot * 100) : null;
+    document.getElementById('vg-total').textContent   = tot;
+    document.getElementById('vg-correct').textContent = cor;
+    const elP = document.getElementById('vg-precision');
+    elP.textContent = prec !== null ? prec + '%' : '—';
+    elP.className   = 'value ' + (prec === null ? '' : prec >= 60 ? 'good' : prec >= 50 ? '' : 'bad');
+
+    if (!matchs.length) {
+        const seuilLabel = vgSeuil > 0 ? ` à ${vgSeuil}%+` : '';
+        el.innerHTML = `<div class="empty-state">Aucune prédiction terminée${seuilLabel} pour cette période.</div>`;
+        return;
+    }
+
+    let html = '<div class="table-block"><table>';
+    html += '<tr><th>Date</th><th>Ligue</th><th>Match</th><th>Prédiction</th><th>Cote impl.</th><th>Score</th><th>✓</th></tr>';
+    matchs.forEach(m => {
+        const dr  = DRAPEAUX[m.ligue_id] || '';
+        const pctFav  = Math.max(m.pct_home || 0, m.pct_away || 0);
+        const favori  = (m.pct_home || 0) > (m.pct_away || 0) ? m.home : m.away;
+        const coteImpl = pctFav > 0 ? (100 / pctFav).toFixed(2) : '—';
+        const ok  = m.prediction_correcte === 1;
+        const ko  = m.prediction_correcte === 0;
+        const badge   = ok ? '<span class="badge-ok">✅ Correct</span>' : '<span class="badge-ko">❌ Raté</span>';
+        const rowClass = ok ? 'row-correct' : ko ? 'row-incorrect' : '';
+        html += `<tr class="${rowClass}">
+            <td style="color:#4a6080;white-space:nowrap">${m.date}</td>
+            <td><span class="ligue-badge">${dr ? `<span class="fi fi-${dr}"></span>` : ''} ${m.ligue}</span></td>
+            <td><span class="match-teams"><span class="home">${m.home}</span><span class="vs">vs</span><span class="away">${m.away}</span></span></td>
+            <td>
+                <div style="margin-bottom:3px">${confBadge(pctFav)}</div>
+                <div class="pct-bar-mini"><div class="pct-home-mini" style="width:${m.pct_home || 0}%"></div></div>
+                <div style="font-size:11px;color:#4a6080;margin-top:2px">Favori : <span style="color:#00ff87">${favori}</span></div>
+            </td>
+            <td style="color:#4a6080;font-size:12px">${coteImpl}</td>
+            <td style="font-weight:700">${m.score_home ?? '?'} - ${m.score_away ?? '?'}</td>
+            <td>${badge}</td>
+        </tr>`;
+    });
+    html += '</table></div>';
+    el.innerHTML = html;
 }
 
 // ── RÉSULTATS TAB FILTERS ──

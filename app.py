@@ -2057,6 +2057,56 @@ def historique_predictions():
             try: conn.close()
             except Exception: pass
 
+@app.route("/api/resultats-globaux")
+def resultats_globaux():
+    """Tous les résultats terminés, filtrés par période (tout / mois / semaine)."""
+    conn = None
+    try:
+        conn = get_pg()
+        c = conn.cursor()
+        ph = _ph(conn)
+
+        periode = request.args.get("periode", "tout").strip().lower()
+        if periode == "semaine":
+            date_sql = "AND date >= CURRENT_DATE - INTERVAL '7 days'" if _is_pg(conn) else "AND date >= date('now','-7 days')"
+        elif periode == "mois":
+            date_sql = "AND date >= CURRENT_DATE - INTERVAL '30 days'" if _is_pg(conn) else "AND date >= date('now','-30 days')"
+        else:
+            date_sql = ""
+
+        c.execute(f"""
+            SELECT *
+            FROM predictions
+            WHERE statut = 'termine' {date_sql}
+            ORDER BY date DESC, fixture_id DESC
+            LIMIT 500
+        """)
+        matchs = [dict(r) for r in c.fetchall()]
+
+        total   = len(matchs)
+        correct = sum(1 for m in matchs if m.get("prediction_correcte") == 1)
+        precision = round(correct / total * 100) if total > 0 else 0
+
+        c.execute(f"""
+            SELECT COUNT(*) as n FROM predictions
+            WHERE statut = 'en_attente' {date_sql}
+        """)
+        attente = (c.fetchone() or {}).get("n") or 0
+
+        return jsonify({
+            "matchs": matchs,
+            "stats": {"total": total, "correct": correct, "precision": precision, "en_attente": attente},
+            "periode": periode,
+        })
+    except Exception as e:
+        import traceback
+        return jsonify({"error": str(e), "traceback": traceback.format_exc(), "matchs": [], "stats": {}}), 500
+    finally:
+        if conn:
+            try: conn.close()
+            except Exception: pass
+
+
 @app.route("/api/scheduler-status")
 def scheduler_status():
     """Expose les timestamps des dernières exécutions automatiques"""
