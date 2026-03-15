@@ -1,8 +1,8 @@
 """
 Génère les paris du jour via Claude API et les sauvegarde dans paris_jour.
-Catégories basées sur la probabilité HiddenScout :
-  SAFE    >= 80%
-  TENTANT  65-79%
+Classification contextuelle HiddenScout :
+  SAFE    >= 80% ET au moins 1 critère contexte (écart rang >= 8, top-5, forme >= 4W/5)
+  TENTANT >= 80% sans critère OU 65-79%
   FUN      55-64%
   < 55%  : ignoré
 """
@@ -674,6 +674,7 @@ def _get_cote_winamax(conn, match: str, type_pari: str, today: str) -> float | N
 
 
 def _categorie_depuis_proba(proba: int) -> str | None:
+    """Classement simple sans contexte (utilisé pour les combis)."""
     if proba >= 80:
         return "safe"
     if proba >= 65:
@@ -681,6 +682,60 @@ def _categorie_depuis_proba(proba: int) -> str | None:
     if proba >= 55:
         return "fun"
     return None
+
+
+def _categorie_contextuelle(
+    proba: int,
+    rang_home, rang_away,
+    forme_home: str, forme_away: str,
+    pct_home: int, pct_away: int,
+) -> str | None:
+    """
+    Classification SAFE/TENTANT/FUN avec contexte du match.
+
+    SAFE    = proba >= 80% + au moins UNE condition :
+              - écart classement >= 8 places
+              - favori dans le top 5 de sa ligue
+              - forme du favori >= 4W sur 5 derniers matchs
+    TENTANT = proba >= 80% sans condition SAFE (ex: deux bas de tableau)
+              OU proba 65-79%
+    FUN     = proba 55-64%
+    """
+    if proba < 55:
+        return None
+    if proba < 65:
+        return "fun"
+    if proba < 80:
+        return "tentant"
+
+    # proba >= 80% : vérifier les conditions contextuelles
+    fav_home = pct_home >= pct_away
+    rang_fav  = rang_home if fav_home else rang_away
+    rang_opp  = rang_away if fav_home else rang_home
+    forme_fav = forme_home if fav_home else forme_away
+
+    conditions = []
+
+    # Condition 1 : écart de classement >= 8 places
+    if isinstance(rang_fav, int) and isinstance(rang_opp, int):
+        ecart = abs(rang_fav - rang_opp)
+        if ecart >= 8:
+            conditions.append(f"écart_rang={ecart}")
+
+    # Condition 2 : favori dans le top 5 de sa ligue
+    if isinstance(rang_fav, int) and rang_fav <= 5:
+        conditions.append(f"top5 (rang={rang_fav})")
+
+    # Condition 3 : forme du favori >= 4W sur les 5 derniers matchs
+    if forme_fav and forme_fav != "?":
+        last5 = (forme_fav[-5:] if len(forme_fav) >= 5 else forme_fav)
+        if last5.count("W") >= 4:
+            conditions.append(f"forme={last5}")
+
+    cat = "safe" if conditions else "tentant"
+    label = f"SAFE ({', '.join(conditions)})" if conditions else "TENTANT dégradé (proba>=80 sans contexte fort)"
+    print(f"[categorie] proba={proba}% rang_fav={rang_fav} rang_opp={rang_opp} forme_fav={forme_fav} → {label}")
+    return cat
 
 
 def generer_paris() -> int:
@@ -815,11 +870,17 @@ MATCHS DU JOUR :
 {matchs_text}
 
 RÈGLES STRICTES :
-1. Catégories basées UNIQUEMENT sur probabilité_hiddenscout :
-   - SAFE    : >= 80%
-   - TENTANT : 65-79%
-   - FUN     : 55-64%
+1. Classification contextuelle des paris :
+   - SAFE    : proba >= 80% ET au moins une condition forte :
+               * Écart classement >= 8 places entre les deux équipes
+               * Équipe favorite dans le top 5 de sa ligue
+               * Forme du favori >= 4 victoires sur 5 derniers matchs
+   - TENTANT : proba >= 80% SANS condition forte (ex: deux équipes de bas de tableau)
+               OU proba 65-79%
+   - FUN     : proba 55-64%
    - Ignorer < 55%
+   IMPORTANT : Si les deux équipes sont dans la moitié basse du classement,
+   classer maximum TENTANT même si proba >= 80%.
 
 2. PRIORISE les value bets (quand HiddenScout > cote implicite Winamax)
 
@@ -880,7 +941,30 @@ Génère entre 6 et 10 paris bien répartis entre les catégories disponibles.""
     # 5. Post-traitement : appliquer les règles métier
     paris_bruts = parsed.get("paris", [])
 
-    # Forcer la catégorie depuis probabilite_hiddenscout (ignore ce que Claude dit)
+    # Index pour retrouver le contexte (rang, forme) de chaque match depuis les données calculées
+    matchs_ctx: dict = {}
+    for m in matchs:
+        key = _normaliser(m["home"]) + "|" + _normaliser(m["away"])
+        matchs_ctx[key] = m
+
+    def _ctx_pour_match(match_str: str) -> dict:
+        """Retourne le dict match enrichi (rang, forme, pct) ou {} si non trouvé."""
+        parts = match_str.split(" vs ", 1)
+        if len(parts) != 2:
+            return {}
+        key = _normaliser(parts[0]) + "|" + _normaliser(parts[1])
+        m = matchs_ctx.get(key)
+        if m:
+            return m
+        # Fallback : recherche partielle (noms légèrement différents)
+        k0, k1 = _normaliser(parts[0]), _normaliser(parts[1])
+        for mk, mv in matchs_ctx.items():
+            h, a = mk.split("|", 1)
+            if k0[:8] in h and k1[:8] in a:
+                return mv
+        return {}
+
+    # Forcer la catégorie depuis probabilite_hiddenscout + contexte (ignore ce que Claude dit)
     paris_valides = []
     paris_par_match = defaultdict(int)
     buteurs_par_match = defaultdict(int)
@@ -895,7 +979,23 @@ Génère entre 6 et 10 paris bien répartis entre les catégories disponibles.""
         except (TypeError, ValueError):
             proba_hs = 0
 
-        cat = _categorie_depuis_proba(proba_hs)
+        # Classification contextuelle : rang + forme du favori
+        ctx = _ctx_pour_match(p.get("match", ""))
+        if ctx:
+            det_h = ctx.get("_det_home", {})
+            det_a = ctx.get("_det_away", {})
+            cat = _categorie_contextuelle(
+                proba_hs,
+                rang_home=det_h.get("rang") if isinstance(det_h.get("rang"), int) else None,
+                rang_away=det_a.get("rang") if isinstance(det_a.get("rang"), int) else None,
+                forme_home=det_h.get("forme", ""),
+                forme_away=det_a.get("forme", ""),
+                pct_home=ctx.get("pct_home", 0),
+                pct_away=ctx.get("pct_away", 0),
+            )
+        else:
+            cat = _categorie_depuis_proba(proba_hs)
+
         if cat is None:
             continue  # < 55%, on ignore
 
