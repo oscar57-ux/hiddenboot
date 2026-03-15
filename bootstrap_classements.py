@@ -45,51 +45,56 @@ def _saison(ligue_id: int) -> int:
     return _SAISON_OVERRIDES.get(ligue_id, SAISON)
 
 
-conn = sqlite3.connect("botfoot.db")
-c = conn.cursor()
+def bootstrap_classements():
+    conn = sqlite3.connect("botfoot.db")
+    c = conn.cursor()
 
-c.execute('''CREATE TABLE IF NOT EXISTS classements (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    equipe_id INTEGER,
-    ligue_id INTEGER,
-    rang INTEGER,
-    points INTEGER,
-    victoires INTEGER,
-    nuls INTEGER,
-    defaites INTEGER,
-    buts_pour INTEGER,
-    buts_contre INTEGER,
-    diff_buts INTEGER,
-    forme TEXT,
-    date_maj TEXT
-)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS classements (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        equipe_id INTEGER,
+        ligue_id INTEGER,
+        rang INTEGER,
+        points INTEGER,
+        victoires INTEGER,
+        nuls INTEGER,
+        defaites INTEGER,
+        buts_pour INTEGER,
+        buts_contre INTEGER,
+        diff_buts INTEGER,
+        forme TEXT,
+        date_maj TEXT
+    )''')
 
-c.execute("DELETE FROM classements")
-conn.commit()
-
-total = 0
-for nom_ligue, ligue_id in LIGUES_CIBLES.items():
-    print(f"  Classement {nom_ligue}...")
-    data = api_get("standings", {"league": ligue_id, "season": _saison(ligue_id)})
-
-    try:
-        standings = data["response"][0]["league"]["standings"][0]
-        for team in standings:
-            forme = team.get("form", "")
-            c.execute('''INSERT INTO classements
-                (equipe_id, ligue_id, rang, points, victoires, nuls, defaites,
-                 buts_pour, buts_contre, diff_buts, forme, date_maj)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
-                (team["team"]["id"], ligue_id, team["rank"], team["points"],
-                 team["all"]["win"], team["all"]["draw"], team["all"]["lose"],
-                 team["all"]["goals"]["for"], team["all"]["goals"]["against"],
-                 team["goalsDiff"], forme,
-                 datetime.now().strftime("%Y-%m-%d %H:%M")))
-            total += 1
-    except Exception as e:
-        print(f"  Erreur {nom_ligue}: {e}")
-
+    c.execute("DELETE FROM classements")
     conn.commit()
 
-conn.close()
-print(f"\n✅ {total} classements insérés en BDD !")
+    total = 0
+    for nom_ligue, ligue_id in LIGUES_CIBLES.items():
+        print(f"  Classement {nom_ligue}...")
+        data = api_get("standings", {"league": ligue_id, "season": _saison(ligue_id)})
+
+        try:
+            standings = data["response"][0]["league"]["standings"][0]
+            for team in standings:
+                forme = team.get("form", "")
+                c.execute('''INSERT INTO classements
+                    (equipe_id, ligue_id, rang, points, victoires, nuls, defaites,
+                     buts_pour, buts_contre, diff_buts, forme, date_maj)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                    (team["team"]["id"], ligue_id, team["rank"], team["points"],
+                     team["all"]["win"], team["all"]["draw"], team["all"]["lose"],
+                     team["all"]["goals"]["for"], team["all"]["goals"]["against"],
+                     team["goalsDiff"], forme,
+                     datetime.now().strftime("%Y-%m-%d %H:%M")))
+                total += 1
+        except Exception as e:
+            print(f"  Erreur {nom_ligue}: {e}")
+
+        conn.commit()
+
+    conn.close()
+    print(f"\n✅ {total} classements insérés en BDD !")
+
+
+if __name__ == "__main__":
+    bootstrap_classements()

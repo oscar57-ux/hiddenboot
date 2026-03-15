@@ -248,38 +248,42 @@ def bootstrap_classements():
     conn.close()
     print(f"✅ {total} classements insérés")
 
-# Ajoute ça à la fin du bootstrap
-print("\n🏆 Étape 4/4 - Classements...")
-bootstrap_classements()
+def run_all():
+    """Lance le bootstrap complet : BDD + ligues + équipes + joueurs + classements."""
+    print("🚀 Démarrage du bootstrap...")
+    print("="*50)
 
-# LANCEMENT
-print("🚀 Démarrage du bootstrap...")
-print("="*50)
+    init_bdd()
 
-init_bdd()
+    print("\n📋 Étape 1/4 - Ligues...")
+    bootstrap_ligues()
 
-print("\n📋 Étape 1/3 - Ligues...")
-bootstrap_ligues()
+    print("\n👥 Étape 2/4 - Équipes...")
+    bootstrap_equipes()
 
-print("\n👥 Étape 2/3 - Équipes...")
-bootstrap_equipes()
+    print("\n⚽ Étape 3/4 - Joueurs...")
+    bootstrap_joueurs()
 
-print("\n⚽ Étape 3/3 - Joueurs...")
-bootstrap_joueurs()
+    print("\n🏆 Étape 4/4 - Classements...")
+    bootstrap_classements()
 
-print("\n🏆 Bootstrap terminé !")
+    print("\n🏆 Bootstrap terminé !")
 
-conn = sqlite3.connect("botfoot.db")
-c = conn.cursor()
-c.execute("SELECT COUNT(*) FROM api_ligues")
-nb_ligues = c.fetchone()[0]
-c.execute("SELECT COUNT(*) FROM api_equipes")
-nb_equipes = c.fetchone()[0]
-c.execute("SELECT COUNT(*) FROM api_joueurs")
-nb_joueurs = c.fetchone()[0]
-conn.close()
+    conn = sqlite3.connect("botfoot.db")
+    c = conn.cursor()
+    c.execute("SELECT COUNT(*) FROM api_ligues")
+    nb_ligues = c.fetchone()[0]
+    c.execute("SELECT COUNT(*) FROM api_equipes")
+    nb_equipes = c.fetchone()[0]
+    c.execute("SELECT COUNT(*) FROM api_joueurs")
+    nb_joueurs = c.fetchone()[0]
+    conn.close()
 
-print(f"\n📊 Résumé BDD saison 2025/2026 :")
-print(f"   {nb_ligues} ligues")
-print(f"   {nb_equipes} équipes")
-print(f"   {nb_joueurs} joueurs offensifs")
+    print(f"\n📊 Résumé BDD :")
+    print(f"   {nb_ligues} ligues")
+    print(f"   {nb_equipes} équipes")
+    print(f"   {nb_joueurs} joueurs offensifs")
+
+
+if __name__ == "__main__":
+    run_all()

@@ -1578,6 +1578,30 @@ def debug_force_bootstrap_forme():
         return jsonify({"status": "error", "message": str(e), "traceback": traceback.format_exc()}), 500
 
 
+@app.route("/debug/force-bootstrap-principal")
+def debug_force_bootstrap_principal():
+    """Relance bootstrap.run_all() immédiatement (debug)."""
+    try:
+        from bootstrap import run_all
+        run_all()
+        return jsonify({"status": "ok", "message": "bootstrap principal terminé"})
+    except Exception as e:
+        import traceback
+        return jsonify({"status": "error", "message": str(e), "traceback": traceback.format_exc()}), 500
+
+
+@app.route("/debug/force-bootstrap-classements")
+def debug_force_bootstrap_classements():
+    """Relance bootstrap_classements.bootstrap_classements() immédiatement (debug)."""
+    try:
+        from bootstrap_classements import bootstrap_classements
+        bootstrap_classements()
+        return jsonify({"status": "ok", "message": "bootstrap classements terminé"})
+    except Exception as e:
+        import traceback
+        return jsonify({"status": "error", "message": str(e), "traceback": traceback.format_exc()}), 500
+
+
 @app.route("/debug/force-generer-paris")
 def debug_force_generer_paris():
     """Force la régénération des paris du jour sans protection (debug uniquement)."""
@@ -2638,6 +2662,24 @@ def _job_bootstrap_matchs_jour():
         print(f"[scheduler] erreur bootstrap matchs: {e}")
 
 
+def _job_bootstrap_principal():
+    try:
+        from bootstrap import run_all
+        run_all()
+        print("[scheduler] bootstrap principal OK")
+    except Exception as e:
+        print(f"[scheduler] erreur bootstrap principal: {e}")
+
+
+def _job_bootstrap_classements():
+    try:
+        from bootstrap_classements import bootstrap_classements
+        bootstrap_classements()
+        print("[scheduler] bootstrap classements OK")
+    except Exception as e:
+        print(f"[scheduler] erreur bootstrap classements: {e}")
+
+
 def _job_forme_joueurs():
     try:
         from bootstrap_forme_joueurs import bootstrap_forme
@@ -2707,12 +2749,28 @@ try:
         id="sauvegarder_midi",
         replace_existing=True,
     )
+    # Bootstrap principal à 22h00 (ligues + équipes + joueurs + classements)
+    _scheduler.add_job(
+        _job_bootstrap_principal,
+        "cron",
+        hour=22, minute=0,
+        id="bootstrap_principal_22h",
+        replace_existing=True,
+    )
     # Bootstrap matchs du jour à 23h00 (prépare les prédictions pour 00h05)
     _scheduler.add_job(
         _job_bootstrap_matchs_jour,
         "cron",
         hour=23, minute=0,
         id="bootstrap_matchs_23h",
+        replace_existing=True,
+    )
+    # Bootstrap classements à 23h20 (mise à jour standings API)
+    _scheduler.add_job(
+        _job_bootstrap_classements,
+        "cron",
+        hour=23, minute=20,
+        id="bootstrap_classements_23h20",
         replace_existing=True,
     )
     # Scraper forme joueurs à 23h30 (données fraîches avant génération paris)
@@ -2732,7 +2790,7 @@ try:
         replace_existing=True,
     )
     _scheduler.start()
-    print("[scheduler] paris@00h05 | scraper@toutes les 30min | bootstrap_matchs@23h00 | forme_joueurs@23h30 | sauvegarde@00h00+12h00")
+    print("[scheduler] paris@00h05 | scraper@30min | bootstrap_principal@22h00 | bootstrap_matchs@23h00 | bootstrap_classements@23h20 | forme_joueurs@23h30 | sauvegarde@00h00+12h00")
 except Exception as _sched_err:
     print(f"[scheduler] non demarre: {_sched_err}")
 
