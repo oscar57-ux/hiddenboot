@@ -2749,7 +2749,14 @@ try:
         id="sauvegarder_midi",
         replace_existing=True,
     )
-    # Bootstrap principal à 22h00 (ligues + équipes + joueurs + classements)
+    # Bootstrap principal à 12h00 et 22h00 (ligues + équipes + joueurs + classements)
+    _scheduler.add_job(
+        _job_bootstrap_principal,
+        "cron",
+        hour=12, minute=0,
+        id="bootstrap_principal_12h",
+        replace_existing=True,
+    )
     _scheduler.add_job(
         _job_bootstrap_principal,
         "cron",
@@ -2790,7 +2797,7 @@ try:
         replace_existing=True,
     )
     _scheduler.start()
-    print("[scheduler] paris@00h05 | scraper@30min | bootstrap_principal@22h00 | bootstrap_matchs@23h00 | bootstrap_classements@23h20 | forme_joueurs@23h30 | sauvegarde@00h00+12h00")
+    print("[scheduler] paris@00h05 | scraper@30min | bootstrap_principal@12h00+22h00 | bootstrap_matchs@23h00 | bootstrap_classements@23h20 | forme_joueurs@23h30 | sauvegarde@00h00+12h00")
 except Exception as _sched_err:
     print(f"[scheduler] non demarre: {_sched_err}")
 
