@@ -908,10 +908,17 @@ RÈGLES STRICTES :
 
 8. Raisonnement : 1-2 phrases MAX par pari (sois concis, pas de répétition).
 
-Réponds UNIQUEMENT en JSON valide sans markdown :
-{_PROMPT_JSON_SCHEMA}
+9. LIMITES PAR CATÉGORIE (maximums stricts) :
+   - SAFE    : max 10 paris
+   - TENTANT : max 5 paris
+   - FUN     : max 5 paris
+   - Total   : max 20 paris
+   QUALITÉ AVANT QUANTITÉ : ne jamais forcer un pari pour atteindre un quota.
+   Si seulement 3 paris méritent d'être proposés → retourne 3 paris, pas 20.
+   Chaque pari doit être justifié par des données solides.
 
-Génère entre 6 et 10 paris bien répartis entre les catégories disponibles."""
+Réponds UNIQUEMENT en JSON valide sans markdown :
+{_PROMPT_JSON_SCHEMA}"""
 
     # 3. Appeler Claude
     print("[claude-prompt] ========== PROMPT ENVOYÉ ==========")
