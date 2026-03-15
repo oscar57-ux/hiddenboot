@@ -1551,6 +1551,18 @@ def api_generer_paris():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
+@app.route("/debug/force-bootstrap-forme")
+def debug_force_bootstrap_forme():
+    """Relance bootstrap_forme_joueurs.bootstrap_forme() immédiatement (debug)."""
+    try:
+        from bootstrap_forme_joueurs import bootstrap_forme
+        bootstrap_forme()
+        return jsonify({"status": "ok", "message": "bootstrap_forme terminé"})
+    except Exception as e:
+        import traceback
+        return jsonify({"status": "error", "message": str(e), "traceback": traceback.format_exc()}), 500
+
+
 @app.route("/debug/force-generer-paris")
 def debug_force_generer_paris():
     """Force la régénération des paris du jour sans protection (debug uniquement)."""
