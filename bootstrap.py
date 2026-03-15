@@ -98,6 +98,14 @@ LIGUES_CIBLES = {
 
 SAISON = 2025
 
+# Ligues sud-américaines dont la saison courante dans l'API reste 2025
+# mais nécessitent un forçage explicite (sinon l'API renvoie 2024)
+_SAISON_OVERRIDES = {71: 2025, 72: 2025, 128: 2025, 131: 2025, 239: 2025, 265: 2025, 268: 2025}
+
+def _saison(ligue_id: int) -> int:
+    return _SAISON_OVERRIDES.get(ligue_id, SAISON)
+
+
 def bootstrap_ligues():
     conn = sqlite3.connect("botfoot.db")
     c = conn.cursor()
@@ -115,7 +123,7 @@ def bootstrap_equipes():
 
     for nom_ligue, ligue_id in LIGUES_CIBLES.items():
         print(f"  Équipes {nom_ligue}...")
-        data = api_get("teams", {"league": ligue_id, "season": SAISON})
+        data = api_get("teams", {"league": ligue_id, "season": _saison(ligue_id)})
         for team in data.get("response", []):
             c.execute("INSERT OR REPLACE INTO api_equipes (id, nom, ligue_id, pays) VALUES (?, ?, ?, ?)",
                       (team["team"]["id"], team["team"]["name"], ligue_id, team["team"]["country"]))
@@ -138,7 +146,7 @@ def bootstrap_joueurs():
         while True:
             data = api_get("players", {
                 "league": ligue_id,
-                "season": SAISON,
+                "season": _saison(ligue_id),
                 "page": page
             })
 
@@ -209,8 +217,8 @@ def bootstrap_classements():
     total = 0
     for nom_ligue, ligue_id in LIGUES_CIBLES.items():
         print(f"  Classement {nom_ligue}...")
-        data = api_get("standings", {"league": ligue_id, "season": SAISON})
-        
+        data = api_get("standings", {"league": ligue_id, "season": _saison(ligue_id)})
+
         try:
             standings = data["response"][0]["league"]["standings"][0]
             for team in standings:

@@ -39,6 +39,12 @@ LIGUES_CIBLES = {
 
 SAISON = 2025
 
+_SAISON_OVERRIDES = {71: 2025, 72: 2025, 128: 2025, 131: 2025, 239: 2025, 265: 2025, 268: 2025}
+
+def _saison(ligue_id: int) -> int:
+    return _SAISON_OVERRIDES.get(ligue_id, SAISON)
+
+
 conn = sqlite3.connect("botfoot.db")
 c = conn.cursor()
 
@@ -64,7 +70,7 @@ conn.commit()
 total = 0
 for nom_ligue, ligue_id in LIGUES_CIBLES.items():
     print(f"  Classement {nom_ligue}...")
-    data = api_get("standings", {"league": ligue_id, "season": SAISON})
+    data = api_get("standings", {"league": ligue_id, "season": _saison(ligue_id)})
 
     try:
         standings = data["response"][0]["league"]["standings"][0]

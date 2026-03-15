@@ -637,7 +637,7 @@ def _parse_odds_apisports(item, fixture_map=None):
         # Log debug BTTS : noms de tous les paris disponibles (une seule fois par fixture)
         if not logged_bets:
             bet_names = [b.get("name", "") for b in (bm.get("bets") or [])]
-            print(f"[btts] bets disponibles (bookmaker={bm.get('id')}) : {bet_names}")
+            print(f"[btts] bets disponibles pour {home} vs {away} (bookmaker={bm.get('id')}) : {bet_names}")
             logged_bets = True
         for bet in (bm.get("bets") or []):
             name   = (bet.get("name") or "").lower()

@@ -9,6 +9,12 @@ headers = {"x-apisports-key": API_KEY}
 
 SAISON = 2025
 
+_SAISON_OVERRIDES = {71: 2025, 72: 2025, 128: 2025, 131: 2025, 239: 2025, 265: 2025, 268: 2025}
+
+def _saison(ligue_id: int) -> int:
+    return _SAISON_OVERRIDES.get(ligue_id, SAISON)
+
+
 LIGUES_CIBLES = {
     "Ligue 1": 61, "Ligue 2": 62,
     "Premier League": 39, "Championship": 40,
@@ -62,7 +68,7 @@ def get_derniers_fixtures(ligue_id, nb=5):
     """Récupère les IDs des 5 dernières journées d'une ligue"""
     data = api_get("fixtures", {
         "league": ligue_id,
-        "season": SAISON,
+        "season": _saison(ligue_id),
         "last": nb * 12,  # ~12 matchs par journée
         "status": "FT"
     })

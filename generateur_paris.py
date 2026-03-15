@@ -831,6 +831,10 @@ RÈGLES STRICTES :
    Plus de 2.5 buts / Moins de 2.5 buts /
    Les deux équipes marquent oui / Les deux équipes marquent non
 
+4b. BTTS (Les deux équipes marquent oui) : ne proposer QUE SI cote_btts_oui est entre 1.50 et 2.50.
+    Si cote_btts > 2.50 ou absente → NE PAS proposer ce pari (match pas propice au BTTS).
+    Critère indicatif : buts_moy dom >= 1.2 ET buts_moy ext >= 1.2.
+
 5. Dans le raisonnement, croiser OBLIGATOIREMENT :
    - La proba Poisson
    - La forme récente
@@ -880,6 +884,7 @@ Génère entre 6 et 10 paris bien répartis entre les catégories disponibles.""
     paris_valides = []
     paris_par_match = defaultdict(int)
     buteurs_par_match = defaultdict(int)
+    seen_match_type: set = set()  # (match_key, type_pari) — anti-doublon strict
 
     # Trier par probabilite_hiddenscout décroissante
     paris_bruts.sort(key=lambda p: int(p.get("probabilite_hiddenscout", 0) or 0), reverse=True)
@@ -894,14 +899,19 @@ Génère entre 6 et 10 paris bien répartis entre les catégories disponibles.""
         if cat is None:
             continue  # < 55%, on ignore
 
-        match_key = p.get("match", "").strip().lower()
+        match_key  = p.get("match", "").strip().lower()
+        type_lower = (p.get("type_pari", "") or "").lower()
 
-        # Max 1 pari par match (le meilleur = proba la plus haute, déjà trié)
-        if paris_par_match[match_key] >= 1:
+        # Refuser si même (match, type_pari) déjà présent — ex: 2× "victoire domicile"
+        dedup_key = (match_key, type_lower)
+        if dedup_key in seen_match_type:
+            continue
+
+        # Max 2 paris par match (types différents autorisés)
+        if paris_par_match[match_key] >= 2:
             continue
 
         # Max 2 buteurs par match
-        type_lower = (p.get("type_pari", "") or "").lower()
         is_buteur = "buteur" in type_lower or "marquer" in type_lower or "scorer" in type_lower
         if is_buteur and buteurs_par_match[match_key] >= 2:
             continue
@@ -909,11 +919,13 @@ Génère entre 6 et 10 paris bien répartis entre les catégories disponibles.""
         p["categorie"] = cat
         paris_valides.append(p)
         paris_par_match[match_key] += 1
+        seen_match_type.add(dedup_key)
         if is_buteur:
             buteurs_par_match[match_key] += 1
 
-    # 5b. Enrichir avec les cotes Winamax réelles
+    # 5b. Enrichir avec les cotes Winamax réelles + filtre BTTS hors plage
     nb_cotes_trouvees = 0
+    paris_valides_filtrés = []
     for p in paris_valides:
         cote_win = _get_cote_winamax(conn_pg, p.get("match", ""), p.get("type_pari", ""), today)
         if cote_win is not None:
@@ -924,6 +936,21 @@ Génère entre 6 et 10 paris bien répartis entre les catégories disponibles.""
         else:
             print(f"[winamax] {p['match']} | {p['type_pari']} → cote Winamax introuvable, cote Claude conservée")
 
+        # Filtre BTTS : rejeter si cote hors plage 1.50-2.50
+        type_lower_p = (p.get("type_pari", "") or "").lower()
+        is_btts_oui = (
+            "btts" in type_lower_p
+            or ("deux équipes" in type_lower_p and "oui" in type_lower_p)
+        )
+        if is_btts_oui:
+            cote_val = float(p.get("cote") or 0)
+            if cote_val < 1.50 or cote_val > 2.50:
+                print(f"[btts-filter] {p['match']} | cote={cote_val} hors plage [1.50-2.50] → rejeté")
+                continue
+
+        paris_valides_filtrés.append(p)
+
+    paris_valides = paris_valides_filtrés
     print(f"[winamax] {nb_cotes_trouvees}/{len(paris_valides)} cotes Winamax trouvées")
 
     # 6. Effacer et réinsérer
