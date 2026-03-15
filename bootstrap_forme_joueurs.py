@@ -2,7 +2,7 @@ import os
 import requests
 import sqlite3
 import time
-from datetime import datetime
+from datetime import datetime, date, timedelta
 
 API_KEY = os.environ.get("API_SPORTS_KEY", "")
 headers = {"x-apisports-key": API_KEY}
@@ -42,6 +42,35 @@ def api_get(endpoint, params={}):
     )
     time.sleep(0.5)
     return response.json()
+
+
+def get_equipes_actives():
+    """Retourne (team_ids, fixture_data) pour les matchs d'hier et aujourd'hui dans nos ligues.
+    fixture_data : dict { fixture_id -> (date_str, ligue_id) } pour les matchs FT uniquement.
+    """
+    yesterday = (date.today() - timedelta(days=1)).strftime("%Y-%m-%d")
+    today_str  = date.today().strftime("%Y-%m-%d")
+
+    ligue_ids_cibles = set(LIGUES_CIBLES.values())
+    team_ids     = set()
+    fixture_data = {}
+
+    for date_req in [yesterday, today_str]:
+        data = api_get("fixtures", {"date": date_req, "timezone": "Europe/Paris"})
+        for match in data.get("response", []):
+            ligue_id = match["league"]["id"]
+            if ligue_id not in ligue_ids_cibles:
+                continue
+            team_ids.add(match["teams"]["home"]["id"])
+            team_ids.add(match["teams"]["away"]["id"])
+            if match["fixture"]["status"]["short"] == "FT":
+                fid   = match["fixture"]["id"]
+                fdate = (match["fixture"].get("date") or "")[:10]
+                fixture_data[fid] = (fdate, ligue_id)
+
+    print(f"[actifs] {len(team_ids)} équipes actives, {len(fixture_data)} matchs FT trouvés")
+    return team_ids, fixture_data
+
 
 def init_table():
     conn = sqlite3.connect("botfoot.db")
@@ -180,19 +209,25 @@ def _get_forme_equipe(equipe_id, ligue_id):
     return "".join(result)
 
 
-def bootstrap_equipes_serie():
-    """Met à jour classements.forme avec les 10 derniers résultats réels par équipe."""
+def bootstrap_equipes_serie(active_team_ids=None):
+    """Met à jour classements.forme avec les 10 derniers résultats réels par équipe.
+    Si active_team_ids est fourni, ne traite que ces équipes (mode nightly optimisé).
+    """
     conn = sqlite3.connect("botfoot.db")
     c = conn.cursor()
 
-    # Récupérer toutes les équipes qui ont un classement
     c.execute("""
         SELECT ae.id AS equipe_id, cl.ligue_id
         FROM api_equipes ae
         JOIN classements cl ON cl.equipe_id = ae.id
     """)
     equipes = c.fetchall()
-    print(f"[serie] Mise à jour forme pour {len(equipes)} équipes...")
+
+    if active_team_ids:
+        equipes = [(eq_id, lig_id) for eq_id, lig_id in equipes if eq_id in active_team_ids]
+        print(f"[serie] Mise à jour forme pour {len(equipes)} équipes actives (filtré)...")
+    else:
+        print(f"[serie] Mise à jour forme pour {len(equipes)} équipes...")
 
     updated = 0
     for eq in equipes:
@@ -216,16 +251,41 @@ def bootstrap_equipes_serie():
 
 # ── Fonction principale ────────────────────────────────────────────────────────
 
-def bootstrap_forme():
+def bootstrap_forme(full=False):
+    """Met à jour la forme des joueurs et équipes.
+    full=False (défaut, nightly) : uniquement équipes/joueurs actifs (hier/aujourd'hui).
+    full=True  : rebuild complet de toutes les ligues (usage initial).
+    """
     init_table()
 
-    # Fix 1 : vider la table pour repartir d'un état propre à chaque run
+    # ── Mode NIGHTLY optimisé ─────────────────────────────────────────────────
+    if not full:
+        print("[bootstrap_forme] Mode nightly — équipes actives uniquement")
+        active_team_ids, active_fixtures = get_equipes_actives()
+
+        if not active_fixtures:
+            print("⚠️ Aucun match FT trouvé hier/aujourd'hui, skip stats joueurs")
+        else:
+            total_requetes = 2  # 2 appels fixtures déjà effectués
+            total_joueurs  = 0
+            for fixture_id, (fixture_date, ligue_id) in active_fixtures.items():
+                nb = get_stats_fixture(fixture_id, fixture_date, ligue_id)
+                total_joueurs  += nb
+                total_requetes += 1
+                print(f"   Fixture {fixture_id} ({fixture_date}): {nb} joueurs")
+            print(f"\n✅ Stats joueurs — {total_requetes} requêtes, {total_joueurs} entrées")
+
+        print("\n🔄 Recalcul séries de victoires équipes actives...")
+        bootstrap_equipes_serie(active_team_ids)
+        return
+
+    # ── Mode FULL rebuild ─────────────────────────────────────────────────────
     conn = sqlite3.connect("botfoot.db")
     c = conn.cursor()
     c.execute("DELETE FROM joueurs_forme")
     conn.commit()
     conn.close()
-    print("[bootstrap_forme] Table joueurs_forme vidée — recalcul propre")
+    print("[bootstrap_forme] Table joueurs_forme vidée — recalcul complet")
 
     total_requetes = 0
     total_joueurs  = 0
@@ -245,7 +305,6 @@ def bootstrap_forme():
 
         print(f"   ✅ {nom_ligue} terminé — {total_requetes} requêtes utilisées")
 
-    # Fix 2 : recalcul séries de victoires depuis l'API
     print("\n🔄 Recalcul séries de victoires équipes...")
     bootstrap_equipes_serie()
 

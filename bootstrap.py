@@ -2,7 +2,7 @@ import os
 import requests
 import sqlite3
 import time
-from datetime import datetime
+from datetime import datetime, date, timedelta
 
 API_KEY = os.environ.get("API_SPORTS_KEY", "")
 headers = {"x-apisports-key": API_KEY}
@@ -106,6 +106,26 @@ def _saison(ligue_id: int) -> int:
     return _SAISON_OVERRIDES.get(ligue_id, SAISON)
 
 
+def get_equipes_actives():
+    """Retourne les team_ids des équipes qui ont joué hier ou aujourd'hui (dans nos ligues)."""
+    yesterday = (date.today() - timedelta(days=1)).strftime("%Y-%m-%d")
+    today_str  = date.today().strftime("%Y-%m-%d")
+
+    ligue_ids_cibles = set(LIGUES_CIBLES.values())
+    team_ids = set()
+
+    for date_req in [yesterday, today_str]:
+        data = api_get("fixtures", {"date": date_req, "timezone": "Europe/Paris"})
+        for match in data.get("response", []):
+            if match["league"]["id"] not in ligue_ids_cibles:
+                continue
+            team_ids.add(match["teams"]["home"]["id"])
+            team_ids.add(match["teams"]["away"]["id"])
+
+    print(f"[actifs] {len(team_ids)} équipes actives trouvées")
+    return team_ids
+
+
 def bootstrap_ligues():
     conn = sqlite3.connect("botfoot.db")
     c = conn.cursor()
@@ -190,6 +210,77 @@ def bootstrap_joueurs():
 
     conn.close()
     print(f"✅ {total} joueurs offensifs insérés")
+
+def bootstrap_joueurs_actifs():
+    """Met à jour uniquement les joueurs des équipes actives (joué hier/aujourd'hui).
+    Économie estimée : -50% de requêtes API vs bootstrap_joueurs() complet.
+    """
+    team_ids = get_equipes_actives()
+    if not team_ids:
+        print("⚠️ Aucune équipe active trouvée, skip mise à jour joueurs")
+        return
+
+    conn = sqlite3.connect("botfoot.db")
+    c = conn.cursor()
+    total = 0
+    postes_cibles = ["Attacker", "Midfielder"]
+
+    for team_id in team_ids:
+        c.execute("SELECT ligue_id FROM api_equipes WHERE id = ?", (team_id,))
+        row = c.fetchone()
+        if not row:
+            continue
+        ligue_id = row[0]
+
+        page = 1
+        while True:
+            data = api_get("players", {
+                "team":   team_id,
+                "season": _saison(ligue_id),
+                "page":   page
+            })
+
+            if not data.get("response"):
+                break
+
+            for item in data["response"]:
+                joueur = item["player"]
+                stats  = item["statistics"][0] if item["statistics"] else None
+                if not stats:
+                    continue
+
+                poste = stats.get("games", {}).get("position", "")
+                if poste not in postes_cibles:
+                    continue
+
+                matchs    = stats["games"].get("appearences") or 0
+                buts      = stats["goals"].get("total") or 0
+                passes    = stats["goals"].get("assists") or 0
+                note      = float(stats["games"].get("rating") or 0)
+                minutes   = stats["games"].get("minutes") or 0
+                equipe_id = stats["team"]["id"]
+                ratio     = round(buts / matchs, 2) if matchs > 0 else 0
+                score     = round((buts * 3) + (ratio * 10) + note, 2)
+
+                c.execute('''INSERT OR REPLACE INTO api_joueurs
+                    (id, nom, age, nationalite, poste, equipe_id, ligue_id,
+                     matchs, buts, passes, note, minutes, ratio, score, saison, date_maj)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                    (joueur["id"], joueur["name"], joueur.get("age"),
+                     joueur.get("nationality"), poste, equipe_id, ligue_id,
+                     matchs, buts, passes, note, minutes, ratio, score,
+                     SAISON, datetime.now().strftime("%Y-%m-%d %H:%M")))
+                total += 1
+
+            total_pages = data.get("paging", {}).get("total", 1)
+            if page >= total_pages:
+                break
+            page += 1
+            conn.commit()
+
+    conn.close()
+    print(f"✅ {total} joueurs mis à jour (équipes actives uniquement)")
+
 
 def bootstrap_classements():
     conn = sqlite3.connect("botfoot.db")
