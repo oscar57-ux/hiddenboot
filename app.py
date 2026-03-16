@@ -753,7 +753,12 @@ def api_matchs_jour():
                                 pct_home, pct_nul, pct_away, statut, date_maj, heure_match)
                                VALUES ({ph_pg},{ph_pg},{ph_pg},{ph_pg},{ph_pg},{ph_pg},
                                        {ph_pg},{ph_pg},{ph_pg},'en_attente',{ph_pg},{ph_pg})
-                               ON CONFLICT (fixture_id) DO NOTHING''',
+                               ON CONFLICT (fixture_id) DO UPDATE SET
+                                 pct_home=EXCLUDED.pct_home,
+                                 pct_nul=EXCLUDED.pct_nul,
+                                 pct_away=EXCLUDED.pct_away,
+                                 date_maj=EXCLUDED.date_maj
+                               WHERE predictions.statut != 'termine' ''',
                             (fixture_id, today, ligue_nom, ligue_id,
                              home_name, away_name, pct_home, pct_nul, pct_away,
                              datetime.now().strftime("%Y-%m-%d %H:%M"), _hm)
@@ -1757,7 +1762,12 @@ def sauvegarder_predictions():
             c_pg.execute(f'''INSERT INTO predictions
                 (fixture_id, date, ligue, ligue_id, home, away, pct_home, pct_nul, pct_away, statut, date_maj, heure_match)
                 VALUES ({ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},'en_attente',{ph},{ph})
-                ON CONFLICT (fixture_id) DO NOTHING''',
+                ON CONFLICT (fixture_id) DO UPDATE SET
+                  pct_home=EXCLUDED.pct_home,
+                  pct_nul=EXCLUDED.pct_nul,
+                  pct_away=EXCLUDED.pct_away,
+                  date_maj=EXCLUDED.date_maj
+                WHERE predictions.statut != 'termine' ''',
                 (fixture_id, today, match["league"]["name"], ligue_id,
                  match["teams"]["home"]["name"], match["teams"]["away"]["name"],
                  pct_home, pct_nul, pct_away, datetime.now().strftime("%Y-%m-%d %H:%M"), heure_match))
@@ -2745,7 +2755,7 @@ try:
     _scheduler.add_job(
         _job_sauvegarder_predictions_auto,
         "cron",
-        hour=12, minute=0,
+        hour=12, minute=35,  # Décalé de 12h00 → 12h35 : laisse bootstrap_principal_12h finir
         id="sauvegarder_midi",
         replace_existing=True,
     )
@@ -2764,20 +2774,21 @@ try:
         id="bootstrap_principal_22h",
         replace_existing=True,
     )
-    # Bootstrap matchs du jour à 23h00 (prépare les prédictions pour 00h05)
-    _scheduler.add_job(
-        _job_bootstrap_matchs_jour,
-        "cron",
-        hour=23, minute=0,
-        id="bootstrap_matchs_23h",
-        replace_existing=True,
-    )
     # Bootstrap classements à 23h20 (mise à jour standings API)
     _scheduler.add_job(
         _job_bootstrap_classements,
         "cron",
         hour=23, minute=20,
         id="bootstrap_classements_23h20",
+        replace_existing=True,
+    )
+    # Bootstrap matchs du lendemain à 23h25 (APRÈS bootstrap_classements_23h20)
+    # Décalé de 23h00 → 23h25 : garantit des classements à jour pour le calcul Poisson
+    _scheduler.add_job(
+        _job_bootstrap_matchs_jour,
+        "cron",
+        hour=23, minute=25,
+        id="bootstrap_matchs_23h25",
         replace_existing=True,
     )
     # Scraper forme joueurs à 23h30 (données fraîches avant génération paris)
