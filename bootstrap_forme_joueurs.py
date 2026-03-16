@@ -9,7 +9,8 @@ headers = {"x-apisports-key": API_KEY}
 
 SAISON = 2025
 
-_SAISON_OVERRIDES = {71: 2025, 72: 2025, 128: 2025, 131: 2025, 239: 2025, 265: 2025, 268: 2025}
+# Ligues sud-américaines dont la saison 2026 a démarré
+_SAISON_OVERRIDES = {71: 2026, 72: 2026, 128: 2026, 131: 2026, 239: 2026, 242: 2026, 268: 2026}
 
 def _saison(ligue_id: int) -> int:
     return _SAISON_OVERRIDES.get(ligue_id, SAISON)
@@ -40,7 +41,7 @@ def api_get(endpoint, params={}):
         headers=headers,
         params=params
     )
-    time.sleep(0.5)
+    time.sleep(0.15)
     return response.json()
 
 
