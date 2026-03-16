@@ -66,6 +66,8 @@ def get_equipes_actives():
             if match["fixture"]["status"]["short"] == "FT":
                 fid   = match["fixture"]["id"]
                 fdate = (match["fixture"].get("date") or "")[:10]
+                if not fdate:
+                    continue  # Ignorer les fixtures sans date valide
                 fixture_data[fid] = (fdate, ligue_id)
 
     print(f"[actifs] {len(team_ids)} équipes actives, {len(fixture_data)} matchs FT trouvés")
@@ -87,7 +89,8 @@ def init_table():
         note REAL DEFAULT 0,
         minutes INTEGER DEFAULT 0,
         titulaire INTEGER DEFAULT 0,
-        UNIQUE(joueur_id, fixture_id)
+        UNIQUE(joueur_id, fixture_id),
+        UNIQUE(joueur_id, date)
     )''')
     conn.commit()
     conn.close()
@@ -117,7 +120,9 @@ def get_derniers_fixtures(ligue_id, nb=5):
             break
         fixture_id   = match["fixture"]["id"]
         # Date réelle du match (ex: "2025-03-14T21:00:00+00:00") → "2025-03-14"
-        fixture_date = (match["fixture"].get("date") or "")[:10] or datetime.now().strftime("%Y-%m-%d")
+        fixture_date = (match["fixture"].get("date") or "")[:10]
+        if not fixture_date:
+            continue  # Ignorer les fixtures sans date valide (évite la date du bootstrap)
         fixtures.append((fixture_id, fixture_date))
 
     return fixtures[:nb * 12]
@@ -288,12 +293,14 @@ def bootstrap_forme(full=False):
         return
 
     # ── Mode FULL rebuild ─────────────────────────────────────────────────────
+    # DROP + recreate pour appliquer le nouveau schéma UNIQUE(joueur_id, date)
     conn = sqlite3.connect("botfoot.db")
     c = conn.cursor()
-    c.execute("DELETE FROM joueurs_forme")
+    c.execute("DROP TABLE IF EXISTS joueurs_forme")
     conn.commit()
     conn.close()
-    print("[bootstrap_forme] Table joueurs_forme vidée — recalcul complet")
+    init_table()
+    print("[bootstrap_forme] Table joueurs_forme recréée — recalcul complet")
 
     total_requetes = 0
     total_joueurs  = 0
