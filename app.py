@@ -10,6 +10,9 @@ app = Flask(__name__)
 
 API_SPORTS_KEY = os.environ.get("API_SPORTS_KEY", "")
 
+# Désactiver les logs [buteur] en prod pour éviter le rate limit Railway (500 logs/sec)
+DEBUG_BUTEURS = os.environ.get("DEBUG_BUTEURS", "0") == "1"
+
 # Timestamps des dernières exécutions scheduler
 _last_save_time = None    # datetime
 _last_verify_time = None  # datetime
@@ -155,7 +158,8 @@ def calculer_proba_buteur_mc(ratio_buts, buts_encaisses_adv=1.35, forme_str="",
     # Cap à 1.2 : 1 - e^(-1.2) ≈ 70 %, évite les probas irréalistes
     lambda_base = max(0.01, min(1.2, lambda_base))
 
-    print(f"[buteur] ratio={taux:.3f} part={part_buts:.3f} bonus={bonus_part:.3f} λ={lambda_base:.3f}")
+    if DEBUG_BUTEURS:
+        print(f"[buteur] ratio={taux:.3f} part={part_buts:.3f} bonus={bonus_part:.3f} λ={lambda_base:.3f}")
 
     rng = np.random.default_rng(42)
     lambdas = lambda_base * rng.normal(loc=1.0, scale=0.15, size=n_sims)
@@ -181,7 +185,8 @@ def calculer_proba_buteur_mc(ratio_buts, buts_encaisses_adv=1.35, forme_str="",
     if buts_recents >= 4:
         plancher = max(plancher, 15.0)
     mean_pct = max(mean_pct, plancher)
-    print(f"[buteur] p={mean_pct:.1f}% plancher={plancher:.0f}% (saison={buts_saison} recents={buts_recents} matchs={matchs_joues})")
+    if DEBUG_BUTEURS:
+        print(f"[buteur] p={mean_pct:.1f}% plancher={plancher:.0f}% (saison={buts_saison} recents={buts_recents} matchs={matchs_joues})")
 
     return (
         mean_pct,
