@@ -220,25 +220,33 @@ def bootstrap_equipes_serie(active_team_ids=None):
         SELECT ae.id AS equipe_id, cl.ligue_id
         FROM api_equipes ae
         JOIN classements cl ON cl.equipe_id = ae.id
+        ORDER BY
+            CASE WHEN cl.ligue_id NOT IN (2, 3, 848) THEN 0 ELSE 1 END ASC,
+            ae.id ASC
     """)
     equipes = c.fetchall()
 
     if active_team_ids:
         equipes = [(eq_id, lig_id) for eq_id, lig_id in equipes if eq_id in active_team_ids]
-        print(f"[serie] Mise à jour forme pour {len(equipes)} équipes actives (filtré)...")
-    else:
-        print(f"[serie] Mise à jour forme pour {len(equipes)} équipes...")
+
+    # Dédupliquer par team_id : un seul appel API par équipe (préfère la ligue domestique)
+    seen = {}
+    for eq_id, lig_id in equipes:
+        if eq_id not in seen:
+            seen[eq_id] = lig_id
+    equipes_dedup = list(seen.items())
+
+    print(f"[serie] Mise à jour forme pour {len(equipes_dedup)} équipes (déduplication: {len(equipes)} → {len(equipes_dedup)})...")
 
     updated = 0
-    for eq in equipes:
-        equipe_id = eq[0]
-        ligue_id  = eq[1]
+    for equipe_id, ligue_id in equipes_dedup:
         try:
             forme = _get_forme_equipe(equipe_id, ligue_id)
             if forme:
+                # Mettre à jour toutes les ligues de cette équipe en une seule requête
                 c.execute(
-                    "UPDATE classements SET forme = ? WHERE equipe_id = ? AND ligue_id = ?",
-                    (forme, equipe_id, ligue_id)
+                    "UPDATE classements SET forme = ? WHERE equipe_id = ?",
+                    (forme, equipe_id)
                 )
                 updated += 1
         except Exception as e:
@@ -313,4 +321,5 @@ def bootstrap_forme(full=False):
     print(f"   Total entrées  : {total_joueurs}")
 
 
-bootstrap_forme()
+if __name__ == "__main__":
+    bootstrap_forme()

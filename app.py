@@ -397,7 +397,8 @@ def _build_classements_data():
         conversion = {"W": "V", "D": "N", "L": "D"}
         for row in classement_rows:
             forme_raw = row["forme"] or ""
-            forme = [conversion.get(f, "vide") for f in forme_raw[-5:]]
+            # [:5] = 5 matchs les plus récents (forme stockée newest→oldest, index 0 = dernier)
+            forme = [conversion.get(f, "vide") for f in forme_raw[:5]]
             while len(forme) < 5:
                 forme.insert(0, "vide")
             v = row["victoires"] or 0
@@ -879,15 +880,24 @@ def alertes():
     equipes_serie = []
     try:
         c.execute("""
-            SELECT ae.nom, cl.forme, cl.rang, cl.ligue_id, al.nom AS ligue_nom
+            SELECT ae.id AS equipe_id, ae.nom, cl.forme, cl.rang, cl.ligue_id, al.nom AS ligue_nom
             FROM classements cl
             JOIN api_equipes ae ON cl.equipe_id = ae.id
             JOIN api_ligues  al ON cl.ligue_id  = al.id
             WHERE cl.forme IS NOT NULL AND cl.forme != ''
+            ORDER BY
+                CASE WHEN cl.ligue_id NOT IN (2, 3, 848) THEN 0 ELSE 1 END ASC,
+                ae.id ASC
         """)
+        seen_equipes = set()
         for row in c.fetchall():
+            equipe_id = row["equipe_id"]
+            # Dédupliquer : garder uniquement la ligue domestique (1 entrée par équipe)
+            if equipe_id in seen_equipes:
+                continue
+            seen_equipes.add(equipe_id)
             forme_str = row["forme"] or ""
-            # forme_str est stockée du plus récent au plus ancien (index 0 = dernier match)
+            # forme_str stockée newest→oldest (index 0 = dernier match)
             wins = 0
             for ch in forme_str:
                 if ch == "W":
@@ -901,8 +911,8 @@ def alertes():
                     "rang": row["rang"],
                     "ligue_nom": row["ligue_nom"],
                     "drapeau": DRAPEAUX_LIGUES.get(row["ligue_id"], ""),
-                    # Inverser pour l'affichage chronologique (oldest→newest)
-                    "forme_dots": list(reversed(list(forme_str[-5:]))),
+                    # [:5] = 5 matchs les plus récents, reversed pour affichage oldest→newest
+                    "forme_dots": list(reversed(list(forme_str[:5]))),
                 })
         equipes_serie.sort(key=lambda x: x["wins_consecutifs"], reverse=True)
         equipes_serie = equipes_serie[:10]
