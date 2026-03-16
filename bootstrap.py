@@ -153,6 +153,9 @@ def bootstrap_equipes():
     conn.close()
     print(f"✅ {total} équipes insérées")
 
+UEFA_LIGUE_IDS = {2, 3, 848}  # UCL / UEL / UECL — stats joueurs via ligue domestique
+
+
 def bootstrap_joueurs():
     conn = sqlite3.connect("botfoot.db")
     c = conn.cursor()
@@ -160,6 +163,9 @@ def bootstrap_joueurs():
     postes_cibles = ["Attacker", "Midfielder"]
 
     for nom_ligue, ligue_id in LIGUES_CIBLES.items():
+        if ligue_id in UEFA_LIGUE_IDS:
+            print(f"  Joueurs {nom_ligue} → ignoré (UEFA, stats déjà dans la ligue domestique)")
+            continue
         print(f"  Joueurs {nom_ligue}...")
         page = 1
 
@@ -245,7 +251,15 @@ def bootstrap_joueurs_actifs():
 
             for item in data["response"]:
                 joueur = item["player"]
-                stats  = item["statistics"][0] if item["statistics"] else None
+
+                # Préférer la stat de ligue domestique (pas UCL/UEL/UECL)
+                stats = None
+                for s in item.get("statistics", []):
+                    if s.get("league", {}).get("id") not in UEFA_LIGUE_IDS:
+                        stats = s
+                        break
+                if stats is None:
+                    stats = item["statistics"][0] if item["statistics"] else None
                 if not stats:
                     continue
 
@@ -259,6 +273,8 @@ def bootstrap_joueurs_actifs():
                 note      = float(stats["games"].get("rating") or 0)
                 minutes   = stats["games"].get("minutes") or 0
                 equipe_id = stats["team"]["id"]
+                # Utiliser le ligue_id de la stat domestique, pas celui de api_equipes
+                ligue_id_joueur = stats.get("league", {}).get("id") or ligue_id
                 ratio     = round(buts / matchs, 2) if matchs > 0 else 0
                 score     = round((buts * 3) + (ratio * 10) + note, 2)
 
@@ -267,7 +283,7 @@ def bootstrap_joueurs_actifs():
                      matchs, buts, passes, note, minutes, ratio, score, saison, date_maj)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
                     (joueur["id"], joueur["name"], joueur.get("age"),
-                     joueur.get("nationality"), poste, equipe_id, ligue_id,
+                     joueur.get("nationality"), poste, equipe_id, ligue_id_joueur,
                      matchs, buts, passes, note, minutes, ratio, score,
                      SAISON, datetime.now().strftime("%Y-%m-%d %H:%M")))
                 total += 1
