@@ -13,7 +13,7 @@ def api_get(endpoint, params={}):
         headers=headers,
         params=params
     )
-    time.sleep(0.5)
+    time.sleep(0.15)
     return response.json()
 
 LIGUES_CIBLES = {
