@@ -4,6 +4,7 @@ import os
 from datetime import date, datetime, timedelta
 import sqlite3
 import math
+import time
 import numpy as np
 
 app = Flask(__name__)
@@ -1610,6 +1611,113 @@ def debug_force_bootstrap_classements():
     except Exception as e:
         import traceback
         return jsonify({"status": "error", "message": str(e), "traceback": traceback.format_exc()}), 500
+
+
+@app.route("/debug/force-reset-complet")
+def debug_force_reset_complet():
+    """Endpoint d'urgence : recalcul complet dans l'ordre garanti.
+    Usage : quota épuisé, race condition, prédictions toutes identiques.
+    Séquence :
+      1. bootstrap_classements  (classements frais)
+      2. sleep 30s
+      3. DELETE predictions du jour non terminées
+      4. sauvegarder_predictions (Poisson avec classements frais)
+      5. sleep 10s
+      6. scraper_winamax        (cotes fraîches)
+      7. sleep 10s
+      8. generer_paris          (paris avec tout à jour)
+    """
+    import traceback as _tb
+
+    today = date.today().strftime("%Y-%m-%d")
+    rapport = []
+
+    def _step(nom, fn):
+        """Exécute fn(), enregistre succès/erreur dans rapport, retourne True si OK."""
+        try:
+            result = fn()
+            rapport.append({"etape": nom, "statut": "ok", "detail": str(result) if result is not None else ""})
+            print(f"[force-reset] {nom} OK")
+            return True
+        except Exception as exc:
+            rapport.append({"etape": nom, "statut": "error", "detail": str(exc)})
+            print(f"[force-reset] {nom} ERREUR : {exc}")
+            return False
+
+    # ── Étape 1 : classements ────────────────────────────────────────────────
+    def _bootstrap_classements():
+        from bootstrap_classements import bootstrap_classements
+        bootstrap_classements()
+
+    _step("1_bootstrap_classements", _bootstrap_classements)
+
+    # ── Étape 2 : attente 30s ────────────────────────────────────────────────
+    time.sleep(30)
+    rapport.append({"etape": "2_sleep_30s", "statut": "ok", "detail": "attente 30s écoulée"})
+
+    # ── Étape 3 : purge prédictions du jour (non terminées) ──────────────────
+    def _purge_predictions():
+        conn_pg = get_pg()
+        c_pg = conn_pg.cursor()
+        ph = _ph(conn_pg)
+        c_pg.execute(
+            f"DELETE FROM predictions WHERE date = {ph} AND statut != 'termine'",
+            (today,)
+        )
+        deleted = c_pg.rowcount
+        conn_pg.commit()
+        conn_pg.close()
+        return f"{deleted} prédictions supprimées"
+
+    _step("3_purge_predictions", _purge_predictions)
+
+    # ── Étape 4 : recalcul Poisson ───────────────────────────────────────────
+    def _sauvegarder():
+        with app.test_request_context(f"/api/sauvegarder-predictions?date={today}"):
+            resp = sauvegarder_predictions()
+        data = resp.get_json() if hasattr(resp, "get_json") else {}
+        return data.get("total", "?")
+
+    _step("4_sauvegarder_predictions", _sauvegarder)
+
+    # ── Étape 5 : attente 10s ────────────────────────────────────────────────
+    time.sleep(10)
+    rapport.append({"etape": "5_sleep_10s", "statut": "ok", "detail": "attente 10s écoulée"})
+
+    # ── Étape 6 : scraper winamax ────────────────────────────────────────────
+    def _winamax():
+        from scraper_winamax import run as scraper_run
+        return scraper_run()
+
+    _step("6_scraper_winamax", _winamax)
+
+    # ── Étape 7 : attente 10s ────────────────────────────────────────────────
+    time.sleep(10)
+    rapport.append({"etape": "7_sleep_10s", "statut": "ok", "detail": "attente 10s écoulée"})
+
+    # ── Étape 8 : génération paris ───────────────────────────────────────────
+    def _generer():
+        conn_pg = get_pg()
+        c_pg = conn_pg.cursor()
+        ph = _ph(conn_pg)
+        c_pg.execute(f"DELETE FROM paris_jour  WHERE date = {ph}", (today,))
+        c_pg.execute(f"DELETE FROM paris_combi WHERE date = {ph}", (today,))
+        conn_pg.commit()
+        conn_pg.close()
+        from generateur_paris import generer_paris
+        return f"{generer_paris()} paris générés"
+
+    _step("8_generer_paris", _generer)
+
+    # ── Résumé ───────────────────────────────────────────────────────────────
+    nb_ok  = sum(1 for r in rapport if r["statut"] == "ok")
+    nb_err = sum(1 for r in rapport if r["statut"] == "error")
+    return jsonify({
+        "status": "ok" if nb_err == 0 else "partial",
+        "date":   today,
+        "resume": f"{nb_ok} étapes OK, {nb_err} erreur(s)",
+        "etapes": rapport,
+    })
 
 
 @app.route("/debug/force-generer-paris")
