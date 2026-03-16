@@ -1589,11 +1589,16 @@ def api_generer_paris():
 
 @app.route("/debug/force-bootstrap-forme")
 def debug_force_bootstrap_forme():
-    """Relance bootstrap_forme_joueurs.bootstrap_forme() immédiatement (debug)."""
+    """Relance bootstrap_forme_joueurs.bootstrap_forme() immédiatement (debug).
+    ?full=1 → rebuild complet (DROP TABLE + toutes ligues)
+    sans paramètre → mode nightly (équipes actives seulement)
+    """
     try:
         from bootstrap_forme_joueurs import bootstrap_forme
-        bootstrap_forme()
-        return jsonify({"status": "ok", "message": "bootstrap_forme terminé"})
+        full = request.args.get("full", "0") == "1"
+        bootstrap_forme(full=full)
+        mode = "full rebuild" if full else "nightly"
+        return jsonify({"status": "ok", "message": f"bootstrap_forme terminé ({mode})"})
     except Exception as e:
         import traceback
         return jsonify({"status": "error", "message": str(e), "traceback": traceback.format_exc()}), 500
