@@ -550,7 +550,7 @@ def pepites():
             JOIN api_equipes e ON j.equipe_id = e.id
             JOIN api_ligues  l ON j.ligue_id  = l.id
             WHERE d.rn <= 5
-            GROUP BY d.joueur_id
+            GROUP BY d.joueur_id, j.nom, j.poste, j.matchs, j.buts, j.passes, j.note, j.ratio, j.equipe_id, e.nom, l.nom, l.id
             HAVING SUM(d.buts) >= 3
             ORDER BY buts_recents DESC, j.buts DESC
             LIMIT 50
@@ -570,6 +570,7 @@ def pepites():
                 "forme": forme,
             })
     except Exception as e:
+        conn.rollback()
         print(f"[debug][pepites] ERREUR joueurs_en_feu: {e}")
     print(f"[debug][pepites] joueurs_en_feu: {len(joueurs_en_feu)} résultats")
 
@@ -903,7 +904,7 @@ def alertes():
             SELECT d.joueur_id,
                    SUM(d.buts)  AS buts_recents,
                    SUM(d.passes) AS passes_recentes,
-                   ROUND(AVG(d.note), 1) AS note_moy,
+                   ROUND(CAST(AVG(d.note) AS NUMERIC), 1) AS note_moy,
                    j.nom, j.buts AS buts_saison,
                    e.nom AS equipe, l.nom AS ligue, l.id AS ligue_id
             FROM derniers d
@@ -911,7 +912,7 @@ def alertes():
             JOIN api_equipes e ON j.equipe_id = e.id
             JOIN api_ligues  l ON j.ligue_id  = l.id
             WHERE d.rn <= 5
-            GROUP BY d.joueur_id
+            GROUP BY d.joueur_id, j.nom, j.buts, e.nom, l.nom, l.id
             HAVING SUM(d.buts) > 0
             ORDER BY buts_recents DESC, note_moy DESC
             LIMIT 10
@@ -936,6 +937,7 @@ def alertes():
                 "forme": forme,
             })
     except Exception as e:
+        conn.rollback()
         print(f"[debug][alertes] ERREUR joueurs_en_feu: {e}")
     print(f"[debug][alertes] joueurs_en_feu: {len(joueurs_en_feu)} résultats")
 
@@ -980,6 +982,7 @@ def alertes():
         equipes_serie.sort(key=lambda x: x["wins_consecutifs"], reverse=True)
         equipes_serie = equipes_serie[:10]
     except Exception as e:
+        conn.rollback()
         print(f"[debug][alertes] ERREUR equipes_serie: {e}")
     print(f"[debug][alertes] equipes_serie: {len(equipes_serie)} résultats")
 
@@ -995,8 +998,8 @@ def alertes():
             SELECT d.joueur_id,
                    SUM(d.buts)   AS buts_5,
                    SUM(d.passes) AS passes_5,
-                   ROUND(AVG(d.note), 1) AS note_5,
-                   ROUND(SUM(d.buts) * 3.0 + SUM(d.passes) * 1.0 + AVG(d.note), 2) AS score_forme,
+                   ROUND(CAST(AVG(d.note) AS NUMERIC), 1) AS note_5,
+                   ROUND(CAST(SUM(d.buts) * 3.0 + SUM(d.passes) * 1.0 + AVG(d.note) AS NUMERIC), 2) AS score_forme,
                    j.nom, j.buts AS buts_saison, j.passes AS passes_saison, j.matchs,
                    e.nom AS equipe, l.nom AS ligue, l.id AS ligue_id
             FROM derniers d
@@ -1004,7 +1007,7 @@ def alertes():
             JOIN api_equipes e ON j.equipe_id = e.id
             JOIN api_ligues  l ON j.ligue_id  = l.id
             WHERE d.rn <= 5 AND j.buts < 8
-            GROUP BY d.joueur_id
+            GROUP BY d.joueur_id, j.nom, j.buts, j.passes, j.matchs, e.nom, l.nom, l.id
             HAVING SUM(d.buts) > 0
             ORDER BY score_forme DESC
             LIMIT 10
@@ -1032,6 +1035,7 @@ def alertes():
                 "forme": forme,
             })
     except Exception as e:
+        conn.rollback()
         print(f"[debug][alertes] ERREUR pepites_emergentes: {e}")
     print(f"[debug][alertes] pepites_emergentes: {len(pepites_emergentes)} résultats")
 
@@ -1053,7 +1057,7 @@ def alertes():
             JOIN api_equipes e ON j.equipe_id = e.id
             JOIN api_ligues  l ON j.ligue_id  = l.id
             WHERE d.rn <= 5 AND j.buts > 5
-            GROUP BY d.joueur_id
+            GROUP BY d.joueur_id, j.nom, j.buts, e.nom, l.nom, l.id
             HAVING SUM(d.buts) = 0
             ORDER BY j.buts DESC
             LIMIT 10
@@ -1075,6 +1079,7 @@ def alertes():
                 "forme": forme,
             })
     except Exception as e:
+        conn.rollback()
         print(f"[debug][alertes] ERREUR joueurs_a_eviter: {e}")
     print(f"[debug][alertes] joueurs_a_eviter: {len(joueurs_a_eviter)} résultats")
 
