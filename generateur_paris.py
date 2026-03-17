@@ -100,9 +100,8 @@ _RESERVE_KEYWORDS = ("jong", "b team", "reservas", "espoirs", "u23", "u21")
 
 
 def get_db():
-    conn = sqlite3.connect("botfoot.db")
-    conn.row_factory = sqlite3.Row
-    return conn
+    """Connexion unifiée — PostgreSQL en prod, SQLite en local (alias de get_pg)."""
+    return get_pg()
 
 
 def get_pg():

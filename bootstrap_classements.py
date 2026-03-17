@@ -4,6 +4,8 @@ import sqlite3
 import time
 from datetime import datetime
 
+from database import get_conn, _is_pg, _ph, init_all_tables
+
 API_KEY = os.environ.get("API_SPORTS_KEY", "")
 headers = {"x-apisports-key": API_KEY}
 
@@ -46,38 +48,11 @@ def _saison(ligue_id: int) -> int:
 
 
 def bootstrap_classements():
-    conn = sqlite3.connect("botfoot.db")
-    c = conn.cursor()
+    conn = get_conn()
+    c    = conn.cursor()
+    ph   = _ph(conn)
 
-    c.execute('''CREATE TABLE IF NOT EXISTS classements (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        equipe_id INTEGER,
-        ligue_id INTEGER,
-        rang INTEGER,
-        points INTEGER,
-        victoires INTEGER,
-        nuls INTEGER,
-        defaites INTEGER,
-        buts_pour INTEGER,
-        buts_contre INTEGER,
-        diff_buts INTEGER,
-        forme TEXT,
-        date_maj TEXT,
-        buts_dom INTEGER DEFAULT 0,
-        buts_enc_dom INTEGER DEFAULT 0,
-        matchs_dom INTEGER DEFAULT 0,
-        buts_ext INTEGER DEFAULT 0,
-        buts_enc_ext INTEGER DEFAULT 0,
-        matchs_ext INTEGER DEFAULT 0
-    )''')
-
-    # Migration : ajouter les colonnes dom/ext si absentes
-    for col in ["buts_dom", "buts_enc_dom", "matchs_dom", "buts_ext", "buts_enc_ext", "matchs_ext"]:
-        try:
-            c.execute(f"ALTER TABLE classements ADD COLUMN {col} INTEGER DEFAULT 0")
-        except Exception:
-            pass
-    conn.commit()
+    init_all_tables(conn)
 
     c.execute("DELETE FROM classements")
     conn.commit()
@@ -93,12 +68,14 @@ def bootstrap_classements():
                 forme = team.get("form", "")
                 h = team.get("home", {})
                 a = team.get("away", {})
-                c.execute('''INSERT INTO classements
-                    (equipe_id, ligue_id, rang, points, victoires, nuls, defaites,
-                     buts_pour, buts_contre, diff_buts, forme, date_maj,
-                     buts_dom, buts_enc_dom, matchs_dom,
-                     buts_ext, buts_enc_ext, matchs_ext)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                c.execute(
+                    f"""INSERT INTO classements
+                        (equipe_id, ligue_id, rang, points, victoires, nuls, defaites,
+                         buts_pour, buts_contre, diff_buts, forme, date_maj,
+                         buts_dom, buts_enc_dom, matchs_dom,
+                         buts_ext, buts_enc_ext, matchs_ext)
+                        VALUES ({ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},
+                                {ph},{ph},{ph},{ph},{ph},{ph})""",
                     (team["team"]["id"], ligue_id, team["rank"], team["points"],
                      team["all"]["win"], team["all"]["draw"], team["all"]["lose"],
                      team["all"]["goals"]["for"], team["all"]["goals"]["against"],
@@ -109,7 +86,8 @@ def bootstrap_classements():
                      h.get("played", 0),
                      a.get("goals", {}).get("for", 0),
                      a.get("goals", {}).get("against", 0),
-                     a.get("played", 0)))
+                     a.get("played", 0)),
+                )
                 total += 1
         except Exception as e:
             print(f"  Erreur {nom_ligue}: {e}")

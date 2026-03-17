@@ -213,9 +213,8 @@ def calculer_proba_buteur_mc(ratio_buts, buts_encaisses_adv=1.35, forme_str="",
 # ──────────────────────────────────────────────────────────────────────────────
 
 def get_db():
-    conn = sqlite3.connect("botfoot.db")
-    conn.row_factory = sqlite3.Row
-    return conn
+    """Connexion unifiée — PostgreSQL en prod, SQLite en local (alias de get_pg)."""
+    return get_pg()
 
 
 def get_pg():
@@ -343,9 +342,14 @@ def init_pg_tables():
             )""")
             print("[pg] table 'predictions_buteurs' OK")
             conn.commit()
-            print("[pg] ✅ init_pg_tables terminé — toutes les tables PostgreSQL OK")
-        else:
-            print("[pg] fallback SQLite — init_pg_tables ignoré")
+
+        # Tables bootstrap (api_ligues, api_equipes, api_joueurs, classements, joueurs_forme)
+        # créées pour PG ET SQLite
+        from database import init_all_tables
+        init_all_tables(conn)
+        print("[pg] ✅ init_pg_tables terminé — toutes les tables OK")
+        if not _is_pg(conn):
+            print("[pg] fallback SQLite — tables bootstrap créées localement")
         conn.close()
     except Exception as e:
         print(f"[pg] ❌ erreur init_pg_tables: {e}")
@@ -572,8 +576,8 @@ def api_debug():
     try:
         conn = get_db()
         c = conn.cursor()
-        c.execute("SELECT COUNT(*) n FROM api_ligues"); info["api_ligues"] = c.fetchone()[0]
-        c.execute("SELECT COUNT(*) n FROM classements"); info["classements"] = c.fetchone()[0]
+        c.execute("SELECT COUNT(*) AS n FROM api_ligues");  info["api_ligues"]  = c.fetchone()["n"]
+        c.execute("SELECT COUNT(*) AS n FROM classements"); info["classements"] = c.fetchone()["n"]
         conn.close()
         info["sqlite"] = "ok"
     except Exception as e:

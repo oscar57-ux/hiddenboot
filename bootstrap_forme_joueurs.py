@@ -4,6 +4,8 @@ import sqlite3
 import time
 from datetime import datetime, date, timedelta
 
+from database import get_conn, _is_pg, _ph, init_all_tables
+
 API_KEY = os.environ.get("API_SPORTS_KEY", "")
 headers = {"x-apisports-key": API_KEY}
 
@@ -76,24 +78,8 @@ def get_equipes_actives():
 
 
 def init_table():
-    conn = sqlite3.connect("botfoot.db")
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS joueurs_forme (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        joueur_id INTEGER,
-        fixture_id INTEGER,
-        equipe_id INTEGER,
-        ligue_id INTEGER,
-        date TEXT,
-        buts INTEGER DEFAULT 0,
-        passes INTEGER DEFAULT 0,
-        note REAL DEFAULT 0,
-        minutes INTEGER DEFAULT 0,
-        titulaire INTEGER DEFAULT 0,
-        UNIQUE(joueur_id, fixture_id),
-        UNIQUE(joueur_id, date)
-    )''')
-    conn.commit()
+    conn = get_conn()
+    init_all_tables(conn)
     conn.close()
     print("✅ Table joueurs_forme prête")
 
@@ -133,8 +119,9 @@ def get_stats_fixture(fixture_id, fixture_date, ligue_id):
     """Récupère les stats de tous les joueurs connus pour un match."""
     data = api_get("fixtures/players", {"fixture": fixture_id})
 
-    conn = sqlite3.connect("botfoot.db")
-    c = conn.cursor()
+    conn = get_conn()
+    c    = conn.cursor()
+    ph   = _ph(conn)
     total = 0
 
     for team_data in data.get("response", []):
@@ -148,23 +135,25 @@ def get_stats_fixture(fixture_id, fixture_date, ligue_id):
                 continue
 
             # Vérifier que le joueur est dans notre BDD
-            c.execute("SELECT id FROM api_joueurs WHERE id = ?", (joueur_id,))
+            c.execute(f"SELECT id FROM api_joueurs WHERE id = {ph}", (joueur_id,))
             if not c.fetchone():
                 continue
 
-            buts     = stats["goals"].get("total") or 0
-            passes   = stats["goals"].get("assists") or 0
-            note     = float(stats["games"].get("rating") or 0)
-            minutes  = stats["games"].get("minutes") or 0
+            buts      = stats["goals"].get("total")   or 0
+            passes    = stats["goals"].get("assists")  or 0
+            note      = float(stats["games"].get("rating") or 0)
+            minutes   = stats["games"].get("minutes") or 0
             titulaire = 1 if stats["games"].get("captain") or minutes >= 45 else 0
 
             try:
-                # Fix : stocker la date réelle du match, pas aujourd'hui
-                c.execute('''INSERT OR IGNORE INTO joueurs_forme
-                    (joueur_id, fixture_id, equipe_id, ligue_id, date, buts, passes, note, minutes, titulaire)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                c.execute(
+                    f"""INSERT INTO joueurs_forme
+                        (joueur_id, fixture_id, equipe_id, ligue_id, date, buts, passes, note, minutes, titulaire)
+                        VALUES ({ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph})
+                        ON CONFLICT DO NOTHING""",
                     (joueur_id, fixture_id, equipe_id, ligue_id,
-                     fixture_date, buts, passes, note, minutes, titulaire))
+                     fixture_date, buts, passes, note, minutes, titulaire),
+                )
                 total += 1
             except Exception:
                 pass
@@ -219,8 +208,9 @@ def bootstrap_equipes_serie(active_team_ids=None):
     """Met à jour classements.forme avec les 10 derniers résultats réels par équipe.
     Si active_team_ids est fourni, ne traite que ces équipes (mode nightly optimisé).
     """
-    conn = sqlite3.connect("botfoot.db")
-    c = conn.cursor()
+    conn = get_conn()
+    c    = conn.cursor()
+    ph   = _ph(conn)
 
     c.execute("""
         SELECT ae.id AS equipe_id, cl.ligue_id
@@ -230,7 +220,7 @@ def bootstrap_equipes_serie(active_team_ids=None):
             CASE WHEN cl.ligue_id NOT IN (2, 3, 848) THEN 0 ELSE 1 END ASC,
             ae.id ASC
     """)
-    equipes = c.fetchall()
+    equipes = [(row["equipe_id"], row["ligue_id"]) for row in c.fetchall()]
 
     if active_team_ids:
         equipes = [(eq_id, lig_id) for eq_id, lig_id in equipes if eq_id in active_team_ids]
@@ -249,10 +239,9 @@ def bootstrap_equipes_serie(active_team_ids=None):
         try:
             forme = _get_forme_equipe(equipe_id, ligue_id)
             if forme:
-                # Mettre à jour toutes les ligues de cette équipe en une seule requête
                 c.execute(
-                    "UPDATE classements SET forme = ? WHERE equipe_id = ?",
-                    (forme, equipe_id)
+                    f"UPDATE classements SET forme = {ph} WHERE equipe_id = {ph}",
+                    (forme, equipe_id),
                 )
                 updated += 1
         except Exception as e:
@@ -295,7 +284,7 @@ def bootstrap_forme(full=False):
 
     # ── Mode FULL rebuild ─────────────────────────────────────────────────────
     # DROP + recreate pour appliquer le nouveau schéma UNIQUE(joueur_id, date)
-    conn = sqlite3.connect("botfoot.db")
+    conn = get_conn()
     c = conn.cursor()
     c.execute("DROP TABLE IF EXISTS joueurs_forme")
     conn.commit()

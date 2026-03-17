@@ -4,6 +4,8 @@ import sqlite3
 import time
 from datetime import datetime, date, timedelta
 
+from database import get_conn, _is_pg, _ph, init_all_tables
+
 API_KEY = os.environ.get("API_SPORTS_KEY", "")
 headers = {"x-apisports-key": API_KEY}
 
@@ -17,43 +19,8 @@ def api_get(endpoint, params={}):
     return response.json()
 
 def init_bdd():
-    conn = sqlite3.connect("botfoot.db")
-    c = conn.cursor()
-
-    c.execute('''CREATE TABLE IF NOT EXISTS api_ligues (
-        id INTEGER PRIMARY KEY,
-        nom TEXT,
-        pays TEXT,
-        saison INTEGER
-    )''')
-
-    c.execute('''CREATE TABLE IF NOT EXISTS api_equipes (
-        id INTEGER PRIMARY KEY,
-        nom TEXT,
-        ligue_id INTEGER,
-        pays TEXT
-    )''')
-
-    c.execute('''CREATE TABLE IF NOT EXISTS api_joueurs (
-        id INTEGER PRIMARY KEY,
-        nom TEXT,
-        age INTEGER,
-        nationalite TEXT,
-        poste TEXT,
-        equipe_id INTEGER,
-        ligue_id INTEGER,
-        matchs INTEGER,
-        buts INTEGER,
-        passes INTEGER,
-        note REAL,
-        minutes INTEGER,
-        ratio REAL,
-        score REAL,
-        saison INTEGER,
-        date_maj TEXT
-    )''')
-
-    conn.commit()
+    conn = get_conn()
+    init_all_tables(conn)
     conn.close()
     print("✅ BDD initialisée")
 
@@ -125,27 +92,39 @@ def get_equipes_actives():
     return team_ids
 
 
+
+
+
 def bootstrap_ligues():
-    conn = sqlite3.connect("botfoot.db")
-    c = conn.cursor()
+    conn = get_conn()
+    c    = conn.cursor()
+    ph   = _ph(conn)
     for nom, ligue_id in LIGUES_CIBLES.items():
-        c.execute("INSERT OR REPLACE INTO api_ligues (id, nom, pays, saison) VALUES (?, ?, ?, ?)",
-                  (ligue_id, nom, "", SAISON))
+        c.execute(
+            f"""INSERT INTO api_ligues (id, nom, pays, saison) VALUES ({ph},{ph},{ph},{ph})
+                ON CONFLICT (id) DO UPDATE SET nom=EXCLUDED.nom, saison=EXCLUDED.saison""",
+            (ligue_id, nom, "", SAISON),
+        )
     conn.commit()
     conn.close()
     print(f"✅ {len(LIGUES_CIBLES)} ligues insérées")
 
 def bootstrap_equipes():
-    conn = sqlite3.connect("botfoot.db")
-    c = conn.cursor()
+    conn = get_conn()
+    c    = conn.cursor()
+    ph   = _ph(conn)
     total = 0
 
     for nom_ligue, ligue_id in LIGUES_CIBLES.items():
         print(f"  Équipes {nom_ligue}...")
         data = api_get("teams", {"league": ligue_id, "season": _saison(ligue_id)})
         for team in data.get("response", []):
-            c.execute("INSERT OR REPLACE INTO api_equipes (id, nom, ligue_id, pays) VALUES (?, ?, ?, ?)",
-                      (team["team"]["id"], team["team"]["name"], ligue_id, team["team"]["country"]))
+            c.execute(
+                f"""INSERT INTO api_equipes (id, nom, ligue_id, pays) VALUES ({ph},{ph},{ph},{ph})
+                    ON CONFLICT (id) DO UPDATE SET
+                        nom=EXCLUDED.nom, ligue_id=EXCLUDED.ligue_id, pays=EXCLUDED.pays""",
+                (team["team"]["id"], team["team"]["name"], ligue_id, team["team"]["country"]),
+            )
             total += 1
         conn.commit()
 
@@ -156,8 +135,9 @@ UEFA_LIGUE_IDS = {2, 3, 848}  # UCL / UEL / UECL — stats joueurs via ligue dom
 
 
 def bootstrap_joueurs():
-    conn = sqlite3.connect("botfoot.db")
-    c = conn.cursor()
+    conn = get_conn()
+    c    = conn.cursor()
+    ph   = _ph(conn)
     total = 0
     postes_cibles = ["Attacker", "Midfielder"]
 
@@ -172,7 +152,7 @@ def bootstrap_joueurs():
             data = api_get("players", {
                 "league": ligue_id,
                 "season": _saison(ligue_id),
-                "page": page
+                "page": page,
             })
 
             if not data.get("response"):
@@ -180,7 +160,7 @@ def bootstrap_joueurs():
 
             for item in data["response"]:
                 joueur = item["player"]
-                stats = item["statistics"][0] if item["statistics"] else None
+                stats  = item["statistics"][0] if item["statistics"] else None
                 if not stats:
                     continue
 
@@ -188,23 +168,34 @@ def bootstrap_joueurs():
                 if poste not in postes_cibles:
                     continue
 
-                matchs = stats["games"].get("appearences") or 0
-                buts = stats["goals"].get("total") or 0
-                passes = stats["goals"].get("assists") or 0
-                note = float(stats["games"].get("rating") or 0)
-                minutes = stats["games"].get("minutes") or 0
+                matchs    = stats["games"].get("appearences") or 0
+                buts      = stats["goals"].get("total")       or 0
+                passes    = stats["goals"].get("assists")     or 0
+                note      = float(stats["games"].get("rating") or 0)
+                minutes   = stats["games"].get("minutes")     or 0
                 equipe_id = stats["team"]["id"]
-                ratio = round(buts / matchs, 2) if matchs > 0 else 0
-                score = round((buts * 3) + (ratio * 10) + note, 2)
+                ratio     = round(buts / matchs, 2) if matchs > 0 else 0
+                score     = round((buts * 3) + (ratio * 10) + note, 2)
 
-                c.execute('''INSERT OR REPLACE INTO api_joueurs
-                    (id, nom, age, nationalite, poste, equipe_id, ligue_id,
-                     matchs, buts, passes, note, minutes, ratio, score, saison, date_maj)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                c.execute(
+                    f"""INSERT INTO api_joueurs
+                        (id, nom, age, nationalite, poste, equipe_id, ligue_id,
+                         matchs, buts, passes, note, minutes, ratio, score, saison, date_maj)
+                        VALUES ({ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph})
+                        ON CONFLICT (id) DO UPDATE SET
+                            nom=EXCLUDED.nom, age=EXCLUDED.age,
+                            nationalite=EXCLUDED.nationalite, poste=EXCLUDED.poste,
+                            equipe_id=EXCLUDED.equipe_id, ligue_id=EXCLUDED.ligue_id,
+                            matchs=EXCLUDED.matchs, buts=EXCLUDED.buts,
+                            passes=EXCLUDED.passes, note=EXCLUDED.note,
+                            minutes=EXCLUDED.minutes, ratio=EXCLUDED.ratio,
+                            score=EXCLUDED.score, saison=EXCLUDED.saison,
+                            date_maj=EXCLUDED.date_maj""",
                     (joueur["id"], joueur["name"], joueur.get("age"),
                      joueur.get("nationality"), poste, equipe_id, ligue_id,
                      matchs, buts, passes, note, minutes, ratio, score,
-                     SAISON, datetime.now().strftime("%Y-%m-%d %H:%M")))
+                     SAISON, datetime.now().strftime("%Y-%m-%d %H:%M")),
+                )
                 total += 1
 
             total_pages = data.get("paging", {}).get("total", 1)
@@ -225,24 +216,25 @@ def bootstrap_joueurs_actifs():
         print("⚠️ Aucune équipe active trouvée, skip mise à jour joueurs")
         return
 
-    conn = sqlite3.connect("botfoot.db")
-    c = conn.cursor()
+    conn = get_conn()
+    c    = conn.cursor()
+    ph   = _ph(conn)
     total = 0
     postes_cibles = ["Attacker", "Midfielder"]
 
     for team_id in team_ids:
-        c.execute("SELECT ligue_id FROM api_equipes WHERE id = ?", (team_id,))
+        c.execute(f"SELECT ligue_id FROM api_equipes WHERE id = {ph}", (team_id,))
         row = c.fetchone()
         if not row:
             continue
-        ligue_id = row[0]
+        ligue_id = row["ligue_id"]
 
         page = 1
         while True:
             data = api_get("players", {
                 "team":   team_id,
                 "season": _saison(ligue_id),
-                "page":   page
+                "page":   page,
             })
 
             if not data.get("response"):
@@ -266,25 +258,35 @@ def bootstrap_joueurs_actifs():
                 if poste not in postes_cibles:
                     continue
 
-                matchs    = stats["games"].get("appearences") or 0
-                buts      = stats["goals"].get("total") or 0
-                passes    = stats["goals"].get("assists") or 0
-                note      = float(stats["games"].get("rating") or 0)
-                minutes   = stats["games"].get("minutes") or 0
-                equipe_id = stats["team"]["id"]
-                # Utiliser le ligue_id de la stat domestique, pas celui de api_equipes
+                matchs          = stats["games"].get("appearences") or 0
+                buts            = stats["goals"].get("total")       or 0
+                passes          = stats["goals"].get("assists")     or 0
+                note            = float(stats["games"].get("rating") or 0)
+                minutes         = stats["games"].get("minutes")     or 0
+                equipe_id       = stats["team"]["id"]
                 ligue_id_joueur = stats.get("league", {}).get("id") or ligue_id
-                ratio     = round(buts / matchs, 2) if matchs > 0 else 0
-                score     = round((buts * 3) + (ratio * 10) + note, 2)
+                ratio           = round(buts / matchs, 2) if matchs > 0 else 0
+                score           = round((buts * 3) + (ratio * 10) + note, 2)
 
-                c.execute('''INSERT OR REPLACE INTO api_joueurs
-                    (id, nom, age, nationalite, poste, equipe_id, ligue_id,
-                     matchs, buts, passes, note, minutes, ratio, score, saison, date_maj)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                c.execute(
+                    f"""INSERT INTO api_joueurs
+                        (id, nom, age, nationalite, poste, equipe_id, ligue_id,
+                         matchs, buts, passes, note, minutes, ratio, score, saison, date_maj)
+                        VALUES ({ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph})
+                        ON CONFLICT (id) DO UPDATE SET
+                            nom=EXCLUDED.nom, age=EXCLUDED.age,
+                            nationalite=EXCLUDED.nationalite, poste=EXCLUDED.poste,
+                            equipe_id=EXCLUDED.equipe_id, ligue_id=EXCLUDED.ligue_id,
+                            matchs=EXCLUDED.matchs, buts=EXCLUDED.buts,
+                            passes=EXCLUDED.passes, note=EXCLUDED.note,
+                            minutes=EXCLUDED.minutes, ratio=EXCLUDED.ratio,
+                            score=EXCLUDED.score, saison=EXCLUDED.saison,
+                            date_maj=EXCLUDED.date_maj""",
                     (joueur["id"], joueur["name"], joueur.get("age"),
                      joueur.get("nationality"), poste, equipe_id, ligue_id_joueur,
                      matchs, buts, passes, note, minutes, ratio, score,
-                     SAISON, datetime.now().strftime("%Y-%m-%d %H:%M")))
+                     SAISON, datetime.now().strftime("%Y-%m-%d %H:%M")),
+                )
                 total += 1
 
             total_pages = data.get("paging", {}).get("total", 1)
@@ -298,42 +300,15 @@ def bootstrap_joueurs_actifs():
 
 
 def bootstrap_classements():
-    conn = sqlite3.connect("botfoot.db")
-    c = conn.cursor()
-    
-    c.execute('''CREATE TABLE IF NOT EXISTS classements (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        equipe_id INTEGER,
-        ligue_id INTEGER,
-        rang INTEGER,
-        points INTEGER,
-        victoires INTEGER,
-        nuls INTEGER,
-        defaites INTEGER,
-        buts_pour INTEGER,
-        buts_contre INTEGER,
-        diff_buts INTEGER,
-        forme TEXT,
-        date_maj TEXT,
-        buts_dom INTEGER DEFAULT 0,
-        buts_enc_dom INTEGER DEFAULT 0,
-        matchs_dom INTEGER DEFAULT 0,
-        buts_ext INTEGER DEFAULT 0,
-        buts_enc_ext INTEGER DEFAULT 0,
-        matchs_ext INTEGER DEFAULT 0
-    )''')
+    conn = get_conn()
+    c    = conn.cursor()
+    ph   = _ph(conn)
 
-    # Migration : ajouter les colonnes dom/ext si absentes
-    for col in ["buts_dom", "buts_enc_dom", "matchs_dom", "buts_ext", "buts_enc_ext", "matchs_ext"]:
-        try:
-            c.execute(f"ALTER TABLE classements ADD COLUMN {col} INTEGER DEFAULT 0")
-        except Exception:
-            pass
+    init_all_tables(conn)
+
+    c.execute("DELETE FROM classements")
     conn.commit()
-    
-    c.execute("DELETE FROM classements")  # Reset avant de remplir
-    conn.commit()
-    
+
     total = 0
     for nom_ligue, ligue_id in LIGUES_CIBLES.items():
         print(f"  Classement {nom_ligue}...")
@@ -342,22 +317,22 @@ def bootstrap_classements():
         try:
             standings = data["response"][0]["league"]["standings"][0]
             for team in standings:
-                # Chercher l'équipe dans notre BDD
-                c.execute("SELECT id FROM api_equipes WHERE id = ?", (team["team"]["id"],))
-                equipe = c.fetchone()
-                if not equipe:
+                c.execute(f"SELECT id FROM api_equipes WHERE id = {ph}", (team["team"]["id"],))
+                if not c.fetchone():
                     continue
-                    
+
                 forme = team.get("form", "")
                 h = team.get("home", {})
                 a = team.get("away", {})
 
-                c.execute('''INSERT INTO classements
-                    (equipe_id, ligue_id, rang, points, victoires, nuls, defaites,
-                     buts_pour, buts_contre, diff_buts, forme, date_maj,
-                     buts_dom, buts_enc_dom, matchs_dom,
-                     buts_ext, buts_enc_ext, matchs_ext)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                c.execute(
+                    f"""INSERT INTO classements
+                        (equipe_id, ligue_id, rang, points, victoires, nuls, defaites,
+                         buts_pour, buts_contre, diff_buts, forme, date_maj,
+                         buts_dom, buts_enc_dom, matchs_dom,
+                         buts_ext, buts_enc_ext, matchs_ext)
+                        VALUES ({ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},
+                                {ph},{ph},{ph},{ph},{ph},{ph})""",
                     (team["team"]["id"], ligue_id, team["rank"], team["points"],
                      team["all"]["win"], team["all"]["draw"], team["all"]["lose"],
                      team["all"]["goals"]["for"], team["all"]["goals"]["against"],
@@ -368,13 +343,14 @@ def bootstrap_classements():
                      h.get("played", 0),
                      a.get("goals", {}).get("for", 0),
                      a.get("goals", {}).get("against", 0),
-                     a.get("played", 0)))
+                     a.get("played", 0)),
+                )
                 total += 1
-        except:
+        except Exception:
             pass
-        
+
         conn.commit()
-    
+
     conn.close()
     print(f"✅ {total} classements insérés")
 
@@ -399,14 +375,14 @@ def run_all():
 
     print("\n🏆 Bootstrap terminé !")
 
-    conn = sqlite3.connect("botfoot.db")
+    conn = get_conn()
     c = conn.cursor()
-    c.execute("SELECT COUNT(*) FROM api_ligues")
-    nb_ligues = c.fetchone()[0]
-    c.execute("SELECT COUNT(*) FROM api_equipes")
-    nb_equipes = c.fetchone()[0]
-    c.execute("SELECT COUNT(*) FROM api_joueurs")
-    nb_joueurs = c.fetchone()[0]
+    c.execute("SELECT COUNT(*) AS n FROM api_ligues")
+    nb_ligues  = c.fetchone()["n"]
+    c.execute("SELECT COUNT(*) AS n FROM api_equipes")
+    nb_equipes = c.fetchone()["n"]
+    c.execute("SELECT COUNT(*) AS n FROM api_joueurs")
+    nb_joueurs = c.fetchone()["n"]
     conn.close()
 
     print(f"\n📊 Résumé BDD :")

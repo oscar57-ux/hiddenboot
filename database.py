@@ -1,70 +1,188 @@
+"""
+Module partagé — connexion DB et initialisation du schéma.
+PostgreSQL si DATABASE_URL définie (production Railway/Render),
+SQLite botfoot.db sinon (développement local).
+"""
+import os
 import sqlite3
 
-def creer_bdd():
+
+def get_conn():
+    """Retourne une connexion PostgreSQL ou SQLite selon l'environnement."""
+    try:
+        import psycopg2, psycopg2.extras
+        db_url = os.environ.get("DATABASE_PUBLIC_URL") or os.environ.get("DATABASE_URL", "")
+        if db_url:
+            if db_url.startswith("postgres://"):
+                db_url = db_url.replace("postgres://", "postgresql://", 1)
+            if "sslmode" not in db_url:
+                sep = "&" if "?" in db_url else "?"
+                db_url += f"{sep}sslmode=require"
+            conn = psycopg2.connect(db_url)
+            conn.cursor_factory = psycopg2.extras.RealDictCursor
+            return conn
+    except Exception:
+        pass
     conn = sqlite3.connect("botfoot.db")
-    c = conn.cursor()
+    conn.row_factory = sqlite3.Row
+    return conn
 
-    c.execute('''CREATE TABLE IF NOT EXISTS ligues (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        nom TEXT,
-        pays TEXT,
-        url TEXT
-    )''')
 
-    c.execute('''CREATE TABLE IF NOT EXISTS equipes (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        nom TEXT,
-        url_id TEXT,
+def _is_pg(conn):
+    """Vrai si la connexion est PostgreSQL (psycopg2)."""
+    try:
+        import psycopg2
+        return isinstance(conn, psycopg2.extensions.connection)
+    except Exception:
+        return False
+
+
+def _ph(conn):
+    """Retourne le placeholder SQL selon le type de connexion."""
+    return "%s" if _is_pg(conn) else "?"
+
+
+def init_all_tables(conn):
+    """
+    Crée toutes les tables bootstrap si elles n'existent pas encore.
+    Compatible PostgreSQL et SQLite.
+    Tables : api_ligues, api_equipes, api_joueurs, classements, joueurs_forme.
+    """
+    pg = _is_pg(conn)
+    c  = conn.cursor()
+    real = "FLOAT" if pg else "REAL"
+
+    # ── api_ligues ──────────────────────────────────────────────────────────
+    c.execute("""CREATE TABLE IF NOT EXISTS api_ligues (
+        id      INTEGER PRIMARY KEY,
+        nom     TEXT,
+        pays    TEXT,
+        saison  INTEGER
+    )""")
+
+    # ── api_equipes ─────────────────────────────────────────────────────────
+    c.execute("""CREATE TABLE IF NOT EXISTS api_equipes (
+        id       INTEGER PRIMARY KEY,
+        nom      TEXT,
         ligue_id INTEGER,
-        FOREIGN KEY (ligue_id) REFERENCES ligues(id)
-    )''')
+        pays     TEXT
+    )""")
 
-    c.execute('''CREATE TABLE IF NOT EXISTS resultats (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        equipe_id INTEGER,
-        date TEXT,
-        adversaire TEXT,
-        buts_marques INTEGER,
-        buts_encaisses INTEGER,
-        resultat TEXT,
-        FOREIGN KEY (equipe_id) REFERENCES equipes(id)
-    )''')
+    # ── api_joueurs ─────────────────────────────────────────────────────────
+    c.execute(f"""CREATE TABLE IF NOT EXISTS api_joueurs (
+        id          INTEGER PRIMARY KEY,
+        nom         TEXT,
+        age         INTEGER,
+        nationalite TEXT,
+        poste       TEXT,
+        equipe_id   INTEGER,
+        ligue_id    INTEGER,
+        matchs      INTEGER,
+        buts        INTEGER,
+        passes      INTEGER,
+        note        {real},
+        minutes     INTEGER,
+        ratio       {real},
+        score       {real},
+        saison      INTEGER,
+        date_maj    TEXT
+    )""")
 
-    c.execute('''CREATE TABLE IF NOT EXISTS scores (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        equipe_id INTEGER,
-        score_total INTEGER,
-        date_calcul TEXT,
-        FOREIGN KEY (equipe_id) REFERENCES equipes(id)
-    )''')
+    # ── classements ──────────────────────────────────────────────────────────
+    if pg:
+        c.execute("""CREATE TABLE IF NOT EXISTS classements (
+            id           SERIAL PRIMARY KEY,
+            equipe_id    INTEGER,
+            ligue_id     INTEGER,
+            rang         INTEGER,
+            points       INTEGER,
+            victoires    INTEGER,
+            nuls         INTEGER,
+            defaites     INTEGER,
+            buts_pour    INTEGER,
+            buts_contre  INTEGER,
+            diff_buts    INTEGER,
+            forme        TEXT,
+            date_maj     TEXT,
+            buts_dom     INTEGER DEFAULT 0,
+            buts_enc_dom INTEGER DEFAULT 0,
+            matchs_dom   INTEGER DEFAULT 0,
+            buts_ext     INTEGER DEFAULT 0,
+            buts_enc_ext INTEGER DEFAULT 0,
+            matchs_ext   INTEGER DEFAULT 0
+        )""")
+        for col in ["buts_dom", "buts_enc_dom", "matchs_dom",
+                    "buts_ext", "buts_enc_ext", "matchs_ext"]:
+            try:
+                c.execute(
+                    f"ALTER TABLE classements ADD COLUMN IF NOT EXISTS {col} INTEGER DEFAULT 0"
+                )
+            except Exception:
+                pass
+    else:
+        c.execute("""CREATE TABLE IF NOT EXISTS classements (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            equipe_id    INTEGER,
+            ligue_id     INTEGER,
+            rang         INTEGER,
+            points       INTEGER,
+            victoires    INTEGER,
+            nuls         INTEGER,
+            defaites     INTEGER,
+            buts_pour    INTEGER,
+            buts_contre  INTEGER,
+            diff_buts    INTEGER,
+            forme        TEXT,
+            date_maj     TEXT,
+            buts_dom     INTEGER DEFAULT 0,
+            buts_enc_dom INTEGER DEFAULT 0,
+            matchs_dom   INTEGER DEFAULT 0,
+            buts_ext     INTEGER DEFAULT 0,
+            buts_enc_ext INTEGER DEFAULT 0,
+            matchs_ext   INTEGER DEFAULT 0
+        )""")
+        for col in ["buts_dom", "buts_enc_dom", "matchs_dom",
+                    "buts_ext", "buts_enc_ext", "matchs_ext"]:
+            try:
+                c.execute(f"ALTER TABLE classements ADD COLUMN {col} INTEGER DEFAULT 0")
+            except Exception:
+                pass
 
-    conn.commit()
-    conn.close()
-    print("BDD créée avec succès !")
+    # ── joueurs_forme ────────────────────────────────────────────────────────
+    if pg:
+        c.execute(f"""CREATE TABLE IF NOT EXISTS joueurs_forme (
+            id        SERIAL PRIMARY KEY,
+            joueur_id INTEGER,
+            fixture_id INTEGER,
+            equipe_id  INTEGER,
+            ligue_id   INTEGER,
+            date       TEXT,
+            buts       INTEGER DEFAULT 0,
+            passes     INTEGER DEFAULT 0,
+            note       {real} DEFAULT 0,
+            minutes    INTEGER DEFAULT 0,
+            titulaire  INTEGER DEFAULT 0,
+            UNIQUE(joueur_id, fixture_id),
+            UNIQUE(joueur_id, date)
+        )""")
+    else:
+        c.execute(f"""CREATE TABLE IF NOT EXISTS joueurs_forme (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            joueur_id  INTEGER,
+            fixture_id INTEGER,
+            equipe_id  INTEGER,
+            ligue_id   INTEGER,
+            date       TEXT,
+            buts       INTEGER DEFAULT 0,
+            passes     INTEGER DEFAULT 0,
+            note       {real} DEFAULT 0,
+            minutes    INTEGER DEFAULT 0,
+            titulaire  INTEGER DEFAULT 0,
+            UNIQUE(joueur_id, fixture_id),
+            UNIQUE(joueur_id, date)
+        )""")
 
-def inserer_ligue(nom, pays, url):
-    conn = sqlite3.connect("botfoot.db")
-    c = conn.cursor()
-    c.execute("INSERT INTO ligues (nom, pays, url) VALUES (?, ?, ?)", (nom, pays, url))
-    conn.commit()
-    ligue_id = c.lastrowid
-    conn.close()
-    return ligue_id
-
-def inserer_equipe(nom, url_id, ligue_id):
-    conn = sqlite3.connect("botfoot.db")
-    c = conn.cursor()
-    c.execute("INSERT INTO equipes (nom, url_id, ligue_id) VALUES (?, ?, ?)", (nom, url_id, ligue_id))
-    conn.commit()
-    conn.close()
-
-def inserer_score(equipe_id, score_total, date_calcul):
-    conn = sqlite3.connect("botfoot.db")
-    c = conn.cursor()
-    c.execute("INSERT INTO scores (equipe_id, score_total, date_calcul) VALUES (?, ?, ?)", 
-              (equipe_id, score_total, date_calcul))
-    conn.commit()
-    conn.close()
-
-if __name__ == "__main__":
-    creer_bdd()
+    try:
+        conn.commit()
+    except Exception:
+        pass
