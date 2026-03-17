@@ -398,7 +398,8 @@ def _build_classements_data():
         ligue_nom = ligue["nom"]
         c.execute("""
             SELECT ae.nom, cl.rang, cl.points, cl.forme,
-                   cl.victoires, cl.nuls, cl.defaites
+                   cl.victoires, cl.nuls, cl.defaites,
+                   cl.buts_pour, cl.buts_contre
             FROM classements cl
             JOIN api_equipes ae ON cl.equipe_id = ae.id
             WHERE cl.ligue_id = ?
@@ -419,14 +420,16 @@ def _build_classements_data():
             n = row["nuls"]      or 0
             d = row["defaites"]  or 0
             classement.append({
-                "nom":      row["nom"],
-                "rang":     row["rang"],
-                "points":   row["points"],
-                "forme":    forme,
-                "mj":       v + n + d,
-                "victoires": v,
-                "nuls":      n,
-                "defaites":  d,
+                "nom":        row["nom"],
+                "rang":       row["rang"],
+                "points":     row["points"],
+                "forme":      forme,
+                "mj":         v + n + d,
+                "victoires":  v,
+                "nuls":       n,
+                "defaites":   d,
+                "buts_pour":  row["buts_pour"]  or 0,
+                "buts_contre": row["buts_contre"] or 0,
             })
         forme_list = [{"nom": r["nom"], "score": r["points"]} for r in classement_rows]
         forme_list.sort(key=lambda x: x["score"], reverse=True)

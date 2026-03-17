@@ -242,10 +242,19 @@ def _get_rang_equipe(c, equipe_nom, ligue_id):
 
 
 def _get_classement_details(c, equipe_nom, ligue_id):
-    """Rang, forme 5J, moyennes buts marqués/encaissés depuis classements SQLite."""
+    """Rang, forme, stats complètes + dom/ext depuis classements SQLite."""
+    _default = {
+        "rang": "?", "points": 0, "forme": "?", "serie_wins": 0,
+        "mj": "?", "victoires": "?", "nuls": "?", "defaites": "?",
+        "buts_moy": "?", "buts_enc": "?",
+        "buts_dom": "?", "buts_enc_dom": "?",
+        "buts_ext": "?", "buts_enc_ext": "?",
+        "equipe_id": None,
+    }
     try:
         c.execute("""
             SELECT cl.rang, cl.forme, cl.buts_pour, cl.buts_contre,
+                   cl.victoires, cl.nuls, cl.defaites, cl.points, cl.equipe_id,
                    (cl.victoires + cl.nuls + cl.defaites) AS nb_matchs
             FROM classements cl
             JOIN api_equipes e ON cl.equipe_id = e.id
@@ -253,17 +262,87 @@ def _get_classement_details(c, equipe_nom, ligue_id):
             LIMIT 1
         """, (ligue_id, f"%{equipe_nom[:10]}%"))
         row = c.fetchone()
-        if row:
-            nb = row["nb_matchs"] or 1
-            return {
-                "rang":     row["rang"] if row["rang"] else "?",
-                "forme":    (row["forme"] or "?")[-5:],  # 5 derniers résultats
-                "buts_moy": round(row["buts_pour"]   / nb, 2) if nb > 0 else "?",
-                "buts_enc": round(row["buts_contre"] / nb, 2) if nb > 0 else "?",
-            }
+        if not row:
+            return _default
+        nb = row["nb_matchs"] or 1
+        forme_raw = row["forme"] or ""
+        serie = 0
+        for ch in forme_raw:
+            if ch == "W":
+                serie += 1
+            else:
+                break
+        result = {
+            "rang":       row["rang"] if row["rang"] else "?",
+            "points":     row["points"] or 0,
+            "forme":      forme_raw[:5],
+            "serie_wins": serie,
+            "mj":         nb,
+            "victoires":  row["victoires"] or 0,
+            "nuls":       row["nuls"]      or 0,
+            "defaites":   row["defaites"]  or 0,
+            "buts_moy":   round(row["buts_pour"]   / nb, 2) if nb > 0 else "?",
+            "buts_enc":   round(row["buts_contre"] / nb, 2) if nb > 0 else "?",
+            "buts_dom":   "?", "buts_enc_dom": "?",
+            "buts_ext":   "?", "buts_enc_ext": "?",
+            "equipe_id":  row["equipe_id"],
+        }
+        # Stats dom/ext (colonnes optionnelles — présentes après migration bootstrap)
+        try:
+            c.execute("""
+                SELECT cl.buts_dom, cl.buts_enc_dom, cl.matchs_dom,
+                       cl.buts_ext, cl.buts_enc_ext, cl.matchs_ext
+                FROM classements cl
+                JOIN api_equipes e ON cl.equipe_id = e.id
+                WHERE cl.ligue_id = ? AND e.nom LIKE ?
+                LIMIT 1
+            """, (ligue_id, f"%{equipe_nom[:10]}%"))
+            r2 = c.fetchone()
+            if r2:
+                md = r2["matchs_dom"] or 1
+                me = r2["matchs_ext"] or 1
+                result["buts_dom"]     = round((r2["buts_dom"]     or 0) / md, 2)
+                result["buts_enc_dom"] = round((r2["buts_enc_dom"] or 0) / md, 2)
+                result["buts_ext"]     = round((r2["buts_ext"]     or 0) / me, 2)
+                result["buts_enc_ext"] = round((r2["buts_enc_ext"] or 0) / me, 2)
+        except Exception:
+            pass
+        return result
     except Exception:
         pass
-    return {"rang": "?", "forme": "?", "buts_moy": "?", "buts_enc": "?"}
+    return _default
+
+
+def _get_top_buteurs(c, equipe_id, n=3):
+    """Top n buteurs d'une équipe : nom, buts saison, buts sur 5 derniers matchs."""
+    if equipe_id is None:
+        return []
+    try:
+        c.execute("""
+            SELECT aj.id, aj.nom, aj.buts, aj.matchs
+            FROM api_joueurs aj
+            WHERE aj.equipe_id = ? AND aj.poste = 'Attacker' AND aj.buts > 0
+            ORDER BY aj.buts DESC
+            LIMIT ?
+        """, (equipe_id, n))
+        joueurs = [dict(row) for row in c.fetchall()]
+        for j in joueurs:
+            try:
+                c.execute("""
+                    SELECT SUM(buts) AS buts_5m FROM (
+                        SELECT buts FROM joueurs_forme
+                        WHERE joueur_id = ?
+                        ORDER BY date DESC
+                        LIMIT 5
+                    )
+                """, (j["id"],))
+                row = c.fetchone()
+                j["buts_5m"] = (row["buts_5m"] or 0) if row else 0
+            except Exception:
+                j["buts_5m"] = 0
+        return joueurs
+    except Exception:
+        return []
 
 
 def _get_cotes_match_winamax(conn, home, away, today):
@@ -815,14 +894,28 @@ def generer_paris() -> int:
     except Exception:
         pass
 
+    def _fmt(v):
+        return str(v) if v is not None else "N/D"
+
+    def _fmt_buteurs(joueurs):
+        if not joueurs:
+            return "?"
+        return " | ".join(
+            f"{j['nom']} ({j['buts']}G, {j['buts_5m']}/5M)" for j in joueurs
+        )
+
     blocs = []
     for m in matchs[:30]:
         ph_dom  = m["pct_home"]
         ph_nul  = m["pct_nul"]
         ph_ext  = m["pct_away"]
-        det_h   = m.get("_det_home", {"rang": "?", "forme": "?", "buts_moy": "?", "buts_enc": "?"})
-        det_a   = m.get("_det_away", {"rang": "?", "forme": "?", "buts_moy": "?", "buts_enc": "?"})
+        det_h   = m.get("_det_home", {})
+        det_a   = m.get("_det_away", {})
         heure   = m.get("heure", "?")
+
+        # Top buteurs
+        top_h = _get_top_buteurs(c, det_h.get("equipe_id"))
+        top_a = _get_top_buteurs(c, det_a.get("equipe_id"))
 
         # Cotes Winamax pour ce match
         cw = _get_cotes_match_winamax(conn_pg, m["home"], m["away"], today)
@@ -840,21 +933,36 @@ def generer_paris() -> int:
         else:
             cote_impl = "?"
             value_bet  = False
-            vb_str     = f"? (pas de cote Winamax)"
+            vb_str     = "? (pas de cote Winamax)"
 
-        def _fmt(v):
-            return str(v) if v is not None else "?"
+        # Écart de points
+        pts_h = det_h.get("points")
+        pts_a = det_a.get("points")
+        if isinstance(pts_h, int) and isinstance(pts_a, int):
+            diff = pts_h - pts_a
+            ecart_pts = f"+{diff}" if diff > 0 else str(diff)
+        else:
+            ecart_pts = "?"
 
         blocs.append(
             f"{m['home']} vs {m['away']} ({m['ligue']}) — {heure}\n"
             f"  Probas HiddenScout : dom={ph_dom}% nul={ph_nul}% ext={ph_ext}%\n"
-            f"  Classement : {det_h['rang']}ème vs {det_a['rang']}ème\n"
-            f"  Forme dom (5J) : {det_h['forme']} | Forme ext (5J) : {det_a['forme']}\n"
-            f"  Buts marqués/match : dom={det_h['buts_moy']} ext={det_a['buts_moy']}\n"
-            f"  Buts encaissés/match : dom={det_h['buts_enc']} ext={det_a['buts_enc']}\n"
-            f"  Cotes Winamax : 1={_fmt(cw.get('cote_1'))} X={_fmt(cw.get('cote_x'))} "
-            f"2={_fmt(cw.get('cote_2'))} 1X={_fmt(cw.get('cote_1x'))} "
-            f"X2={_fmt(cw.get('cote_x2'))} +2.5={_fmt(cw.get('cote_plus25'))}\n"
+            f"  Classement : {det_h.get('rang', '?')}ème vs {det_a.get('rang', '?')}ème"
+            f" | Points : {pts_h} vs {pts_a} (écart : {ecart_pts})\n"
+            f"  MJ/V/N/D dom : {det_h.get('mj','?')}/{det_h.get('victoires','?')}/{det_h.get('nuls','?')}/{det_h.get('defaites','?')}"
+            f" | ext : {det_a.get('mj','?')}/{det_a.get('victoires','?')}/{det_a.get('nuls','?')}/{det_a.get('defaites','?')}\n"
+            f"  Forme dom (5J) : {det_h.get('forme','?')} (série {det_h.get('serie_wins',0)}V)"
+            f" | Forme ext (5J) : {det_a.get('forme','?')} (série {det_a.get('serie_wins',0)}V)\n"
+            f"  Stats domicile : {det_h.get('buts_dom','?')} buts/m marqués, {det_h.get('buts_enc_dom','?')} encaissés\n"
+            f"  Stats extérieur : {det_a.get('buts_ext','?')} buts/m marqués, {det_a.get('buts_enc_ext','?')} encaissés\n"
+            f"  Buts/match global : dom={det_h.get('buts_moy','?')} enc={det_h.get('buts_enc','?')}"
+            f" | ext={det_a.get('buts_moy','?')} enc={det_a.get('buts_enc','?')}\n"
+            f"  Top 3 buteurs dom : {_fmt_buteurs(top_h)}\n"
+            f"  Top 3 buteurs ext : {_fmt_buteurs(top_a)}\n"
+            f"  Info cotes Winamax : 1={_fmt(cw.get('cote_1'))} X={_fmt(cw.get('cote_x'))}"
+            f" 2={_fmt(cw.get('cote_2'))} 1X={_fmt(cw.get('cote_1x'))}"
+            f" X2={_fmt(cw.get('cote_x2'))} +2.5={_fmt(cw.get('cote_plus25'))}"
+            f" BTTS={_fmt(cw.get('cote_btts_oui'))}\n"
             f"  Value bet : {vb_str}"
         )
         # Stocker pour l'enrichissement post-Claude
@@ -875,6 +983,7 @@ RÈGLES STRICTES :
                * Écart classement >= 8 places entre les deux équipes
                * Équipe favorite dans le top 5 de sa ligue
                * Forme du favori >= 4 victoires sur 5 derniers matchs
+               * Série de victoires consécutives >= 4
    - TENTANT : proba >= 80% SANS condition forte (ex: deux équipes de bas de tableau)
                OU proba 65-79%
    - FUN     : proba 55-64%
@@ -882,7 +991,11 @@ RÈGLES STRICTES :
    IMPORTANT : Si les deux équipes sont dans la moitié basse du classement,
    classer maximum TENTANT même si proba >= 80%.
 
-2. PRIORISE les value bets (quand HiddenScout > cote implicite Winamax)
+2. Base ta décision PRINCIPALEMENT sur les statistiques :
+   forme récente, série victoires, classement, écart de points, stats dom/ext, buts/match.
+   Les cotes Winamax sont une information complémentaire.
+   Un pari peut être proposé même sans cote disponible (noter "N/D" pour la cote).
+   PRIORISE les value bets quand HiddenScout > cote implicite Winamax.
 
 3. Maximum 2 paris par match, maximum 2 buteurs par match
 
@@ -892,14 +1005,11 @@ RÈGLES STRICTES :
    Plus de 2.5 buts / Moins de 2.5 buts /
    Les deux équipes marquent oui / Les deux équipes marquent non
 
-4b. BTTS (Les deux équipes marquent oui) : ne proposer QUE SI cote_btts_oui est entre 1.50 et 2.50.
-    Si cote_btts > 2.50 ou absente → NE PAS proposer ce pari (match pas propice au BTTS).
-    Critère indicatif : buts_moy dom >= 1.2 ET buts_moy ext >= 1.2.
-
 5. Dans le raisonnement, croiser OBLIGATOIREMENT :
    - La proba Poisson
-   - La forme récente
-   - Le classement si disponible
+   - La forme récente + série victoires
+   - Le classement / écart de points si disponible
+   - Les stats dom/ext si pertinentes (ex: équipe forte à domicile mais faible à l'ext)
    - Le value bet si applicable
 
 6. Diversifie les matchs — ne concentre pas tous les paris sur 1-2 matchs
@@ -1042,18 +1152,6 @@ Réponds UNIQUEMENT en JSON valide sans markdown :
             print(f"[winamax] {p['match']} | {p['type_pari']} → cote réelle={cote_win} (Claude={old})")
         else:
             print(f"[winamax] {p['match']} | {p['type_pari']} → cote Winamax introuvable, cote Claude conservée")
-
-        # Filtre BTTS : rejeter si cote hors plage 1.50-2.50
-        type_lower_p = (p.get("type_pari", "") or "").lower()
-        is_btts_oui = (
-            "btts" in type_lower_p
-            or ("deux équipes" in type_lower_p and "oui" in type_lower_p)
-        )
-        if is_btts_oui:
-            cote_val = float(p.get("cote") or 0)
-            if cote_val < 1.50 or cote_val > 2.50:
-                print(f"[btts-filter] {p['match']} | cote={cote_val} hors plage [1.50-2.50] → rejeté")
-                continue
 
         paris_valides_filtrés.append(p)
 

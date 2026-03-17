@@ -314,8 +314,22 @@ def bootstrap_classements():
         buts_contre INTEGER,
         diff_buts INTEGER,
         forme TEXT,
-        date_maj TEXT
+        date_maj TEXT,
+        buts_dom INTEGER DEFAULT 0,
+        buts_enc_dom INTEGER DEFAULT 0,
+        matchs_dom INTEGER DEFAULT 0,
+        buts_ext INTEGER DEFAULT 0,
+        buts_enc_ext INTEGER DEFAULT 0,
+        matchs_ext INTEGER DEFAULT 0
     )''')
+
+    # Migration : ajouter les colonnes dom/ext si absentes
+    for col in ["buts_dom", "buts_enc_dom", "matchs_dom", "buts_ext", "buts_enc_ext", "matchs_ext"]:
+        try:
+            c.execute(f"ALTER TABLE classements ADD COLUMN {col} INTEGER DEFAULT 0")
+        except Exception:
+            pass
+    conn.commit()
     
     c.execute("DELETE FROM classements")  # Reset avant de remplir
     conn.commit()
@@ -335,16 +349,26 @@ def bootstrap_classements():
                     continue
                     
                 forme = team.get("form", "")
-                
-                c.execute('''INSERT INTO classements 
+                h = team.get("home", {})
+                a = team.get("away", {})
+
+                c.execute('''INSERT INTO classements
                     (equipe_id, ligue_id, rang, points, victoires, nuls, defaites,
-                     buts_pour, buts_contre, diff_buts, forme, date_maj)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                     buts_pour, buts_contre, diff_buts, forme, date_maj,
+                     buts_dom, buts_enc_dom, matchs_dom,
+                     buts_ext, buts_enc_ext, matchs_ext)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
                     (team["team"]["id"], ligue_id, team["rank"], team["points"],
                      team["all"]["win"], team["all"]["draw"], team["all"]["lose"],
                      team["all"]["goals"]["for"], team["all"]["goals"]["against"],
                      team["goalsDiff"], forme,
-                     datetime.now().strftime("%Y-%m-%d %H:%M")))
+                     datetime.now().strftime("%Y-%m-%d %H:%M"),
+                     h.get("goals", {}).get("for", 0),
+                     h.get("goals", {}).get("against", 0),
+                     h.get("played", 0),
+                     a.get("goals", {}).get("for", 0),
+                     a.get("goals", {}).get("against", 0),
+                     a.get("played", 0)))
                 total += 1
         except:
             pass

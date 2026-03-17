@@ -176,6 +176,8 @@
                             <th title="Nuls" class="cl-n">N</th>
                             <th title="Défaites" class="cl-d">D</th>
                             <th title="Points">Pts</th>
+                            <th title="Buts pour" class="cl-v">BP</th>
+                            <th title="Buts contre" class="cl-d">BC</th>
                             <th title="Forme 5 derniers matchs">Forme</th>
                         </tr>
                     </thead>
@@ -189,6 +191,8 @@
                             <td class="cl-n">{{ eq.nuls }}</td>
                             <td class="cl-d">{{ eq.defaites }}</td>
                             <td class="cl-pts">{{ eq.points }}</td>
+                            <td class="cl-v">{{ eq.buts_pour }}</td>
+                            <td class="cl-d">{{ eq.buts_contre }}</td>
                             <td>
                                 <div class="forme-dots" style="justify-content:center">
                                     {% for f in eq.forme %}
