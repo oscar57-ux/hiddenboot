@@ -105,7 +105,9 @@ def get_db():
 
 
 def get_pg():
-    """Connexion PostgreSQL (Railway). Fallback SQLite si aucune DATABASE_URL."""
+    """Connexion PostgreSQL (Railway). Fallback SQLite si aucune DATABASE_URL.
+    Le curseur PG accepte '?' comme placeholder (auto-converti en '%s').
+    """
     import psycopg2, psycopg2.extras
     db_url = os.environ.get("DATABASE_PUBLIC_URL") or os.environ.get("DATABASE_URL", "")
     if not db_url:
@@ -117,8 +119,19 @@ def get_pg():
     if "sslmode" not in db_url:
         sep = "&" if "?" in db_url else "?"
         db_url += f"{sep}sslmode=require"
+
+    class _CompatCursor(psycopg2.extras.RealDictCursor):
+        def execute(self, query, vars=None):
+            if isinstance(query, str):
+                query = query.replace("?", "%s")
+            return super().execute(query, vars)
+        def executemany(self, query, vars_list):
+            if isinstance(query, str):
+                query = query.replace("?", "%s")
+            return super().executemany(query, vars_list)
+
     conn = psycopg2.connect(db_url)
-    conn.cursor_factory = psycopg2.extras.RealDictCursor
+    conn.cursor_factory = _CompatCursor
     return conn
 
 
