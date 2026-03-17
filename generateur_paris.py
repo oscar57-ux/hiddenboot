@@ -993,8 +993,8 @@ def generer_paris() -> int:
             f" | Points : {pts_h} vs {pts_a} (écart : {ecart_pts})\n"
             f"  MJ/V/N/D dom : {det_h.get('mj','?')}/{det_h.get('victoires','?')}/{det_h.get('nuls','?')}/{det_h.get('defaites','?')}"
             f" | ext : {det_a.get('mj','?')}/{det_a.get('victoires','?')}/{det_a.get('nuls','?')}/{det_a.get('defaites','?')}\n"
-            f"  Forme dom (5J domicile) : {det_h.get('forme_dom','?')} (série {det_h.get('serie_wins',0)}V)"
-            f" | Forme ext (5J extérieur) : {det_a.get('forme_ext','?')} (série {det_a.get('serie_wins',0)}V)\n"
+            f"  Forme globale équipe dom (5 derniers matchs toutes compétitions) : {det_h.get('forme','?')} (série {det_h.get('serie_wins',0)}V)"
+            f" | Forme globale équipe ext (5 derniers matchs toutes compétitions) : {det_a.get('forme','?')} (série {det_a.get('serie_wins',0)}V)\n"
             f"  Stats domicile : {det_h.get('buts_dom','?')} buts/m marqués, {det_h.get('buts_enc_dom','?')} encaissés\n"
             f"  Stats extérieur : {det_a.get('buts_ext','?')} buts/m marqués, {det_a.get('buts_enc_ext','?')} encaissés\n"
             f"  Buts/match global : dom={det_h.get('buts_moy','?')} enc={det_h.get('buts_enc','?')}"
@@ -1035,6 +1035,8 @@ RÈGLES STRICTES :
 
 2. Base ta décision PRINCIPALEMENT sur les statistiques :
    forme récente, série victoires, classement, écart de points, stats dom/ext, buts/match.
+   IMPORTANT : Les formes fournies sont GLOBALES (domicile + extérieur confondus).
+   Ne pas déduire de tendance domicile/extérieur depuis ces données.
    Les cotes Winamax sont une information complémentaire.
    Un pari peut être proposé même sans cote disponible (noter "N/D" pour la cote).
    PRIORISE les value bets quand HiddenScout > cote implicite Winamax.
