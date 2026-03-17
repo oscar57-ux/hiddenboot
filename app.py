@@ -32,6 +32,11 @@ def _invalidate_cache(date_str: str = None):
         _cache_predictions.clear()
         _cache_timestamp.clear()
 
+# ── Cache buteurs (/api/equipe/<id>/buteurs) ─────────────────────────────────
+_cache_buteurs:           dict = {}   # (equipe_id, adversaire_id, est_domicile) → liste
+_cache_buteurs_timestamp: dict = {}   # même clé → float
+CACHE_TTL_BUTEURS = 3600  # 1 heure
+
 # ── Cache pépites / alertes ───────────────────────────────────────────────────
 _cache_pepites:           dict | None = None
 _cache_pepites_timestamp: float       = 0.0
@@ -40,13 +45,15 @@ _cache_alertes_timestamp: float       = 0.0
 CACHE_TTL_PEPITES = 3600  # 1 heure
 
 def _invalidate_cache_pepites_alertes():
-    """Invalide le cache pépites et alertes (appelé après bootstrap_forme/principal)."""
+    """Invalide le cache pépites, alertes et buteurs (appelé après bootstrap_forme/principal)."""
     global _cache_pepites, _cache_pepites_timestamp
     global _cache_alertes, _cache_alertes_timestamp
     _cache_pepites           = None
     _cache_pepites_timestamp = 0.0
     _cache_alertes           = None
     _cache_alertes_timestamp = 0.0
+    _cache_buteurs.clear()
+    _cache_buteurs_timestamp.clear()
 
 DRAPEAUX_LIGUES = {
     61: "fr", 62: "fr",
@@ -1133,6 +1140,12 @@ def api_buteurs_equipe(equipe_id):
     is_home_raw = request.args.get("is_home", request.args.get("domicile", "1"))
     est_domicile = is_home_raw == "1"
 
+    _cache_key = (equipe_id, adversaire_id, est_domicile)
+    _now = time.time()
+    if _cache_key in _cache_buteurs and (_now - _cache_buteurs_timestamp.get(_cache_key, 0)) < CACHE_TTL_BUTEURS:
+        print(f"[buteurs] cache hit equipe={equipe_id} adv={adversaire_id} home={est_domicile} (age {int(_now - _cache_buteurs_timestamp[_cache_key])}s)")
+        return jsonify(_cache_buteurs[_cache_key])
+
     conn = get_db()
     c = conn.cursor()
 
@@ -1280,7 +1293,10 @@ def api_buteurs_equipe(equipe_id):
     # Trier par probabilité — top 15 (inline prend les 3 premiers, onglet buteurs filtre >20%)
     result.sort(key=lambda x: x["pct_but"], reverse=True)
     conn.close()
-    return jsonify({"joueurs": result[:15], "equipe_id": equipe_id})
+    payload = {"joueurs": result[:15], "equipe_id": equipe_id}
+    _cache_buteurs[_cache_key]           = payload
+    _cache_buteurs_timestamp[_cache_key] = time.time()
+    return jsonify(payload)
 
 @app.route("/api/prochain-match/<int:equipe_id>")
 def api_prochain_match(equipe_id):
