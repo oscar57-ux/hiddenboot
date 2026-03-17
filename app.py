@@ -467,6 +467,10 @@ def classements():
 def pepites():
     conn = get_db()
     c = conn.cursor()
+    c.execute("SELECT COUNT(*) AS n FROM joueurs_forme")
+    print(f"[debug][pepites] joueurs_forme total: {c.fetchone()['n']}")
+    c.execute("SELECT COUNT(*) AS n FROM api_joueurs")
+    print(f"[debug][pepites] api_joueurs total: {c.fetchone()['n']}")
     regions = {
         "🌍 Europe Ouest": [61, 62, 39, 40, 140, 141, 135, 136, 78, 79, 94, 95, 88, 89, 144, 207, 218, 179],
         "🌏 Europe Est": [235, 236, 106, 107, 286, 283, 197, 210, 203, 204],
@@ -565,8 +569,9 @@ def pepites():
                 "drapeau": DRAPEAUX_LIGUES.get(j["ligue_id"], ""),
                 "forme": forme,
             })
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[debug][pepites] ERREUR joueurs_en_feu: {e}")
+    print(f"[debug][pepites] joueurs_en_feu: {len(joueurs_en_feu)} résultats")
 
     conn.close()
     return render_template("pepites.html", regions=resultats, joueurs_en_feu=joueurs_en_feu)
@@ -879,6 +884,12 @@ def api_matchs_jour():
 def alertes():
     conn = get_db()
     c = conn.cursor()
+    c.execute("SELECT COUNT(*) AS n FROM joueurs_forme")
+    print(f"[debug][alertes] joueurs_forme total: {c.fetchone()['n']}")
+    c.execute("SELECT COUNT(*) AS n FROM api_joueurs")
+    print(f"[debug][alertes] api_joueurs total: {c.fetchone()['n']}")
+    c.execute("SELECT COUNT(*) AS n FROM joueurs_forme WHERE buts > 0")
+    print(f"[debug][alertes] joueurs_forme avec buts>0: {c.fetchone()['n']}")
 
     # ─── 1. Joueurs en feu ──────────────────────────────────────────
     joueurs_en_feu = []
@@ -924,8 +935,9 @@ def alertes():
                 "drapeau": DRAPEAUX_LIGUES.get(row["ligue_id"], ""),
                 "forme": forme,
             })
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[debug][alertes] ERREUR joueurs_en_feu: {e}")
+    print(f"[debug][alertes] joueurs_en_feu: {len(joueurs_en_feu)} résultats")
 
     # ─── 2. Équipes en série ─────────────────────────────────────────
     equipes_serie = []
@@ -967,8 +979,9 @@ def alertes():
                 })
         equipes_serie.sort(key=lambda x: x["wins_consecutifs"], reverse=True)
         equipes_serie = equipes_serie[:10]
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[debug][alertes] ERREUR equipes_serie: {e}")
+    print(f"[debug][alertes] equipes_serie: {len(equipes_serie)} résultats")
 
     # ─── 3. Pépites émergentes ───────────────────────────────────────
     pepites_emergentes = []
@@ -1018,8 +1031,9 @@ def alertes():
                 "drapeau": DRAPEAUX_LIGUES.get(row["ligue_id"], ""),
                 "forme": forme,
             })
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[debug][alertes] ERREUR pepites_emergentes: {e}")
+    print(f"[debug][alertes] pepites_emergentes: {len(pepites_emergentes)} résultats")
 
     # ─── 4. Joueurs à éviter ─────────────────────────────────────────
     joueurs_a_eviter = []
@@ -1060,8 +1074,9 @@ def alertes():
                 "drapeau": DRAPEAUX_LIGUES.get(row["ligue_id"], ""),
                 "forme": forme,
             })
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[debug][alertes] ERREUR joueurs_a_eviter: {e}")
+    print(f"[debug][alertes] joueurs_a_eviter: {len(joueurs_a_eviter)} résultats")
 
     conn.close()
     return render_template("alertes.html",
