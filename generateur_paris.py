@@ -928,8 +928,13 @@ def generer_paris() -> int:
         _row = _cur.fetchone()
         nb_cotes_db = (_row["n"] if isinstance(_row, dict) else _row[0]) if _row else 0
         print(f"[cotes] {nb_cotes_db} cotes disponibles en BDD pour {today}")
-    except Exception:
-        pass
+        _cur.execute(f"SELECT home, away FROM cotes_winamax WHERE date = {ph} ORDER BY home", (today,))
+        for _r in _cur.fetchall():
+            _h = _r["home"] if isinstance(_r, dict) else _r[0]
+            _a = _r["away"] if isinstance(_r, dict) else _r[1]
+            print(f"[cotes-debug] {_h} vs {_a}")
+    except Exception as e:
+        print(f"[cotes-debug] erreur listing: {e}")
 
     def _fmt(v):
         return str(v) if v is not None else "N/D"
