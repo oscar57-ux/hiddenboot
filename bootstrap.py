@@ -147,6 +147,7 @@ def bootstrap_joueurs():
             continue
         print(f"  Joueurs {nom_ligue}...")
         page = 1
+        nb_ligue = 0
 
         while True:
             data = api_get("players", {
@@ -156,6 +157,7 @@ def bootstrap_joueurs():
             })
 
             if not data.get("response"):
+                print(f"  [bootstrap] {nom_ligue} page {page} → réponse vide (quota ou fin)")
                 break
 
             for item in data["response"]:
@@ -197,13 +199,18 @@ def bootstrap_joueurs():
                      SAISON, datetime.now().strftime("%Y-%m-%d %H:%M")),
                 )
                 total += 1
+                nb_ligue += 1
 
             total_pages = data.get("paging", {}).get("total", 1)
+            print(f"  [bootstrap] {nom_ligue} page {page}/{total_pages} → {nb_ligue} joueurs cumulés")
             if page >= total_pages:
                 break
             page += 1
             conn.commit()
 
+        print(f"[bootstrap] {nom_ligue} → {nb_ligue} joueurs insérés")
+
+    print(f"[bootstrap] TOTAL api_joueurs : {total}")
     conn.close()
     print(f"✅ {total} joueurs offensifs insérés")
 
