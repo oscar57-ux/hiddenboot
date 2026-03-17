@@ -48,6 +48,39 @@ def _saison(ligue_id: int) -> int:
     return 2026 if ligue_id in LIGUES_SAISON_2026 else SAISON
 
 
+def _fetch_forme_venue(equipe_id: int, saison: int, venue: str) -> str:
+    """
+    Retourne les 5 derniers résultats (W/D/L) pour venue='home' ou 'away',
+    triés newest→oldest (index 0 = match le plus récent).
+    """
+    try:
+        data = api_get("fixtures", {
+            "team": equipe_id, "last": 10, "venue": venue, "season": saison,
+        })
+        forme = []
+        for f in data.get("response", []):
+            goals = f.get("goals", {})
+            g_home = goals.get("home")
+            g_away = goals.get("away")
+            if g_home is None or g_away is None:
+                continue  # match non joué
+            if venue == "home":
+                scored, conceded = g_home, g_away
+            else:
+                scored, conceded = g_away, g_home
+            if scored > conceded:
+                forme.append("W")
+            elif scored == conceded:
+                forme.append("D")
+            else:
+                forme.append("L")
+            if len(forme) == 5:
+                break
+        return "".join(forme)
+    except Exception:
+        return ""
+
+
 def bootstrap_classements():
     conn = get_conn()
     c    = conn.cursor()
@@ -69,7 +102,13 @@ def bootstrap_classements():
         try:
             standings = data["response"][0]["league"]["standings"][0]
             for team in standings:
-                forme = team.get("form", "")
+                equipe_id = team["team"]["id"]
+                saison_eq = _saison(ligue_id)
+                # forme globale : l'API renvoie oldest→newest → inverser en newest→oldest
+                forme = team.get("form", "")[::-1]
+                # formes dom/ext via fixtures (2 appels API par équipe)
+                forme_dom = _fetch_forme_venue(equipe_id, saison_eq, "home")
+                forme_ext = _fetch_forme_venue(equipe_id, saison_eq, "away")
                 h = team.get("home", {})
                 a = team.get("away", {})
                 c.execute(
@@ -77,10 +116,11 @@ def bootstrap_classements():
                         (equipe_id, ligue_id, rang, points, victoires, nuls, defaites,
                          buts_pour, buts_contre, diff_buts, forme, date_maj,
                          buts_dom, buts_enc_dom, matchs_dom,
-                         buts_ext, buts_enc_ext, matchs_ext)
+                         buts_ext, buts_enc_ext, matchs_ext,
+                         forme_dom, forme_ext)
                         VALUES ({ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},
-                                {ph},{ph},{ph},{ph},{ph},{ph})""",
-                    (team["team"]["id"], ligue_id, team["rank"], team["points"],
+                                {ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph})""",
+                    (equipe_id, ligue_id, team["rank"], team["points"],
                      team["all"]["win"], team["all"]["draw"], team["all"]["lose"],
                      team["all"]["goals"]["for"], team["all"]["goals"]["against"],
                      team["goalsDiff"], forme,
@@ -90,7 +130,8 @@ def bootstrap_classements():
                      h.get("played", 0),
                      a.get("goals", {}).get("for", 0),
                      a.get("goals", {}).get("against", 0),
-                     a.get("played", 0)),
+                     a.get("played", 0),
+                     forme_dom, forme_ext),
                 )
                 total += 1
         except Exception as e:
