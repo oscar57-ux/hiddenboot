@@ -261,6 +261,25 @@ def _get_classement_details(c, equipe_nom, ligue_id):
             LIMIT 1
         """, (ligue_id, f"%{equipe_nom[:10]}%"))
         row = c.fetchone()
+        # Fallback championnat domestique (coupe européenne → pas de classement direct)
+        if not row:
+            c.execute("""
+                SELECT e.ligue_id FROM api_equipes e WHERE e.nom LIKE ? LIMIT 1
+            """, (f"%{equipe_nom[:10]}%",))
+            ligue_row = c.fetchone()
+            if ligue_row and ligue_row["ligue_id"]:
+                ligue_id = ligue_row["ligue_id"]
+                c.execute("""
+                    SELECT cl.rang, cl.forme, cl.buts_pour, cl.buts_contre,
+                           cl.victoires, cl.nuls, cl.defaites, cl.points, cl.equipe_id,
+                           (cl.victoires + cl.nuls + cl.defaites) AS nb_matchs
+                    FROM classements cl
+                    WHERE cl.ligue_id = ? AND cl.equipe_id = (
+                        SELECT id FROM api_equipes WHERE nom LIKE ? LIMIT 1
+                    )
+                    LIMIT 1
+                """, (ligue_id, f"%{equipe_nom[:10]}%"))
+                row = c.fetchone()
         if not row:
             return _default
         nb = row["nb_matchs"] or 1
