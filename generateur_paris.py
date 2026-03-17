@@ -757,15 +757,19 @@ def _get_cote_winamax(conn, match: str, type_pari: str, today: str) -> float | N
                 + fuzz.partial_ratio(away_q, _normaliser(r_away))
             ) / 2
 
+            print(f"[fuzzy] {home_q} vs {away_q}  ↔  {_normaliser(r_home)} vs {_normaliser(r_away)}  → score={score:.0f}")
+
             if score > best_score:
                 best_score = score
                 best_val   = r_val
 
-        if best_score >= 75:
+        if best_score >= 60:
             if best_val is not None:
-                print(f"[fuzzy] '{parts[0]} vs {parts[1]}' → score={best_score:.0f} col={col} val={best_val}")
+                print(f"[fuzzy] ✅ MATCH '{parts[0]} vs {parts[1]}' → score={best_score:.0f} col={col} val={best_val}")
                 return float(best_val)
             return None  # match trouvé mais cote NULL pour ce type de pari
+        else:
+            print(f"[fuzzy] ❌ NO MATCH '{parts[0]} vs {parts[1]}' → best_score={best_score:.0f} (seuil=60)")
 
     except ImportError:
         # Fallback LIKE si rapidfuzz absent
