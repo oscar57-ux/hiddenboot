@@ -261,13 +261,11 @@ def _get_classement_details(c, equipe_nom, ligue_id):
         "buts_moy": "?", "buts_enc": "?",
         "buts_dom": "?", "buts_enc_dom": "?",
         "buts_ext": "?", "buts_enc_ext": "?",
-        "forme_dom": "?", "forme_ext": "?",
         "equipe_id": None,
     }
     try:
         c.execute("""
-            SELECT cl.rang, cl.forme, cl.forme_dom, cl.forme_ext,
-                   cl.buts_pour, cl.buts_contre,
+            SELECT cl.rang, cl.forme, cl.buts_pour, cl.buts_contre,
                    cl.victoires, cl.nuls, cl.defaites, cl.points, cl.equipe_id,
                    (cl.victoires + cl.nuls + cl.defaites) AS nb_matchs
             FROM classements cl
@@ -285,8 +283,7 @@ def _get_classement_details(c, equipe_nom, ligue_id):
             if ligue_row and ligue_row["ligue_id"]:
                 ligue_id = ligue_row["ligue_id"]
                 c.execute("""
-                    SELECT cl.rang, cl.forme, cl.forme_dom, cl.forme_ext,
-                           cl.buts_pour, cl.buts_contre,
+                    SELECT cl.rang, cl.forme, cl.buts_pour, cl.buts_contre,
                            cl.victoires, cl.nuls, cl.defaites, cl.points, cl.equipe_id,
                            (cl.victoires + cl.nuls + cl.defaites) AS nb_matchs
                     FROM classements cl
@@ -310,8 +307,6 @@ def _get_classement_details(c, equipe_nom, ligue_id):
             "rang":       row["rang"] if row["rang"] else "?",
             "points":     row["points"] or 0,
             "forme":      forme_raw[:5],
-            "forme_dom":  (row["forme_dom"] or "")[:5] or "?",
-            "forme_ext":  (row["forme_ext"] or "")[:5] or "?",
             "serie_wins": serie,
             "mj":         nb,
             "victoires":  row["victoires"] or 0,
@@ -1149,8 +1144,8 @@ Réponds UNIQUEMENT en JSON valide sans markdown :
                 proba_hs,
                 rang_home=det_h.get("rang") if isinstance(det_h.get("rang"), int) else None,
                 rang_away=det_a.get("rang") if isinstance(det_a.get("rang"), int) else None,
-                forme_home=det_h.get("forme_dom", det_h.get("forme", "")),
-                forme_away=det_a.get("forme_ext", det_a.get("forme", "")),
+                forme_home=det_h.get("forme", ""),
+                forme_away=det_a.get("forme", ""),
                 pct_home=ctx.get("pct_home", 0),
                 pct_away=ctx.get("pct_away", 0),
             )

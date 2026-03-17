@@ -122,18 +122,14 @@ def init_all_tables(conn):
             matchs_dom   INTEGER DEFAULT 0,
             buts_ext     INTEGER DEFAULT 0,
             buts_enc_ext INTEGER DEFAULT 0,
-            matchs_ext   INTEGER DEFAULT 0,
-            forme_dom    TEXT DEFAULT '',
-            forme_ext    TEXT DEFAULT ''
+            matchs_ext   INTEGER DEFAULT 0
         )""")
-        for col, typ in [
-            ("buts_dom", "INTEGER DEFAULT 0"), ("buts_enc_dom", "INTEGER DEFAULT 0"),
-            ("matchs_dom", "INTEGER DEFAULT 0"), ("buts_ext", "INTEGER DEFAULT 0"),
-            ("buts_enc_ext", "INTEGER DEFAULT 0"), ("matchs_ext", "INTEGER DEFAULT 0"),
-            ("forme_dom", "TEXT DEFAULT ''"), ("forme_ext", "TEXT DEFAULT ''"),
-        ]:
+        for col in ["buts_dom", "buts_enc_dom", "matchs_dom",
+                    "buts_ext", "buts_enc_ext", "matchs_ext"]:
             try:
-                c.execute(f"ALTER TABLE classements ADD COLUMN IF NOT EXISTS {col} {typ}")
+                c.execute(
+                    f"ALTER TABLE classements ADD COLUMN IF NOT EXISTS {col} INTEGER DEFAULT 0"
+                )
             except Exception:
                 pass
     else:
@@ -156,18 +152,12 @@ def init_all_tables(conn):
             matchs_dom   INTEGER DEFAULT 0,
             buts_ext     INTEGER DEFAULT 0,
             buts_enc_ext INTEGER DEFAULT 0,
-            matchs_ext   INTEGER DEFAULT 0,
-            forme_dom    TEXT DEFAULT '',
-            forme_ext    TEXT DEFAULT ''
+            matchs_ext   INTEGER DEFAULT 0
         )""")
-        for col, typ in [
-            ("buts_dom", "INTEGER DEFAULT 0"), ("buts_enc_dom", "INTEGER DEFAULT 0"),
-            ("matchs_dom", "INTEGER DEFAULT 0"), ("buts_ext", "INTEGER DEFAULT 0"),
-            ("buts_enc_ext", "INTEGER DEFAULT 0"), ("matchs_ext", "INTEGER DEFAULT 0"),
-            ("forme_dom", "TEXT DEFAULT ''"), ("forme_ext", "TEXT DEFAULT ''"),
-        ]:
+        for col in ["buts_dom", "buts_enc_dom", "matchs_dom",
+                    "buts_ext", "buts_enc_ext", "matchs_ext"]:
             try:
-                c.execute(f"ALTER TABLE classements ADD COLUMN {col} {typ}")
+                c.execute(f"ALTER TABLE classements ADD COLUMN {col} INTEGER DEFAULT 0")
             except Exception:
                 pass
 
