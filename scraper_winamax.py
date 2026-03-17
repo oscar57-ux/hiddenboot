@@ -28,6 +28,28 @@ API_SPORTS_URL = "https://v3.football.api-sports.io"
 # 23=Winamax, 8=Betclic, 1=Bet365, 6=Bwin
 _BOOKMAKER_IDS = [23, 8, 1, 6]
 
+# Ligues autorisées (même whitelist que bootstrap_classements)
+LIGUES_WHITELIST = {
+    61, 62,          # France L1/L2
+    39, 40,          # Angleterre PL/Championship
+    140, 141,        # Espagne Liga/Liga2
+    78, 79,          # Allemagne BL/BL2
+    135, 136,        # Italie Serie A/B
+    88, 89,          # Pays-Bas Eredivisie/Eerste
+    144,             # Belgique Pro League
+    94, 95,          # Portugal Primeira/Segunda
+    203,             # Turquie Süper Lig
+    106,             # Pologne Ekstraklasa
+    286,             # Serbie Super Liga
+    197,             # Grèce Super League
+    207,             # Suisse Super League
+    283,             # Roumanie Liga 1
+    179,             # Écosse Premiership
+    218,             # Autriche Bundesliga
+    210,             # Croatie HNL
+    2, 3, 848,       # UEFA LDC / Europa / Conference
+}
+
 BASE     = "https://www.winamax.fr/appsports"
 MAIN_URL = "https://www.winamax.fr/paris-sportifs/football"
 
@@ -542,14 +564,22 @@ def _fetch_fixture_map(today):
         )
         data   = resp.json()
         result = {}
+        skipped = 0
         for fix in data.get("response", []):
-            fid  = str((fix.get("fixture") or {}).get("id", ""))
-            home = (fix.get("teams") or {}).get("home", {}).get("name", "")
-            away = (fix.get("teams") or {}).get("away", {}).get("name", "")
-            ligue = (fix.get("league") or {}).get("name", "")
-            if fid and home and away:
-                result[fid] = {"home": home, "away": away, "ligue": ligue}
-        log.info(f"[apisports] /fixtures → {len(result)} équipes chargées")
+            fid       = str((fix.get("fixture") or {}).get("id", ""))
+            home      = (fix.get("teams") or {}).get("home", {}).get("name", "")
+            away      = (fix.get("teams") or {}).get("away", {}).get("name", "")
+            league    = fix.get("league") or {}
+            ligue_id  = league.get("id")
+            ligue_nom = league.get("name", "")
+            if not fid or not home or not away:
+                continue
+            if ligue_id not in LIGUES_WHITELIST:
+                log.debug(f"[apisports] ignoré (ligue hors whitelist) : {home} vs {away} [{ligue_nom} id={ligue_id}]")
+                skipped += 1
+                continue
+            result[fid] = {"home": home, "away": away, "ligue": ligue_nom}
+        log.info(f"[apisports] /fixtures → {len(result)} fixtures retenus, {skipped} ignorés (hors whitelist)")
         return result
     except Exception as e:
         log.warning(f"[apisports] Erreur /fixtures: {e}")
