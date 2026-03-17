@@ -491,8 +491,9 @@ def _init_paris_combi_table(c_pg, pg):
 def _construire_combis(paris_valides):
     """
     Retourne (combi_safe, combi_mixte).
-    combi_safe  : 2-4 SAFE (proba >= 80, cote > 1.0), mise 5€
+    combi_safe  : 2-4 SAFE (proba >= 80), mise 5€
     combi_mixte : 2-4 paris (proba >= 70, SAFE+TENTANT), matchs différents du combi_safe, mise 3€
+    Les cotes sont affichées comme info mais ne bloquent pas l'éligibilité.
     """
     def _build(candidats, nom, mise, min_sel=2):
         vus = set()
@@ -508,9 +509,17 @@ def _construire_combis(paris_valides):
             print(f"[combi-{nom}] {len(selections)} éligibles — minimum {min_sel} requis, non généré")
             return None, set()
 
-        cotes  = [round(float(p["cote"]), 2) for p in selections]
-        probas = [int(p.get("probabilite_hiddenscout", 80)) for p in selections]
-        cote_comb = round(functools.reduce(lambda a, b: a * b, cotes), 2)
+        # Cotes : utiliser la valeur réelle si disponible, 1.0 comme neutre sinon
+        def _cote_val(p):
+            try:
+                v = float(p.get("cote") or 0)
+                return v if v > 1.0 else 1.0
+            except (TypeError, ValueError):
+                return 1.0
+
+        probas    = [int(p.get("probabilite_hiddenscout", 80)) for p in selections]
+        cote_vals = [_cote_val(p) for p in selections]
+        cote_comb = round(functools.reduce(lambda a, b: a * b, cote_vals), 2)
 
         prob_joint = probas[0]
         for pr in probas[1:]:
@@ -522,7 +531,7 @@ def _construire_combis(paris_valides):
                 "match":                   p.get("match", ""),
                 "ligue":                   p.get("ligue", ""),
                 "type_pari":               p.get("type_pari", ""),
-                "cote":                    round(float(p["cote"]), 2),
+                "cote":                    round(_cote_val(p), 2),
                 "probabilite_hiddenscout": int(p.get("probabilite_hiddenscout", 80)),
             }
             for p in selections
@@ -544,18 +553,16 @@ def _construire_combis(paris_valides):
         proba = p.get("probabilite_hiddenscout", 0)
         cote  = p.get("cote")
         cat   = p.get("categorie", "?")
-        cote_ok = cote is not None and float(cote or 0) > 1.0
-        print(f"[combi]   cat={cat} proba={proba} cote={cote} (cote>1={cote_ok}) | {p.get('match')} | {p.get('type_pari')}")
+        print(f"[combi]   cat={cat} proba={proba} cote={cote} | {p.get('match')} | {p.get('type_pari')}")
 
     # COMBI 1 — Full SAFE
     safe_candidats = sorted(
         [p for p in paris_valides
-         if int(p.get("probabilite_hiddenscout", 0) or 0) >= 80
-         and float(p.get("cote") or 0) > 1.0],
+         if int(p.get("probabilite_hiddenscout", 0) or 0) >= 80],
         key=lambda p: int(p.get("probabilite_hiddenscout", 0) or 0),
         reverse=True,
     )
-    print(f"[combi] SAFE eligibles (proba>=80, cote>1) : {len(safe_candidats)}")
+    print(f"[combi] SAFE eligibles (proba>=80) : {len(safe_candidats)}")
     for p in safe_candidats:
         print(f"[combi]   -> proba={p.get('probabilite_hiddenscout')} cote={p.get('cote')} | {p.get('match')}")
 
@@ -565,12 +572,11 @@ def _construire_combis(paris_valides):
     mixte_candidats = sorted(
         [p for p in paris_valides
          if int(p.get("probabilite_hiddenscout", 0) or 0) >= 70
-         and float(p.get("cote") or 0) > 1.0
          and (p.get("match") or "").strip().lower() not in used_safe],
         key=lambda p: int(p.get("probabilite_hiddenscout", 0) or 0),
         reverse=True,
     )
-    print(f"[combi] MIXTE eligibles (proba>=70, cote>1, hors safe) : {len(mixte_candidats)}")
+    print(f"[combi] MIXTE eligibles (proba>=70, hors safe) : {len(mixte_candidats)}")
     for p in mixte_candidats:
         print(f"[combi]   -> proba={p.get('probabilite_hiddenscout')} cote={p.get('cote')} | {p.get('match')}")
 
