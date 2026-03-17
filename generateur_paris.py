@@ -153,6 +153,7 @@ def _get_matchs_depuis_predictions(c_pg, ph, today):
             SELECT home, away, ligue, ligue_id, pct_home, pct_nul, pct_away
             FROM predictions
             WHERE date = {ph} AND statut = 'en_attente'
+            AND (statut IS NULL OR statut != 'termine')
             ORDER BY ligue, home
         """, (today,))
         matchs = [dict(r) for r in c_pg.fetchall()]
