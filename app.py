@@ -5,11 +5,27 @@ from datetime import date, datetime, timedelta
 import sqlite3
 import math
 import time
+import unicodedata
 import numpy as np
 
 app = Flask(__name__)
 
 API_SPORTS_KEY = os.environ.get("API_SPORTS_KEY", "")
+
+
+def _norm_team(s: str) -> str:
+    """Normalise un nom d'équipe pour la comparaison : lowercase, sans accents, sans slash/tiret."""
+    s = s.lower().strip()
+    s = s.replace("/", " ").replace("-", " ").replace(".", " ").replace("'", " ")
+    s = unicodedata.normalize("NFD", s)
+    s = "".join(c for c in s if unicodedata.category(c) != "Mn")
+    return " ".join(s.split())
+
+
+def _like_team(name: str) -> str:
+    """Construit un pattern LIKE robuste : remplace / et - par % pour matcher les variantes de noms."""
+    pat = name.strip()[:20].replace("/", "%").replace("-", "%")
+    return f"%{pat}%"
 
 # Désactiver les logs [buteur] en prod pour éviter le rate limit Railway (500 logs/sec)
 DEBUG_BUTEURS = os.environ.get("DEBUG_BUTEURS", "0") == "1"
@@ -1399,7 +1415,7 @@ def api_verifier_paris():
               AND home LIKE {ph}
               AND away LIKE {ph}
             LIMIT 1
-        """, (date_pari, f"%{home_q[:10]}%", f"%{away_q[:10]}%"))
+        """, (date_pari, _like_team(home_q), _like_team(away_q)))
         res = c.fetchone()
         if res:
             res = dict(res)
@@ -1415,7 +1431,7 @@ def api_verifier_paris():
                       AND home LIKE ?
                       AND away LIKE ?
                     LIMIT 1
-                """, (date_pari, f"%{home_q[:10]}%", f"%{away_q[:10]}%"))
+                """, (date_pari, _like_team(home_q), _like_team(away_q)))
                 row_sq = c_sq.fetchone()
                 conn_sq.close()
                 if row_sq:

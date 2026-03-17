@@ -715,10 +715,12 @@ def _type_pari_to_col(type_pari: str) -> str | None:
 
 
 def _normaliser(s: str) -> str:
-    """Minuscules + supprime accents + strip pour comparaison floue."""
+    """Minuscules + supprime accents + caractères spéciaux + strip pour comparaison floue."""
     s = s.lower().strip()
+    s = s.replace("/", " ").replace("-", " ").replace(".", " ").replace("'", " ")
     s = unicodedata.normalize("NFD", s)
-    return "".join(c for c in s if unicodedata.category(c) != "Mn")
+    s = "".join(c for c in s if unicodedata.category(c) != "Mn")
+    return " ".join(s.split())  # collapse whitespace multiple
 
 
 def _get_cote_winamax(conn, match: str, type_pari: str, today: str) -> float | None:
