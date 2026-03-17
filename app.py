@@ -18,6 +18,20 @@ DEBUG_BUTEURS = os.environ.get("DEBUG_BUTEURS", "0") == "1"
 _last_save_time = None    # datetime
 _last_verify_time = None  # datetime
 
+# ── Cache probas Poisson (/api/matchs-jour) ───────────────────────────────────
+_cache_predictions: dict = {}   # date_str → {"ligues": …, "date": …}
+_cache_timestamp:   dict = {}   # date_str → float (time.time())
+CACHE_TTL = 3600                # 1 heure
+
+def _invalidate_cache(date_str: str = None):
+    """Invalide le cache probas pour une date précise, ou tout le cache si date_str=None."""
+    if date_str:
+        _cache_predictions.pop(date_str, None)
+        _cache_timestamp.pop(date_str, None)
+    else:
+        _cache_predictions.clear()
+        _cache_timestamp.clear()
+
 DRAPEAUX_LIGUES = {
     61: "fr", 62: "fr",
     39: "gb-eng", 40: "gb-eng",
@@ -603,6 +617,12 @@ def api_matchs_jour():
             today = date.today().strftime("%Y-%m-%d")
     else:
         today = date.today().strftime("%Y-%m-%d")
+    # ── Cache hit ────────────────────────────────────────────────────────────
+    _now = time.time()
+    if today in _cache_predictions and (_now - _cache_timestamp.get(today, 0)) < CACHE_TTL:
+        print(f"[matchs-jour] cache hit pour {today} (age {int(_now - _cache_timestamp[today])}s)")
+        return jsonify(_cache_predictions[today])
+
     API_KEY = API_SPORTS_KEY
     if not API_KEY:
         print("[matchs-jour] ERREUR: API_SPORTS_KEY non definie")
@@ -822,7 +842,14 @@ def api_matchs_jour():
         except Exception:
             pass
     conn.close()
-    return jsonify({"ligues": ligues, "date": today})
+    result = {"ligues": ligues, "date": today}
+    # Mettre en cache uniquement si aucun match live (scores live seraient figés)
+    has_live = any(m.get("est_live") for matches in ligues.values() for m in matches)
+    if not has_live:
+        _cache_predictions[today] = result
+        _cache_timestamp[today]   = time.time()
+        print(f"[matchs-jour] cache mis à jour pour {today} ({sum(len(v) for v in ligues.values())} matchs)")
+    return jsonify(result)
 
 @app.route("/alertes")
 def alertes():
@@ -2018,6 +2045,7 @@ def sauvegarder_predictions():
 
     conn.close()
     conn_pg.close()
+    _invalidate_cache(today)  # Prédictions fraîches → invalider le cache
     return jsonify({"sauvegarde": total, "date": today})
 
 @app.route("/api/verifier-resultats")
@@ -2804,6 +2832,7 @@ def _job_bootstrap_principal():
     try:
         from bootstrap import run_all
         run_all()
+        _invalidate_cache()  # Classements/joueurs mis à jour → tout invalider
         print("[scheduler] bootstrap principal OK")
     except Exception as e:
         print(f"[scheduler] erreur bootstrap principal: {e}")
@@ -2813,6 +2842,7 @@ def _job_bootstrap_classements():
     try:
         from bootstrap_classements import bootstrap_classements
         bootstrap_classements()
+        _invalidate_cache()  # Classements mis à jour → tout invalider
         print("[scheduler] bootstrap classements OK")
     except Exception as e:
         print(f"[scheduler] erreur bootstrap classements: {e}")
