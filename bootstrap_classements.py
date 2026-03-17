@@ -41,10 +41,11 @@ LIGUES_CIBLES = {
 
 SAISON = 2025
 
-_SAISON_OVERRIDES = {71: 2025, 72: 2025, 128: 2025, 131: 2025, 239: 2025, 265: 2025, 268: 2025}
+# Ligues dont la saison a basculé en 2026 (Amérique du Sud + Colombie)
+LIGUES_SAISON_2026 = [71, 72, 128, 131, 239, 242, 268]
 
 def _saison(ligue_id: int) -> int:
-    return _SAISON_OVERRIDES.get(ligue_id, SAISON)
+    return 2026 if ligue_id in LIGUES_SAISON_2026 else SAISON
 
 
 def bootstrap_classements():
@@ -55,6 +56,9 @@ def bootstrap_classements():
     init_all_tables(conn)
 
     c.execute("DELETE FROM classements")
+    # Suppression ciblée des ligues saison 2026 pour éviter tout mélange 2025/2026
+    placeholders = ",".join([ph] * len(LIGUES_SAISON_2026))
+    c.execute(f"DELETE FROM classements WHERE ligue_id IN ({placeholders})", LIGUES_SAISON_2026)
     conn.commit()
 
     total = 0
