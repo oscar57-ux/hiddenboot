@@ -32,6 +32,22 @@ def _invalidate_cache(date_str: str = None):
         _cache_predictions.clear()
         _cache_timestamp.clear()
 
+# ── Cache pépites / alertes ───────────────────────────────────────────────────
+_cache_pepites:           dict | None = None
+_cache_pepites_timestamp: float       = 0.0
+_cache_alertes:           dict | None = None
+_cache_alertes_timestamp: float       = 0.0
+CACHE_TTL_PEPITES = 3600  # 1 heure
+
+def _invalidate_cache_pepites_alertes():
+    """Invalide le cache pépites et alertes (appelé après bootstrap_forme/principal)."""
+    global _cache_pepites, _cache_pepites_timestamp
+    global _cache_alertes, _cache_alertes_timestamp
+    _cache_pepites           = None
+    _cache_pepites_timestamp = 0.0
+    _cache_alertes           = None
+    _cache_alertes_timestamp = 0.0
+
 DRAPEAUX_LIGUES = {
     61: "fr", 62: "fr",
     39: "gb-eng", 40: "gb-eng",
@@ -465,6 +481,11 @@ def classements():
 
 @app.route("/pepites")
 def pepites():
+    global _cache_pepites, _cache_pepites_timestamp
+    if _cache_pepites is not None and (time.time() - _cache_pepites_timestamp) < CACHE_TTL_PEPITES:
+        print(f"[pepites] cache hit (age {int(time.time() - _cache_pepites_timestamp)}s)")
+        return render_template("pepites.html", **_cache_pepites)
+
     conn = get_db()
     c = conn.cursor()
     c.execute("SELECT COUNT(*) AS n FROM joueurs_forme")
@@ -575,7 +596,10 @@ def pepites():
     print(f"[debug][pepites] joueurs_en_feu: {len(joueurs_en_feu)} résultats")
 
     conn.close()
-    return render_template("pepites.html", regions=resultats, joueurs_en_feu=joueurs_en_feu)
+    _cache_pepites           = {"regions": resultats, "joueurs_en_feu": joueurs_en_feu}
+    _cache_pepites_timestamp = time.time()
+    print(f"[pepites] cache mis à jour")
+    return render_template("pepites.html", **_cache_pepites)
 
 @app.route("/matchs")
 def matchs():
@@ -883,6 +907,11 @@ def api_matchs_jour():
 
 @app.route("/alertes")
 def alertes():
+    global _cache_alertes, _cache_alertes_timestamp
+    if _cache_alertes is not None and (time.time() - _cache_alertes_timestamp) < CACHE_TTL_PEPITES:
+        print(f"[alertes] cache hit (age {int(time.time() - _cache_alertes_timestamp)}s)")
+        return render_template("alertes.html", **_cache_alertes)
+
     conn = get_db()
     c = conn.cursor()
     c.execute("SELECT COUNT(*) AS n FROM joueurs_forme")
@@ -1084,12 +1113,15 @@ def alertes():
     print(f"[debug][alertes] joueurs_a_eviter: {len(joueurs_a_eviter)} résultats")
 
     conn.close()
-    return render_template("alertes.html",
-        joueurs_en_feu=joueurs_en_feu,
-        equipes_serie=equipes_serie,
-        pepites_emergentes=pepites_emergentes,
-        joueurs_a_eviter=joueurs_a_eviter,
-    )
+    _cache_alertes = {
+        "joueurs_en_feu": joueurs_en_feu,
+        "equipes_serie": equipes_serie,
+        "pepites_emergentes": pepites_emergentes,
+        "joueurs_a_eviter": joueurs_a_eviter,
+    }
+    _cache_alertes_timestamp = time.time()
+    print(f"[alertes] cache mis à jour")
+    return render_template("alertes.html", **_cache_alertes)
 
 @app.route("/api/equipe/<int:equipe_id>/buteurs")
 def api_buteurs_equipe(equipe_id):
@@ -1668,6 +1700,7 @@ def debug_force_bootstrap_forme():
         from bootstrap_forme_joueurs import bootstrap_forme
         full = request.args.get("full", "0") == "1"
         bootstrap_forme(full=full)
+        _invalidate_cache_pepites_alertes()
         mode = "full rebuild" if full else "nightly"
         return jsonify({"status": "ok", "message": f"bootstrap_forme terminé ({mode})"})
     except Exception as e:
@@ -1681,6 +1714,7 @@ def debug_force_bootstrap_principal():
     try:
         from bootstrap import run_all
         run_all()
+        _invalidate_cache_pepites_alertes()
         return jsonify({"status": "ok", "message": "bootstrap principal terminé"})
     except Exception as e:
         import traceback
@@ -2892,7 +2926,8 @@ def _job_bootstrap_principal():
     try:
         from bootstrap import run_all
         run_all()
-        _invalidate_cache()  # Classements/joueurs mis à jour → tout invalider
+        _invalidate_cache()
+        _invalidate_cache_pepites_alertes()
         print("[scheduler] bootstrap principal OK")
     except Exception as e:
         print(f"[scheduler] erreur bootstrap principal: {e}")
@@ -2912,6 +2947,7 @@ def _job_forme_joueurs():
     try:
         from bootstrap_forme_joueurs import bootstrap_forme
         bootstrap_forme()
+        _invalidate_cache_pepites_alertes()
         print("[scheduler] bootstrap forme joueurs OK")
     except Exception as e:
         print(f"[scheduler] erreur forme joueurs: {e}")
