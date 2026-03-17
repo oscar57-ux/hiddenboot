@@ -218,7 +218,9 @@ def get_db():
 
 
 def get_pg():
-    """Connexion PostgreSQL (Railway). Fallback SQLite si aucune DATABASE_URL."""
+    """Connexion PostgreSQL (Railway). Fallback SQLite si aucune DATABASE_URL.
+    Le curseur PG accepte '?' comme placeholder (auto-converti en '%s').
+    """
     import psycopg2, psycopg2.extras
     db_url = os.environ.get("DATABASE_PUBLIC_URL") or os.environ.get("DATABASE_URL", "")
     if not db_url:
@@ -232,8 +234,19 @@ def get_pg():
         sep = "&" if "?" in db_url else "?"
         db_url += f"{sep}sslmode=require"
     try:
+        # Curseur compatible '?' → accepte les deux styles de placeholder
+        class _CompatCursor(psycopg2.extras.RealDictCursor):
+            def execute(self, query, vars=None):
+                if isinstance(query, str):
+                    query = query.replace("?", "%s")
+                return super().execute(query, vars)
+            def executemany(self, query, vars_list):
+                if isinstance(query, str):
+                    query = query.replace("?", "%s")
+                return super().executemany(query, vars_list)
+
         conn = psycopg2.connect(db_url)
-        conn.cursor_factory = psycopg2.extras.RealDictCursor
+        conn.cursor_factory = _CompatCursor
         print(f"[get_pg] Connexion PostgreSQL OK — url: {db_url[:30]}...")
         return conn
     except Exception as e:
@@ -255,13 +268,33 @@ def _ph(conn):
     return "%s" if _is_pg(conn) else "?"
 
 
+def _pg_exec(c, conn, sql, is_pg=False):
+    """Exécute un DDL en isolant l'erreur via savepoint (PG) ou try/except (SQLite).
+    Évite que InFailedSqlTransaction ne bloque les instructions suivantes.
+    """
+    if is_pg:
+        try:
+            c.execute("SAVEPOINT _ddl")
+            c.execute(sql)
+            c.execute("RELEASE SAVEPOINT _ddl")
+        except Exception as e:
+            c.execute("ROLLBACK TO SAVEPOINT _ddl")
+            print(f"[pg] DDL ignoré ({e.__class__.__name__}): {sql[:60]}...")
+    else:
+        try:
+            c.execute(sql)
+        except Exception:
+            pass
+
+
 def init_pg_tables():
     """Crée les tables persistantes dans PostgreSQL si elles n'existent pas."""
     try:
         conn = get_pg()
         c = conn.cursor()
-        if _is_pg(conn):
-            c.execute("""CREATE TABLE IF NOT EXISTS predictions (
+        pg = _is_pg(conn)
+        if pg:
+            _pg_exec(c, conn, """CREATE TABLE IF NOT EXISTS predictions (
                 id SERIAL PRIMARY KEY,
                 fixture_id INTEGER UNIQUE,
                 date TEXT, ligue TEXT, ligue_id INTEGER,
@@ -272,21 +305,18 @@ def init_pg_tables():
                 prediction_correcte INTEGER DEFAULT NULL,
                 date_maj TEXT,
                 heure_match TEXT DEFAULT NULL
-            )""")
-            try:
-                c.execute("ALTER TABLE predictions ADD COLUMN IF NOT EXISTS heure_match TEXT DEFAULT NULL")
-            except Exception:
-                pass
+            )""", pg)
+            _pg_exec(c, conn, "ALTER TABLE predictions ADD COLUMN IF NOT EXISTS heure_match TEXT DEFAULT NULL", pg)
             print("[pg] table 'predictions' OK")
-            c.execute("""CREATE TABLE IF NOT EXISTS paris_jour (
+            _pg_exec(c, conn, """CREATE TABLE IF NOT EXISTS paris_jour (
                 id SERIAL PRIMARY KEY,
                 date TEXT, categorie TEXT, match TEXT, ligue TEXT,
                 type_pari TEXT, description TEXT, cote REAL,
                 probabilite INTEGER, raisonnement TEXT, timestamp TEXT,
                 probabilite_hiddenscout INTEGER DEFAULT NULL
-            )""")
+            )""", pg)
             print("[pg] table 'paris_jour' OK")
-            c.execute("""CREATE TABLE IF NOT EXISTS paris_historique (
+            _pg_exec(c, conn, """CREATE TABLE IF NOT EXISTS paris_historique (
                 id SERIAL PRIMARY KEY,
                 date TEXT, match TEXT, ligue TEXT, categorie TEXT,
                 type_pari TEXT, description TEXT, cote REAL,
@@ -294,18 +324,11 @@ def init_pg_tables():
                 heure_generation TEXT DEFAULT NULL,
                 score_reel TEXT, gagne INTEGER DEFAULT NULL,
                 UNIQUE(date, match, type_pari)
-            )""")
+            )""", pg)
+            _pg_exec(c, conn, "ALTER TABLE paris_historique ADD COLUMN IF NOT EXISTS probabilite_hiddenscout INTEGER DEFAULT NULL", pg)
+            _pg_exec(c, conn, "ALTER TABLE paris_historique ADD COLUMN IF NOT EXISTS heure_generation TEXT DEFAULT NULL", pg)
             print("[pg] table 'paris_historique' OK")
-            # Migrations colonnes pour table existante
-            for col_sql in [
-                "ALTER TABLE paris_historique ADD COLUMN IF NOT EXISTS probabilite_hiddenscout INTEGER DEFAULT NULL",
-                "ALTER TABLE paris_historique ADD COLUMN IF NOT EXISTS heure_generation TEXT DEFAULT NULL",
-            ]:
-                try:
-                    c.execute(col_sql)
-                except Exception:
-                    pass
-            c.execute("""CREATE TABLE IF NOT EXISTS paris_combi (
+            _pg_exec(c, conn, """CREATE TABLE IF NOT EXISTS paris_combi (
                 id                 SERIAL PRIMARY KEY,
                 date               DATE,
                 type               VARCHAR(20) DEFAULT 'safe',
@@ -318,18 +341,12 @@ def init_pg_tables():
                 resultat           VARCHAR(20) DEFAULT 'en_attente',
                 created_at         TIMESTAMP DEFAULT NOW(),
                 UNIQUE(date, type)
-            )""")
-            for sql in [
-                "ALTER TABLE paris_combi ADD COLUMN IF NOT EXISTS type VARCHAR(20) DEFAULT 'safe'",
-                "ALTER TABLE paris_combi DROP CONSTRAINT IF EXISTS paris_combi_date_key",
-                "ALTER TABLE paris_combi ADD CONSTRAINT paris_combi_date_type_key UNIQUE (date, type)",
-            ]:
-                try:
-                    c.execute(sql)
-                except Exception:
-                    pass
+            )""", pg)
+            _pg_exec(c, conn, "ALTER TABLE paris_combi ADD COLUMN IF NOT EXISTS type VARCHAR(20) DEFAULT 'safe'", pg)
+            _pg_exec(c, conn, "ALTER TABLE paris_combi DROP CONSTRAINT IF EXISTS paris_combi_date_key", pg)
+            _pg_exec(c, conn, "ALTER TABLE paris_combi ADD CONSTRAINT paris_combi_date_type_key UNIQUE (date, type)", pg)
             print("[pg] table 'paris_combi' OK")
-            c.execute("""CREATE TABLE IF NOT EXISTS predictions_buteurs (
+            _pg_exec(c, conn, """CREATE TABLE IF NOT EXISTS predictions_buteurs (
                 id SERIAL PRIMARY KEY,
                 joueur_id INTEGER, nom TEXT, equipe TEXT, ligue TEXT, ligue_id INTEGER,
                 fixture_id INTEGER, date TEXT,
@@ -339,7 +356,7 @@ def init_pg_tables():
                 a_marque INTEGER DEFAULT NULL, buts_reels INTEGER DEFAULT NULL,
                 statut TEXT DEFAULT 'en_attente',
                 UNIQUE(joueur_id, fixture_id)
-            )""")
+            )""", pg)
             print("[pg] table 'predictions_buteurs' OK")
             conn.commit()
 
@@ -348,7 +365,7 @@ def init_pg_tables():
         from database import init_all_tables
         init_all_tables(conn)
         print("[pg] ✅ init_pg_tables terminé — toutes les tables OK")
-        if not _is_pg(conn):
+        if not pg:
             print("[pg] fallback SQLite — tables bootstrap créées localement")
         conn.close()
     except Exception as e:
@@ -701,7 +718,7 @@ def api_matchs_jour():
     # Moyenne de buts par équipe par match, calculée par ligue
     c.execute("""
         SELECT ligue_id,
-               CAST(SUM(buts_pour) AS REAL) / MAX(1, SUM(victoires + nuls + defaites)) AS moy
+               CAST(SUM(buts_pour) AS REAL) / GREATEST(1, SUM(victoires + nuls + defaites)) AS moy
         FROM classements
         WHERE victoires + nuls + defaites > 0
         GROUP BY ligue_id
@@ -1090,7 +1107,7 @@ def api_buteurs_equipe(equipe_id):
             matchs_adv = max(1, (adv["victoires"] or 0) + (adv["nuls"] or 0) + (adv["defaites"] or 0))
             be_adv = (adv["buts_contre"] or 0) / matchs_adv
             c.execute("""
-                SELECT CAST(SUM(buts_pour) AS REAL) / MAX(1, SUM(victoires + nuls + defaites)) AS moy
+                SELECT CAST(SUM(buts_pour) AS REAL) / GREATEST(1, SUM(victoires + nuls + defaites)) AS moy
                 FROM classements WHERE ligue_id = ?
             """, (adv["ligue_id"],))
             moy_row = c.fetchone()
@@ -1891,7 +1908,7 @@ def sauvegarder_predictions():
     # Moyenne buts par ligue
     c.execute("""
         SELECT ligue_id,
-               CAST(SUM(buts_pour) AS REAL) / MAX(1, SUM(victoires + nuls + defaites)) AS moy
+               CAST(SUM(buts_pour) AS REAL) / GREATEST(1, SUM(victoires + nuls + defaites)) AS moy
         FROM classements WHERE victoires + nuls + defaites > 0
         GROUP BY ligue_id
     """)
@@ -1954,7 +1971,7 @@ def sauvegarder_predictions():
 
             # Moyenne buts ligue (SQLite)
             c.execute("""
-                SELECT CAST(SUM(buts_pour) AS REAL) / MAX(1, SUM(victoires + nuls + defaites)) AS moy
+                SELECT CAST(SUM(buts_pour) AS REAL) / GREATEST(1, SUM(victoires + nuls + defaites)) AS moy
                 FROM classements WHERE ligue_id = ?
             """, (ligue_id,))
             moy_row2 = c.fetchone()
