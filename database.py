@@ -195,6 +195,19 @@ def init_all_tables(conn):
             UNIQUE(joueur_id, date)
         )""")
 
+    # ── Index performances ───────────────────────────────────────────────────
+    for ddl in [
+        "CREATE INDEX IF NOT EXISTS idx_joueurs_forme_joueur_id ON joueurs_forme(joueur_id)",
+        "CREATE INDEX IF NOT EXISTS idx_joueurs_forme_date      ON joueurs_forme(date DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_joueurs_forme_buts      ON joueurs_forme(buts)",
+        "CREATE INDEX IF NOT EXISTS idx_api_joueurs_equipe_id   ON api_joueurs(equipe_id)",
+        "CREATE INDEX IF NOT EXISTS idx_api_joueurs_buts        ON api_joueurs(buts DESC)",
+    ]:
+        try:
+            c.execute(ddl)
+        except Exception:
+            pass
+
     try:
         conn.commit()
     except Exception:
