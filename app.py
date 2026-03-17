@@ -547,7 +547,7 @@ def pepites():
             JOIN api_ligues  l ON j.ligue_id  = l.id
             WHERE d.rn <= 5
             GROUP BY d.joueur_id
-            HAVING buts_recents >= 3
+            HAVING SUM(d.buts) >= 3
             ORDER BY buts_recents DESC, j.buts DESC
             LIMIT 50
         """)
@@ -901,7 +901,7 @@ def alertes():
             JOIN api_ligues  l ON j.ligue_id  = l.id
             WHERE d.rn <= 5
             GROUP BY d.joueur_id
-            HAVING buts_recents > 0
+            HAVING SUM(d.buts) > 0
             ORDER BY buts_recents DESC, note_moy DESC
             LIMIT 10
         """)
@@ -992,7 +992,7 @@ def alertes():
             JOIN api_ligues  l ON j.ligue_id  = l.id
             WHERE d.rn <= 5 AND j.buts < 8
             GROUP BY d.joueur_id
-            HAVING buts_5 > 0
+            HAVING SUM(d.buts) > 0
             ORDER BY score_forme DESC
             LIMIT 10
         """)
@@ -1040,7 +1040,7 @@ def alertes():
             JOIN api_ligues  l ON j.ligue_id  = l.id
             WHERE d.rn <= 5 AND j.buts > 5
             GROUP BY d.joueur_id
-            HAVING buts_5 = 0
+            HAVING SUM(d.buts) = 0
             ORDER BY j.buts DESC
             LIMIT 10
         """)
