@@ -1807,6 +1807,22 @@ def debug_force_generer_paris():
         return jsonify({"status": "error", "message": str(e), "traceback": traceback.format_exc()}), 500
 
 
+@app.route("/debug/check-bdd")
+def debug_check_bdd():
+    """Retourne le nombre de lignes dans chaque table principale."""
+    try:
+        conn = get_db()
+        c = conn.cursor()
+        result = {}
+        for table in ["api_joueurs", "api_equipes", "api_ligues", "classements", "joueurs_forme"]:
+            c.execute(f"SELECT COUNT(*) AS n FROM {table}")
+            result[table] = c.fetchone()["n"]
+        conn.close()
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/debug/regenerer-paris")
 def debug_regenerer_paris():
     """Force la régénération des paris du jour (nécessite DEBUG_TOKEN)."""
