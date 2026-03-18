@@ -810,17 +810,51 @@ def api_matchs_jour():
             details.append(d)
         return details
 
+    _STATUTS_REPORTES = {'PST', 'CANC', 'TBD', 'AWD', 'WO'}
+
+    # Charger aussi les statuts depuis PG pour filtrer les reportés déjà connus
+    pg_statuts_today = {}
+    if conn_pg and c_pg_matchs and ph_pg:
+        try:
+            c_pg_matchs.execute(
+                f"SELECT fixture_id, statut FROM predictions WHERE date = {ph_pg}",
+                (today,)
+            )
+            for row in c_pg_matchs.fetchall():
+                pg_statuts_today[row["fixture_id"]] = row["statut"]
+        except Exception:
+            pass
+
     ligues = {}
     for match in data.get("response", []):
         ligue_id = match["league"]["id"]
         if ligue_id not in ligues_suivies:
             continue
+
+        fixture_id = match["fixture"]["id"]
+        statut_api = match["fixture"]["status"]["short"]
+
+        # Exclure les matchs reportés/annulés — mettre à jour la BDD si nécessaire
+        if statut_api in _STATUTS_REPORTES:
+            if conn_pg and c_pg_matchs and ph_pg:
+                try:
+                    c_pg_matchs.execute(
+                        f"UPDATE predictions SET statut='reporte', date_maj={ph_pg} WHERE fixture_id = {ph_pg}",
+                        (datetime.now().strftime("%Y-%m-%d %H:%M"), fixture_id),
+                    )
+                except Exception:
+                    pass
+            continue
+
+        # Exclure aussi si déjà marqué reporte en BDD
+        if pg_statuts_today.get(fixture_id) == 'reporte':
+            continue
+
         ligue_nom = match["league"]["name"]
         home_id = match["teams"]["home"]["id"]
         away_id = match["teams"]["away"]["id"]
         home_name = match["teams"]["home"]["name"]
         away_name = match["teams"]["away"]["name"]
-        fixture_id = match["fixture"]["id"]
         stats_home = get_stats_equipe(home_id)
         stats_away = get_stats_equipe(away_id)
         moy_ligue = moy_buts_par_ligue.get(ligue_id, 1.35)
@@ -2203,9 +2237,22 @@ def verifier_resultats():
     total_verifie = 0
     total_correct = 0
 
+    _STATUTS_REPORTES = {'PST', 'CANC', 'TBD', 'AWD', 'WO'}
+
     for match in data.get("response", []):
         fixture_id = match["fixture"]["id"]
         statut = match["fixture"]["status"]["short"]
+
+        if statut in _STATUTS_REPORTES:
+            try:
+                c.execute(
+                    f"UPDATE predictions SET statut='reporte', date_maj={ph} WHERE fixture_id = {ph}",
+                    (datetime.now().strftime("%Y-%m-%d %H:%M"), fixture_id),
+                )
+                print(f"[verifier-resultats] fixture {fixture_id} marqué reporte (statut={statut})")
+            except Exception:
+                pass
+            continue
 
         if statut != "FT":
             continue

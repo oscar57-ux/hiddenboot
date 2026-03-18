@@ -472,7 +472,9 @@ function renderMatch(m, showLigue) {
     });
 
     let scoreBox;
-    if (m.statut === 'FT') {
+    if (['PST', 'CANC', 'TBD', 'AWD', 'WO'].includes(m.statut)) {
+        scoreBox = `<div class="score-box"><div class="score-upcoming" style="color:#e07b39">Reporté</div></div>`;
+    } else if (m.statut === 'FT') {
         scoreBox = `<div class="score-box">
             <div class="score-chiffre">${m.goals_home ?? 0} - ${m.goals_away ?? 0}</div>
             <div class="score-ft-label">FT</div>
