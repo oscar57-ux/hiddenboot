@@ -3099,5 +3099,24 @@ except Exception as _sched_err:
     print(f"[scheduler] non demarre: {_sched_err}")
 
 
+import threading
+
+def _prechauffer_caches():
+    time.sleep(10)  # Attendre que l'app soit prête
+    with app.test_client() as client:
+        try:
+            client.get("/pepites")
+            print("[cache] pepites préchauffé ✅")
+        except Exception as e:
+            print(f"[cache] erreur préchauffage pepites: {e}")
+        try:
+            client.get("/alertes")
+            print("[cache] alertes préchauffé ✅")
+        except Exception as e:
+            print(f"[cache] erreur préchauffage alertes: {e}")
+
+threading.Thread(target=_prechauffer_caches, daemon=True).start()
+
+
 if __name__ == "__main__":
     app.run(debug=False, host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
