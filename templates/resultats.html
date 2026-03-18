@@ -66,6 +66,9 @@
         .filter-btn:hover { border-color: #00D4FF; color: #00D4FF; }
         .filter-btn.active { border-color: #00D4FF; background: rgba(0,212,255,0.1); color: #00D4FF; font-weight: 600; }
         .filter-sep { width: 1px; height: 20px; background: #1a2540; margin: 0 4px; }
+        .sub-tab-btn { padding: 7px 16px; border-radius: 8px; border: 1px solid #1a2540; background: #0d1726; color: #4a6080; font-size: 13px; cursor: pointer; transition: all 0.2s; }
+        .sub-tab-btn:hover { border-color: #00D4FF; color: #00D4FF; }
+        .sub-tab-btn.active { border-color: #00D4FF; background: rgba(0,212,255,0.1); color: #00D4FF; font-weight: 600; }
 
         /* ── TABLE ── */
         .table-block { background: #0D1321; border: 1px solid #1a2540; border-radius: 12px; overflow: hidden; overflow-x: auto; }
@@ -369,23 +372,75 @@
 
     <!-- ════ Tab Buteurs ════ -->
     <div class="tab-content" id="tab-buteurs">
-        <div class="filter-bar">
-            <div class="filter-group">
-                <span class="filter-label">Seuil proba :</span>
-                <button class="filter-btn active" onclick="setFiltreButSeuil(20, this)">20%+</button>
-                <button class="filter-btn" onclick="setFiltreButSeuil(30, this)">30%+</button>
-                <button class="filter-btn" onclick="setFiltreButSeuil(40, this)">40%+</button>
-                <button class="filter-btn" onclick="setFiltreButSeuil(50, this)">50%+</button>
-            </div>
-            <div class="filter-sep"></div>
-            <div class="filter-group">
-                <span class="filter-label">Résultat :</span>
-                <button class="filter-btn active" onclick="setFiltreButResultat('tous', this)">Tous</button>
-                <button class="filter-btn" onclick="setFiltreButResultat('marque', this)">A marqué</button>
-                <button class="filter-btn" onclick="setFiltreButResultat('rate', this)">N'a pas marqué</button>
-            </div>
+        <!-- Sous-onglets buteurs -->
+        <div class="sub-tab-bar" style="display:flex;gap:6px;margin-bottom:14px;border-bottom:1px solid #1a2540;padding-bottom:10px">
+            <button class="sub-tab-btn active" id="sbtn-jour"   onclick="showButSubTab('jour',this)">📅 Aujourd'hui</button>
+            <button class="sub-tab-btn"        id="sbtn-global" onclick="showButSubTab('global',this)">🌍 Vue globale</button>
+            <button class="sub-tab-btn"        id="sbtn-ligues" onclick="showButSubTab('ligues',this)">🏆 Par ligue</button>
         </div>
-        <div id="buteurs-content"><div class="loading"><div class="loader-radar"><div class="ring"></div><div class="ring"></div><div class="ring"></div><div class="center"></div></div><p>Chargement...</p></div></div>
+
+        <!-- ── Sous-onglet Aujourd'hui ── -->
+        <div id="but-sub-jour">
+            <div class="filter-bar">
+                <div class="filter-group">
+                    <span class="filter-label">Seuil proba :</span>
+                    <button class="filter-btn active" onclick="setFiltreButSeuil(20, this)">20%+</button>
+                    <button class="filter-btn" onclick="setFiltreButSeuil(30, this)">30%+</button>
+                    <button class="filter-btn" onclick="setFiltreButSeuil(40, this)">40%+</button>
+                    <button class="filter-btn" onclick="setFiltreButSeuil(50, this)">50%+</button>
+                </div>
+                <div class="filter-sep"></div>
+                <div class="filter-group">
+                    <span class="filter-label">Résultat :</span>
+                    <button class="filter-btn active" onclick="setFiltreButResultat('tous', this)">Tous</button>
+                    <button class="filter-btn" onclick="setFiltreButResultat('marque', this)">A marqué</button>
+                    <button class="filter-btn" onclick="setFiltreButResultat('rate', this)">N'a pas marqué</button>
+                </div>
+                <div class="filter-sep"></div>
+                <div class="filter-group">
+                    <span class="filter-label">Match :</span>
+                    <select id="filtre-but-match" onchange="setFiltreButMatch(this.value)" style="background:#0d1726;color:#c0cce0;border:1px solid #1e3050;border-radius:6px;padding:4px 8px;font-size:12px">
+                        <option value="">Tous les matchs</option>
+                    </select>
+                </div>
+            </div>
+            <div id="buteurs-content"><div class="loading"><div class="loader-radar"><div class="ring"></div><div class="ring"></div><div class="ring"></div><div class="center"></div></div><p>Chargement...</p></div></div>
+        </div>
+
+        <!-- ── Sous-onglet Vue globale ── -->
+        <div id="but-sub-global" style="display:none">
+            <div class="filter-bar">
+                <div class="filter-group">
+                    <span class="filter-label">Période :</span>
+                    <button class="filter-btn active" onclick="setGlobalPeriode('tout',this)">Tout</button>
+                    <button class="filter-btn" onclick="setGlobalPeriode('mois',this)">Ce mois</button>
+                    <button class="filter-btn" onclick="setGlobalPeriode('semaine',this)">Cette semaine</button>
+                </div>
+                <div class="filter-sep"></div>
+                <div class="filter-group">
+                    <span class="filter-label">Seuil :</span>
+                    <button class="filter-btn active" onclick="setGlobalSeuil(0,this)">Tous</button>
+                    <button class="filter-btn" onclick="setGlobalSeuil(20,this)">20%+</button>
+                    <button class="filter-btn" onclick="setGlobalSeuil(30,this)">30%+</button>
+                    <button class="filter-btn" onclick="setGlobalSeuil(40,this)">40%+</button>
+                </div>
+            </div>
+            <div id="global-stats-cards" class="stats-grid" style="grid-template-columns:repeat(4,1fr);margin:14px 0 18px"></div>
+            <div id="global-preds-content"><div class="loading"><div class="loader-radar"><div class="ring"></div><div class="ring"></div><div class="ring"></div><div class="center"></div></div><p>Chargement...</p></div></div>
+        </div>
+
+        <!-- ── Sous-onglet Par ligue ── -->
+        <div id="but-sub-ligues" style="display:none">
+            <div class="filter-bar">
+                <div class="filter-group">
+                    <span class="filter-label">Période :</span>
+                    <button class="filter-btn active" onclick="setLiguePeriode('tout',this)">Tout</button>
+                    <button class="filter-btn" onclick="setLiguePeriode('mois',this)">Ce mois</button>
+                    <button class="filter-btn" onclick="setLiguePeriode('semaine',this)">Cette semaine</button>
+                </div>
+            </div>
+            <div id="ligues-content"><div class="loading"><div class="loader-radar"><div class="ring"></div><div class="ring"></div><div class="ring"></div><div class="center"></div></div><p>Chargement...</p></div></div>
+        </div>
     </div>
 
     <!-- ════ Tab Paris Winamax ════ -->
@@ -1103,19 +1158,63 @@ function renderHeatmap(heatmap) {
 
 // ── BUTEURS TAB ──
 
+let butSubTab = 'jour';
+let filtreButMatch = '';
+let globalPeriode = 'tout', globalSeuil = 0, liguePeriode = 'tout';
+let _cachedGlobal = null;
+
+function showButSubTab(tab, btn) {
+    butSubTab = tab;
+    document.querySelectorAll('.sub-tab-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    document.getElementById('but-sub-jour').style.display   = tab === 'jour'   ? '' : 'none';
+    document.getElementById('but-sub-global').style.display = tab === 'global' ? '' : 'none';
+    document.getElementById('but-sub-ligues').style.display = tab === 'ligues' ? '' : 'none';
+    if (tab === 'global' && !_cachedGlobal) chargerGlobalButeurs();
+    if (tab === 'ligues') chargerLiguesButeurs();
+}
+
 function setFiltreButSeuil(val, btn) {
     filtreButSeuil = val;
-    document.querySelectorAll('#tab-buteurs .filter-group:first-child .filter-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('#but-sub-jour .filter-group:first-child .filter-btn').forEach(b => b.classList.remove('active'));
     if (btn) btn.classList.add('active');
     if (_cachedButeurs) renderButeursPreds(_cachedButeurs.predictions || []);
 }
 
 function setFiltreButResultat(val, btn) {
     filtreButResultat = val;
-    const grp = document.querySelectorAll('#tab-buteurs .filter-group');
+    const grp = document.querySelectorAll('#but-sub-jour .filter-group');
     if (grp[1]) grp[1].querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
     if (btn) btn.classList.add('active');
     if (_cachedButeurs) renderButeursPreds(_cachedButeurs.predictions || []);
+}
+
+function setFiltreButMatch(val) {
+    filtreButMatch = val;
+    if (_cachedButeurs) renderButeursPreds(_cachedButeurs.predictions || []);
+}
+
+function setGlobalPeriode(val, btn) {
+    globalPeriode = val;
+    document.querySelectorAll('#but-sub-global .filter-group:first-child .filter-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    _cachedGlobal = null;
+    chargerGlobalButeurs();
+}
+
+function setGlobalSeuil(val, btn) {
+    globalSeuil = val;
+    document.querySelectorAll('#but-sub-global .filter-group:last-child .filter-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    _cachedGlobal = null;
+    chargerGlobalButeurs();
+}
+
+function setLiguePeriode(val, btn) {
+    liguePeriode = val;
+    document.querySelectorAll('#but-sub-ligues .filter-group:first-child .filter-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    chargerLiguesButeurs();
 }
 
 async function chargerButeurs() {
@@ -1126,6 +1225,10 @@ async function chargerButeurs() {
         _cachedButeurs = data;
         const s = data.stats || {};
         renderStatsCards(s.total, null, s.precision_20, (data.predictions||[]).filter(b=>b.statut==='en_attente').length);
+        // Alimenter le select match
+        const sel = document.getElementById('filtre-but-match');
+        const matchs = [...new Set((data.predictions||[]).map(b => `${b.match_home} vs ${b.match_away}`))];
+        sel.innerHTML = '<option value="">Tous les matchs</option>' + matchs.map(m => `<option value="${m}">${m}</option>`).join('');
         renderButeursPreds(data.predictions || []);
     } catch(e) {
         console.error('[chargerButeurs]', e);
@@ -1133,11 +1236,86 @@ async function chargerButeurs() {
     }
 }
 
+async function chargerGlobalButeurs() {
+    document.getElementById('global-preds-content').innerHTML = loader();
+    try {
+        const data = await fetch(`/api/stats-buteurs-global?periode=${globalPeriode}&seuil=${globalSeuil}`).then(r => r.json());
+        _cachedGlobal = data;
+        const s = data.stats || {};
+        const prec = s.precision != null ? s.precision + '%' : '—';
+        const cards = document.getElementById('global-stats-cards');
+        cards.innerHTML = `
+            <div class="stat-card"><div class="label">Prédictions vérifiées</div><div class="value">${s.total ?? 0}</div></div>
+            <div class="stat-card"><div class="label">A marqué ✅</div><div class="value good">${s.corrects ?? 0}</div></div>
+            <div class="stat-card"><div class="label">N'a pas marqué ❌</div><div class="value bad">${s.rates ?? 0}</div></div>
+            <div class="stat-card"><div class="label">Précision</div><div class="value" style="color:${(s.precision||0)>=50?'#00ff87':'#FFA500'}">${prec}</div></div>`;
+        renderGlobalPreds(data.predictions || []);
+    } catch(e) {
+        document.getElementById('global-preds-content').innerHTML = '<div class="empty-state">Erreur chargement données globales.</div>';
+    }
+}
+
+function renderGlobalPreds(preds) {
+    const el = document.getElementById('global-preds-content');
+    if (!preds.length) { el.innerHTML = '<div class="empty-state">Aucune donnée pour ces filtres.</div>'; return; }
+    let html = '<table><tr><th>Date</th><th>Joueur</th><th>Équipe · Ligue</th><th>Match</th><th>Proba</th><th>Résultat</th></tr>';
+    preds.forEach(b => {
+        const dr = DRAPEAUX[b.ligue_id] || '';
+        const flag = dr ? `<span class="fi fi-${dr}" style="font-size:11px"></span> ` : '';
+        const res = b.a_marque === 1
+            ? `<span style="color:#00ff87">✅ ${b.buts_reels} but${b.buts_reels>1?'s':''}</span>`
+            : `<span style="color:#ff4444">❌</span>`;
+        html += `<tr>
+            <td style="color:#4a6080;font-size:12px">${b.date}</td>
+            <td><strong>${b.nom}</strong></td>
+            <td style="font-size:12px">${flag}${b.equipe} · ${b.ligue}</td>
+            <td style="font-size:12px;color:#4a6080">${b.match_home} vs ${b.match_away}</td>
+            <td style="font-weight:700;color:#00D4FF">${b.probabilite}%</td>
+            <td>${res}</td>
+        </tr>`;
+    });
+    html += '</table>';
+    el.innerHTML = html;
+}
+
+async function chargerLiguesButeurs() {
+    document.getElementById('ligues-content').innerHTML = loader();
+    try {
+        const data = await fetch(`/api/stats-buteurs-global?periode=${liguePeriode}&seuil=0`).then(r => r.json());
+        renderLiguesButeurs(data.par_ligue || []);
+    } catch(e) {
+        document.getElementById('ligues-content').innerHTML = '<div class="empty-state">Erreur chargement stats ligues.</div>';
+    }
+}
+
+function renderLiguesButeurs(ligues) {
+    const el = document.getElementById('ligues-content');
+    if (!ligues.length) { el.innerHTML = '<div class="empty-state">Pas encore assez de données (min 5 vérifications par ligue).</div>'; return; }
+    let html = '<table><tr><th>#</th><th>Ligue</th><th>Vérifiés</th><th>A marqué</th><th>Précision</th><th>Barre</th></tr>';
+    ligues.forEach((l, i) => {
+        const dr = DRAPEAUX[l.ligue_id] || '';
+        const flag = dr ? `<span class="fi fi-${dr}"></span> ` : '';
+        const col = l.precision >= 60 ? '#00ff87' : l.precision >= 45 ? '#FFA500' : '#ff4444';
+        const bar = `<div style="background:#1a2540;border-radius:4px;height:8px;width:120px;display:inline-block;vertical-align:middle"><div style="background:${col};height:8px;border-radius:4px;width:${l.precision}%"></div></div>`;
+        html += `<tr>
+            <td style="color:#4a6080;font-weight:700">${i+1}</td>
+            <td>${flag}<strong>${l.ligue}</strong></td>
+            <td style="color:#4a6080">${l.total}</td>
+            <td style="color:#4a6080">${l.corrects}</td>
+            <td style="font-weight:700;color:${col}">${l.precision}%</td>
+            <td>${bar}</td>
+        </tr>`;
+    });
+    html += '</table>';
+    el.innerHTML = html;
+}
+
 function renderButeursPreds(allPreds) {
     const el = document.getElementById('buteurs-content');
     let preds = allPreds.filter(b => (b.probabilite || 0) >= filtreButSeuil);
     if (filtreButResultat === 'marque') preds = preds.filter(b => b.statut === 'termine' && b.a_marque === 1);
     if (filtreButResultat === 'rate')   preds = preds.filter(b => b.statut === 'termine' && b.a_marque === 0);
+    if (filtreButMatch) preds = preds.filter(b => `${b.match_home} vs ${b.match_away}` === filtreButMatch);
 
     if (!preds.length) {
         el.innerHTML = `<div class="empty-state">Aucune prédiction buteur à ${filtreButSeuil}%+ pour ${formatDateLabel(currentDate)}.</div>`;
@@ -1146,7 +1324,7 @@ function renderButeursPreds(allPreds) {
 
     let html = '<div class="buteur-grid">';
     preds.forEach(b => {
-        const photoUrl   = `https://media.api-sports.io/football/players/${b.joueur_id}.png`;
+        const photoUrl    = `https://media.api-sports.io/football/players/${b.joueur_id}.png`;
         const fallbackUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(b.nom)}&background=1a2540&color=00D4FF&size=44`;
         const dr = DRAPEAUX[b.ligue_id] || '';
         let forme = [];

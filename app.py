@@ -2579,9 +2579,67 @@ def api_predictions_buteurs():
             except Exception: pass
 
 
+def _verifier_fixtures_buteurs(fixture_ids, c, ph):
+    """
+    Vérifie les buteurs pour une liste de fixture_ids (FT uniquement).
+    Met à jour predictions_buteurs. Retourne (total_verifie, total_marque).
+    Le commit est à la charge de l'appelant.
+    """
+    import requests as req
+    api_headers = {"x-apisports-key": API_SPORTS_KEY}
+    total_verifie = total_marque = 0
+
+    for fid in fixture_ids:
+        try:
+            # Statut du match
+            resp2 = req.get(
+                "https://v3.football.api-sports.io/fixtures",
+                headers=api_headers, params={"id": fid}, timeout=8,
+            )
+            fix_statut = resp2.json().get("response", [{}])[0].get("fixture", {}).get("status", {}).get("short", "")
+        except Exception:
+            fix_statut = ""
+
+        if fix_statut != "FT":
+            continue
+
+        try:
+            resp = req.get(
+                "https://v3.football.api-sports.io/fixtures/players",
+                headers=api_headers, params={"fixture": fid}, timeout=10,
+            )
+            responses = resp.json().get("response", [])
+        except Exception:
+            continue
+
+        if not responses:
+            continue
+
+        buts_par_joueur = {}
+        for team_block in responses:
+            for joueur_block in team_block.get("players", []):
+                jid = joueur_block.get("player", {}).get("id")
+                goals = joueur_block.get("statistics", [{}])[0].get("goals", {}).get("total") or 0
+                if jid:
+                    buts_par_joueur[jid] = goals
+
+        c.execute(f"SELECT id, joueur_id FROM predictions_buteurs WHERE fixture_id = {ph} AND statut = 'en_attente'", (fid,))
+        for pred in c.fetchall():
+            jid = pred["joueur_id"]
+            buts_reels = buts_par_joueur.get(jid, 0)
+            a_marque = 1 if buts_reels > 0 else 0
+            c.execute(
+                f"UPDATE predictions_buteurs SET a_marque={ph}, buts_reels={ph}, statut='termine' WHERE id={ph}",
+                (a_marque, buts_reels, pred["id"]),
+            )
+            total_verifie += 1
+            total_marque += a_marque
+
+    return total_verifie, total_marque
+
+
 @app.route("/api/verifier-buteurs")
 def api_verifier_buteurs():
-    import requests as req
     date_param = request.args.get("date", date.today().strftime("%Y-%m-%d")).strip()
     try:
         datetime.strptime(date_param, "%Y-%m-%d")
@@ -2591,98 +2649,133 @@ def api_verifier_buteurs():
     conn = get_pg()
     c = conn.cursor()
     ph = _ph(conn)
-
-    # Récupérer les fixture_ids distincts en attente pour cette date
     try:
-        c.execute(f"""
-            SELECT DISTINCT fixture_id FROM predictions_buteurs
-            WHERE date = {ph} AND statut = 'en_attente'
-        """, (date_param,))
-        fixture_ids = [r["fixture_id"] for r in c.fetchall()]
+        c.execute(f"SELECT DISTINCT fixture_id FROM predictions_buteurs WHERE date={ph} AND statut='en_attente'", (date_param,))
+        fixture_ids = [r["fixture_id"] for r in c.fetchall()][:15]
     except Exception:
         conn.close()
         return jsonify({"verifie": 0, "marque": 0, "date": date_param})
 
-    API_KEY = API_SPORTS_KEY
-    api_headers = {"x-apisports-key": API_KEY}
-    total_verifie = 0
-    total_marque = 0
-
-    # Limiter à 15 fixtures par appel pour éviter le rate limit
-    fixture_ids = fixture_ids[:15]
-
-    for fid in fixture_ids:
-        try:
-            resp = req.get(
-                "https://v3.football.api-sports.io/fixtures/players",
-                headers=api_headers,
-                params={"fixture": fid},
-                timeout=10,
-            )
-            fdata = resp.json()
-        except Exception:
-            continue
-
-        responses = fdata.get("response", [])
-        if not responses:
-            continue
-
-        # Vérifier si le match est FT
-        fixture_info = responses[0].get("team", {}) if responses else {}
-        # Statut du match dans le premier team block
-        statut_match = None
-        try:
-            statut_match = responses[0].get("players", [{}])[0].get("statistics", [{}])[0]
-        except Exception:
-            pass
-
-        # Récupérer le statut via l'endpoint fixtures
-        try:
-            resp2 = req.get(
-                "https://v3.football.api-sports.io/fixtures",
-                headers=api_headers,
-                params={"id": fid},
-                timeout=8,
-            )
-            fd2 = resp2.json()
-            fix_statut = fd2.get("response", [{}])[0].get("fixture", {}).get("status", {}).get("short", "")
-        except Exception:
-            fix_statut = ""
-
-        if fix_statut != "FT":
-            continue
-
-        # Construire un dict joueur_id -> buts
-        buts_par_joueur = {}
-        for team_block in responses:
-            for joueur_block in team_block.get("players", []):
-                jid = joueur_block.get("player", {}).get("id")
-                stats_j = joueur_block.get("statistics", [{}])[0]
-                goals = stats_j.get("goals", {}).get("total") or 0
-                if jid:
-                    buts_par_joueur[jid] = goals
-
-        # Mettre à jour nos prédictions pour ce fixture
-        c.execute(f"""
-            SELECT id, joueur_id FROM predictions_buteurs
-            WHERE fixture_id = {ph} AND statut = 'en_attente'
-        """, (fid,))
-        preds = c.fetchall()
-        for pred in preds:
-            jid = pred["joueur_id"]
-            buts_reels = buts_par_joueur.get(jid, 0)
-            a_marque = 1 if buts_reels > 0 else 0
-            c.execute(f"""
-                UPDATE predictions_buteurs SET
-                    a_marque = {ph}, buts_reels = {ph}, statut = 'termine'
-                WHERE id = {ph}
-            """, (a_marque, buts_reels, pred["id"]))
-            total_verifie += 1
-            total_marque += a_marque
-
+    verifie, marque = _verifier_fixtures_buteurs(fixture_ids, c, ph)
     conn.commit()
     conn.close()
-    return jsonify({"verifie": total_verifie, "marque": total_marque, "date": date_param})
+    return jsonify({"verifie": verifie, "marque": marque, "date": date_param})
+
+
+@app.route("/debug/force-verifier-buteurs-all")
+def debug_force_verifier_buteurs_all():
+    """Vérification rétroactive de toutes les prédictions buteurs en attente."""
+    conn = get_pg()
+    c = conn.cursor()
+    ph = _ph(conn)
+    try:
+        c.execute("SELECT DISTINCT date FROM predictions_buteurs WHERE statut='en_attente' ORDER BY date")
+        dates = [r["date"] for r in c.fetchall()]
+    except Exception as e:
+        conn.close()
+        return jsonify({"error": str(e)})
+
+    total_verifie = total_marque = 0
+    par_date = []
+    for d in dates:
+        try:
+            c.execute(f"SELECT DISTINCT fixture_id FROM predictions_buteurs WHERE date={ph} AND statut='en_attente'", (d,))
+            fixture_ids = [r["fixture_id"] for r in c.fetchall()][:15]
+            verifie, marque = _verifier_fixtures_buteurs(fixture_ids, c, ph)
+            conn.commit()
+            total_verifie += verifie
+            total_marque += marque
+            par_date.append({"date": d, "verifie": verifie, "marque": marque})
+            print(f"[force-verifier] {d}: {verifie} vérifiés, {marque} ont marqué")
+            time.sleep(0.3)
+        except Exception as e:
+            print(f"[force-verifier] {d} erreur: {e}")
+            try: conn.rollback()
+            except Exception: pass
+
+    conn.close()
+    return jsonify({"total_verifie": total_verifie, "total_marque": total_marque, "par_date": par_date})
+
+
+@app.route("/api/stats-buteurs-global")
+def api_stats_buteurs_global():
+    from datetime import timedelta
+    periode = request.args.get("periode", "tout").strip()
+    seuil   = max(0, int(request.args.get("seuil", 0) or 0))
+
+    conn = get_pg()
+    c    = conn.cursor()
+    ph   = _ph(conn)
+
+    params_base: list = []
+    date_filter = ""
+    if periode == "semaine":
+        since = (date.today() - timedelta(days=7)).strftime("%Y-%m-%d")
+        date_filter = f"AND date >= {ph}"
+        params_base.append(since)
+    elif periode == "mois":
+        since = (date.today() - timedelta(days=30)).strftime("%Y-%m-%d")
+        date_filter = f"AND date >= {ph}"
+        params_base.append(since)
+
+    seuil_filter = f"AND probabilite >= {ph}" if seuil > 0 else ""
+    if seuil > 0:
+        params_base.append(seuil)
+
+    p = tuple(params_base)
+
+    try:
+        c.execute(f"""
+            SELECT COUNT(*) as total,
+                   COUNT(CASE WHEN a_marque=1 THEN 1 END) as corrects,
+                   COUNT(CASE WHEN a_marque=0 THEN 1 END) as rates
+            FROM predictions_buteurs WHERE statut='termine' {date_filter} {seuil_filter}
+        """, p)
+        gs = c.fetchone()
+        total    = int(gs["total"] or 0)
+        corrects = int(gs["corrects"] or 0)
+
+        c.execute(f"""
+            SELECT ligue, ligue_id,
+                   COUNT(*) as total,
+                   COUNT(CASE WHEN a_marque=1 THEN 1 END) as corrects
+            FROM predictions_buteurs
+            WHERE statut='termine' {date_filter} {seuil_filter}
+            GROUP BY ligue, ligue_id
+            HAVING COUNT(*) >= 5
+            ORDER BY COUNT(CASE WHEN a_marque=1 THEN 1 END) * 100 / NULLIF(COUNT(*),0) DESC NULLS LAST
+        """, p)
+        par_ligue = []
+        for r in c.fetchall():
+            d = dict(r)
+            d["precision"] = round(d["corrects"] / d["total"] * 100) if d["total"] > 0 else 0
+            par_ligue.append(d)
+
+        c.execute(f"""
+            SELECT nom, equipe, ligue, ligue_id, joueur_id, date,
+                   probabilite, intervalle_bas, intervalle_haut,
+                   match_home, match_away, a_marque, buts_reels
+            FROM predictions_buteurs
+            WHERE statut='termine' {date_filter} {seuil_filter}
+            ORDER BY date DESC, probabilite DESC
+            LIMIT 200
+        """, p)
+        predictions = [dict(r) for r in c.fetchall()]
+    except Exception as e:
+        conn.close()
+        return jsonify({"error": str(e), "stats": {}, "par_ligue": [], "predictions": []})
+
+    conn.close()
+    return jsonify({
+        "stats": {
+            "total": total,
+            "corrects": corrects,
+            "rates": int(gs["rates"] or 0),
+            "precision": round(corrects / total * 100) if total > 0 else None,
+        },
+        "par_ligue": par_ligue,
+        "predictions": predictions,
+    })
 
 
 @app.route("/api/stats-dashboard")
@@ -3032,6 +3125,29 @@ def _job_forme_joueurs():
         print(f"[scheduler] erreur forme joueurs: {e}")
 
 
+def _job_verifier_buteurs():
+    """Vérifie les buteurs pour aujourd'hui et hier — lancé toutes les 3h."""
+    today     = date.today().strftime("%Y-%m-%d")
+    yesterday = (date.today() - timedelta(days=1)).strftime("%Y-%m-%d")
+    conn = get_pg()
+    c    = conn.cursor()
+    ph   = _ph(conn)
+    for d in [today, yesterday]:
+        try:
+            c.execute(f"SELECT DISTINCT fixture_id FROM predictions_buteurs WHERE date={ph} AND statut='en_attente'", (d,))
+            fixture_ids = [r["fixture_id"] for r in c.fetchall()][:15]
+            if not fixture_ids:
+                continue
+            verifie, marque = _verifier_fixtures_buteurs(fixture_ids, c, ph)
+            conn.commit()
+            print(f"[scheduler] verifier-buteurs {d}: {verifie} vérifiés, {marque} ont marqué")
+        except Exception as e:
+            print(f"[scheduler] erreur verifier-buteurs {d}: {e}")
+            try: conn.rollback()
+            except Exception: pass
+    conn.close()
+
+
 def _job_verifier_resultats_auto():
     global _last_verify_time
     today = date.today().strftime("%Y-%m-%d")
@@ -3140,8 +3256,16 @@ try:
         id="verifier_3min",
         replace_existing=True,
     )
+    # Vérification buteurs toutes les 3 heures
+    _scheduler.add_job(
+        _job_verifier_buteurs,
+        "interval",
+        hours=3,
+        id="verifier_buteurs_3h",
+        replace_existing=True,
+    )
     _scheduler.start()
-    print("[scheduler] paris@00h05 | scraper@30min | bootstrap_principal@12h00+22h00 | bootstrap_matchs@23h00 | bootstrap_classements@23h20 | forme_joueurs@23h30 | sauvegarde@00h00+12h00")
+    print("[scheduler] paris@00h05 | scraper@30min | bootstrap_principal@12h00+22h00 | bootstrap_matchs@23h00 | bootstrap_classements@23h20 | forme_joueurs@23h30 | sauvegarde@00h00+12h00 | buteurs@3h")
 except Exception as _sched_err:
     print(f"[scheduler] non demarre: {_sched_err}")
 
