@@ -16,6 +16,7 @@ from datetime import date, datetime
 import unicodedata
 import functools
 
+import time
 import anthropic
 import requests as req
 
@@ -150,7 +151,7 @@ def _ph(conn):
 def _get_matchs_depuis_predictions(c_pg, ph, today):
     try:
         c_pg.execute(f"""
-            SELECT home, away, ligue, ligue_id, pct_home, pct_nul, pct_away
+            SELECT fixture_id, home, away, ligue, ligue_id, pct_home, pct_nul, pct_away
             FROM predictions
             WHERE date = {ph} AND statut = 'en_attente'
             AND (statut IS NULL OR statut != 'termine')
@@ -723,6 +724,57 @@ def _normaliser(s: str) -> str:
     return " ".join(s.split())  # collapse whitespace multiple
 
 
+def _fetch_cotes_api_par_fixture(fixture_id: int) -> dict:
+    """
+    Appelle /odds?fixture={fixture_id}&bookmaker=8 et retourne un dict de cotes.
+    Bet IDs : 1=Match Winner, 2=Double Chance, 5=Goals Over/Under, 8=Both Teams Score.
+    Retourne {} si pas de données ou erreur.
+    """
+    def _f(v):
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return None
+
+    try:
+        resp = req.get(
+            "https://v3.football.api-sports.io/odds",
+            headers={"x-apisports-key": API_SPORTS_KEY},
+            params={"fixture": fixture_id, "bookmaker": 8},
+            timeout=10,
+        )
+        data = resp.json()
+        response = data.get("response", [])
+        if not response:
+            return {}
+        bookmakers = response[0].get("bookmakers", [])
+        if not bookmakers:
+            return {}
+        bets = bookmakers[0].get("bets", [])
+        cotes: dict = {}
+        for bet in bets:
+            bid = bet.get("id")
+            vals = {v["value"]: v["odd"] for v in bet.get("values", [])}
+            if bid == 1:   # Match Winner
+                cotes["cote_1"] = _f(vals.get("Home"))
+                cotes["cote_x"] = _f(vals.get("Draw"))
+                cotes["cote_2"] = _f(vals.get("Away"))
+            elif bid == 2:  # Double Chance
+                cotes["cote_1x"] = _f(vals.get("Home/Draw"))
+                cotes["cote_12"] = _f(vals.get("Home/Away"))
+                cotes["cote_x2"] = _f(vals.get("Draw/Away"))
+            elif bid == 5:  # Goals Over/Under
+                cotes["cote_plus25"]  = _f(vals.get("Over 2.5"))
+                cotes["cote_moins25"] = _f(vals.get("Under 2.5"))
+            elif bid == 8:  # Both Teams Score
+                cotes["cote_btts_oui"] = _f(vals.get("Yes"))
+                cotes["cote_btts_non"] = _f(vals.get("No"))
+        return {k: v for k, v in cotes.items() if v is not None}
+    except Exception as e:
+        print(f"[odds-api] erreur fixture {fixture_id}: {e}")
+        return {}
+
+
 def _get_cote_winamax(conn, match: str, type_pari: str, today: str) -> float | None:
     """
     Cherche la cote pour ce match via fuzzy matching sur home/away.
@@ -928,20 +980,20 @@ def generer_paris() -> int:
         m["_det_home"] = det_h
         m["_det_away"] = det_a
 
-    # 2. Construire le prompt enrichi avec toutes les données disponibles
-    try:
-        _cur = conn_pg.cursor()
-        _cur.execute(f"SELECT COUNT(*) AS n FROM cotes_winamax WHERE date = {ph}", (today,))
-        _row = _cur.fetchone()
-        nb_cotes_db = (_row["n"] if isinstance(_row, dict) else _row[0]) if _row else 0
-        print(f"[cotes] {nb_cotes_db} cotes disponibles en BDD pour {today}")
-        _cur.execute(f"SELECT home, away FROM cotes_winamax WHERE date = {ph} ORDER BY home", (today,))
-        for _r in _cur.fetchall():
-            _h = _r["home"] if isinstance(_r, dict) else _r[0]
-            _a = _r["away"] if isinstance(_r, dict) else _r[1]
-            print(f"[cotes-debug] {_h} vs {_a}")
-    except Exception as e:
-        print(f"[cotes-debug] erreur listing: {e}")
+    # 2. Récupérer les cotes Winamax par fixture_id (API directe — pas de fuzzy matching)
+    cotes_par_fixture: dict = {}   # fixture_id → {cote_1, cote_x, ...}
+    fixture_id_par_match: dict = {}  # "Home vs Away" (exact) → fixture_id
+    for m in matchs:
+        fid = m.get("fixture_id")
+        if not fid:
+            continue
+        print(f"[odds-api] fixture {fid} — {m['home']} vs {m['away']}")
+        cotes_par_fixture[fid] = _fetch_cotes_api_par_fixture(fid)
+        fixture_id_par_match[f"{m['home']} vs {m['away']}"] = fid
+        time.sleep(0.15)
+    print(f"[odds-api] {sum(1 for c in cotes_par_fixture.values() if c)} cotes trouvées / {len(matchs)} matchs")
+
+    # 3. Construire le prompt enrichi avec toutes les données disponibles
 
     def _fmt(v):
         return str(v) if v is not None else "N/D"
@@ -966,8 +1018,9 @@ def generer_paris() -> int:
         top_h = _get_top_buteurs(c, det_h.get("equipe_id"))
         top_a = _get_top_buteurs(c, det_a.get("equipe_id"))
 
-        # Cotes Winamax pour ce match
-        cw = _get_cotes_match_winamax(conn_pg, m["home"], m["away"], today)
+        # Cotes Winamax pour ce match — lookup direct par fixture_id
+        fid = m.get("fixture_id")
+        cw = cotes_par_fixture.get(fid, {}) if fid else {}
 
         # Value bet : comparer la proba dominante à la cote implicite Winamax
         dom_proba, dom_col = max(
@@ -1192,21 +1245,32 @@ Réponds UNIQUEMENT en JSON valide sans markdown :
             buteurs_par_match[match_key] += 1
 
     # 5b. Enrichir avec les cotes Winamax réelles + filtre BTTS hors plage
+    # 5b. Enrichir avec les cotes réelles — lookup direct par fixture_id (pas de fuzzy matching)
     nb_cotes_trouvees = 0
-    paris_valides_filtrés = []
     for p in paris_valides:
-        cote_win = _get_cote_winamax(conn_pg, p.get("match", ""), p.get("type_pari", ""), today)
+        match_str = p.get("match", "")
+        fid = fixture_id_par_match.get(match_str)
+        # Fallback : recherche partielle si le nom diffère légèrement
+        if not fid:
+            m_norm = _normaliser(match_str)
+            for k, v in fixture_id_par_match.items():
+                if _normaliser(k) == m_norm:
+                    fid = v
+                    break
+        col = _type_pari_to_col(p.get("type_pari", ""))
+        cote_win = None
+        if fid and col:
+            cw = cotes_par_fixture.get(fid, {})
+            cote_win = cw.get(col)
         if cote_win is not None:
             old = p.get("cote")
             p["cote"] = cote_win
             nb_cotes_trouvees += 1
-            print(f"[winamax] {p['match']} | {p['type_pari']} → cote réelle={cote_win} (Claude={old})")
+            print(f"[winamax] {match_str} | {p['type_pari']} → cote réelle={cote_win} (Claude={old})")
         else:
-            print(f"[winamax] {p['match']} | {p['type_pari']} → cote Winamax introuvable, cote Claude conservée")
+            fid_str = str(fid) if fid else "fixture_id manquant"
+            print(f"[winamax] {match_str} | {p['type_pari']} → introuvable ({fid_str}), cote Claude conservée")
 
-        paris_valides_filtrés.append(p)
-
-    paris_valides = paris_valides_filtrés
     print(f"[winamax] {nb_cotes_trouvees}/{len(paris_valides)} cotes Winamax trouvées")
 
     # 6. Effacer et réinsérer
