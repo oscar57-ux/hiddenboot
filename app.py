@@ -58,7 +58,7 @@ _cache_pepites:           dict | None = None
 _cache_pepites_timestamp: float       = 0.0
 _cache_alertes:           dict | None = None
 _cache_alertes_timestamp: float       = 0.0
-CACHE_TTL_PEPITES = 3600  # 1 heure
+CACHE_TTL_PEPITES = 43200  # 12 heures
 
 def _invalidate_cache_pepites_alertes():
     """Invalide le cache pépites, alertes et buteurs (appelé après bootstrap_forme/principal)."""
